@@ -26,6 +26,7 @@ namespace ClaudeNotch
         public List<QuickTurn> QuickHistory = new List<QuickTurn>();
         public string QuickStatus = "";     // "Thinking…", "Searching the web…", an error
         public bool QuickMinimized, Speaking; // quick voice as a small bar; the answer is being read out
+        public bool QuickCanClear;            // a private chat, which can be cleared
         public string Title = "Claude", Detail = "", Short = ""; // Short: "4:12 · 3/5", for the compact style
         public bool Busy, JustFinished, Muted;
         public int Done, Total;
@@ -56,7 +57,7 @@ namespace ClaudeNotch
     {
         const double WinW = 560, WinH = 640; // room for the biggest card; the rest is transparent and clicks pass through
 
-        public event Action OpenPrimary, ToggleMute, EndVoice, OpenSettings, Quit, Dismiss, ToggleMinimize;
+        public event Action OpenPrimary, ToggleMute, EndVoice, OpenSettings, Quit, Dismiss, ToggleMinimize, ClearChat;
         public Func<double> QuickLevel; // quick voice: how loud you are, or the answer being read (0..1; -1 unknown)
         public event Action<SessionInfo> OpenSession;
         public event Action<object, int> Choose; // owner, index into Choices
@@ -64,7 +65,7 @@ namespace ClaudeNotch
         readonly Settings settings;
         readonly Grid holder;
         readonly Border card, mini, progressTrack;
-        readonly Button closeButton, micButton, minButton;
+        readonly Button closeButton, micButton, minButton, clearButton;
         readonly TextBlock minGlyph;
         readonly DockPanel header;
         readonly TextBlock title, subtitle, timerText, micGlyph, moreText;
@@ -79,6 +80,7 @@ namespace ClaudeNotch
         // Quick voice: earlier turns, then what you said, the answer's card, and the answer.
         readonly ScrollViewer quickScroll;
         readonly StackPanel quickHistory;
+        readonly TextBlock quickNotes;
         readonly Border youBubble, cardHost;
         readonly TextBlock youText, answerText, quickStatus;
         string historyKey = "", cardKey = "", turnKey = "";
@@ -147,6 +149,13 @@ namespace ClaudeNotch
             minGlyph = new TextBlock { FontFamily = Theme.Icons, FontSize = 9, Foreground = Theme.Dim, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
             minButton = RoundButton(18, minGlyph, "Minimize", () => { if (ToggleMinimize != null) ToggleMinimize(); });
             minButton.Margin = new Thickness(8, 0, 0, 0);
+            clearButton = RoundButton(18, new TextBlock
+            {
+                Text = "", FontFamily = Theme.Icons, FontSize = 9, Foreground = Theme.Dim,
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            }, "Clear this chat", () => { if (ClearChat != null) ClearChat(); });
+            clearButton.Margin = new Thickness(8, 0, 0, 0);
+            clearButton.ToolTip = "Clear this chat: it's gone from here, and Claude forgets it too";
 
             var miniGrid = new Grid();
             miniGrid.ColumnDefinitions.Add(miniDone);
@@ -158,7 +167,7 @@ namespace ClaudeNotch
             compactCount.VerticalAlignment = VerticalAlignment.Center;
             compactTasks = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0), Visibility = Visibility.Collapsed, Children = { miniBar, compactCount } };
 
-            var right = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 0), Children = { compactTasks, voicePanel, alertDot, minButton, closeButton } };
+            var right = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 0), Children = { compactTasks, voicePanel, alertDot, clearButton, minButton, closeButton } };
             header = new DockPanel { LastChildFill = true };
             DockPanel.SetDock(right, Dock.Right);
             header.Children.Add(right);
@@ -196,9 +205,11 @@ namespace ClaudeNotch
             answerText.Margin = new Thickness(2, 10, 2, 0);
             quickStatus = Wrapped(12.5, Theme.Dim);
             quickStatus.Margin = new Thickness(2, 10, 2, 0);
+            quickNotes = Wrapped(12, Theme.Dim);
+            quickNotes.Margin = new Thickness(2, 10, 2, 0);
             quickScroll = new ScrollViewer
             {
-                Content = new StackPanel { Margin = new Thickness(16, 2, 16, 14), Children = { quickHistory, youBubble, cardHost, answerText, quickStatus } },
+                Content = new StackPanel { Margin = new Thickness(16, 2, 16, 14), Children = { quickHistory, youBubble, cardHost, quickNotes, answerText, quickStatus } },
                 VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, // the wheel still scrolls
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
                 Focusable = false, Visibility = Visibility.Collapsed,
@@ -416,6 +427,7 @@ namespace ClaudeNotch
             voicePanel.Visibility = s.Kind == "voice" || listening || speakingBars ? Visibility.Visible : Visibility.Collapsed;
             timerText.Visibility = s.Kind == "voice" || (listening && !minimized) ? Visibility.Visible : Visibility.Collapsed;
             minButton.Visibility = quick && hover ? Visibility.Visible : Visibility.Collapsed;
+            clearButton.Visibility = quick && hover && !minimized && s.QuickCanClear ? Visibility.Visible : Visibility.Collapsed;
             micButton.Visibility = quick ? Visibility.Collapsed : Visibility.Visible;
             alertDot.Visibility = asking ? Visibility.Visible : Visibility.Collapsed;
             quickScroll.Visibility = quick && !minimized ? Visibility.Visible : Visibility.Collapsed;
@@ -486,7 +498,7 @@ namespace ClaudeNotch
             bool follow = !hover || quickScroll.VerticalOffset >= quickScroll.ScrollableHeight - 4; // you scrolled up to read: stay there
 
             var sb = new StringBuilder();
-            foreach (var t in s.QuickHistory) sb.Append(t.Heard).Append('|').Append(t.Text.Length).Append('\n');
+            foreach (var t in s.QuickHistory) sb.Append(t.Heard).Append('|').Append(t.Text.Length).Append('|').Append(t.Notes.Count).Append('\n');
             if (sb.ToString() != historyKey)
             {
                 historyKey = sb.ToString();
@@ -503,6 +515,8 @@ namespace ClaudeNotch
             if (ck != cardKey) { cardKey = ck; cardHost.Child = now.Card == null ? null : CardView(now.Card, false); }
             cardHost.Visibility = now.Card != null ? Visibility.Visible : Visibility.Collapsed;
             cardHost.Margin = new Thickness(0, now.Heard != "" ? 10 : 0, 0, 0);
+            quickNotes.Text = string.Join("\n", now.Notes);
+            quickNotes.Visibility = now.Notes.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
             answerText.Text = now.Text;
             answerText.Visibility = now.Text != "" ? Visibility.Visible : Visibility.Collapsed;
             quickStatus.Text = s.QuickStatus;
@@ -533,6 +547,13 @@ namespace ClaudeNotch
                 a.TextTrimming = TextTrimming.WordEllipsis;
                 a.Margin = new Thickness(2, t.Card != null ? 6 : 0, 2, 0);
                 panel.Children.Add(a);
+            }
+            if (t.Notes.Count > 0)
+            {
+                var n = Wrapped(11.5, Theme.Dim);
+                n.Text = string.Join("\n", t.Notes);
+                n.Margin = new Thickness(2, 6, 2, 0);
+                panel.Children.Add(n);
             }
             return panel;
         }

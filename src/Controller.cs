@@ -30,7 +30,9 @@ namespace ClaudeNotch
         readonly List<Question> questions = new List<Question>();
 
         SettingsWindow settingsWindow;
-        Alert alert;
+        readonly List<Alert> alerts = new List<Alert>(); // one per session; the newest shows
+        string closedSession;
+        DateTime closedUntil;
         List<SessionInfo> sessions = new List<SessionInfo>();
         DateTime dismissedUntil = DateTime.MinValue, voiceStarted;
         bool wasLooking, wasVoice;
@@ -45,6 +47,7 @@ namespace ClaudeNotch
             quick = new QuickVoice(settings) { HookExe = HookExe, KeepOpen = () => notch.Hovering, Persist = () => settings.QuickMinimized };
             quick.Changed += Refresh;
             notch.ToggleMinimize += ToggleQuickMinimized;
+            notch.ClearChat += ClearQuickChat;
             notch.QuickLevel = () => quick.State == QuickVoice.Phase.Listening ? quick.InputLevel : quick.OutputLevel;
 
             notch.OpenPrimary += OpenPrimary;
@@ -65,7 +68,11 @@ namespace ClaudeNotch
             PromptSender.Failed += msg => tray.Balloon(msg);
 
             server.HookReceived += OnHook;
-            server.PendingGone += p => { pending.Remove(p); Refresh(); };
+            server.PendingGone += p =>
+            {
+                if (pending.Remove(p) && QuickVoice.IsVoiceFolder(p.Cwd)) quick.AddNote("Stopped before you answered: " + p.Detail);
+                Refresh();
+            };
             server.CommandReceived += cmd => { if (cmd == "settings") OpenSettings(); else if (cmd == "quit") Quit(); };
             watcher.Changed += Refresh;
             Hotkeys.Pressed += OnShortcut;
@@ -106,11 +113,13 @@ namespace ClaudeNotch
             string ev = Json.Str(d, "hook_event_name");
             string sid = Json.Str(d, "session_id");
 
-            // The session moved on, so any question it asked was answered somewhere else.
-            if (ev == "Stop" || ev == "UserPromptSubmit" || ev == "PostToolUse" || ev == "SessionEnd")
+            // The session moved on, so any question it asked was answered somewhere else. Not
+            // PostToolUse: it only comes for the task-list tools, often sent in the same message
+            // as the tool that's waiting, so it says nothing about that tool.
+            if (ev == "Stop" || ev == "UserPromptSubmit" || ev == "SessionEnd")
             {
                 ReleasePending(sid);
-                if (alert != null && alert.SessionId == sid) alert = null;
+                alerts.RemoveAll(a => a.SessionId == sid);
             }
             // A new prompt (typed in Claude, or a button pressed there) answers its question.
             if (ev == "UserPromptSubmit" || ev == "SessionEnd") questions.RemoveAll(q => q.SessionId == sid);
@@ -133,37 +142,40 @@ namespace ClaudeNotch
                     if (settings.ApproveFromNotch && !looking && desktop)
                     {
                         pending.Add(p);
-                        alert = null;
+                        alerts.RemoveAll(a => a.SessionId == sid);
                     }
                     else
                     {
                         p.Respond(HookServer.NoDecision); // Claude asks in its own window
-                        if (!looking) ShowAlert(sid, d, detail);
+                        if (!looking) ShowAlert(sid, Json.Str(d, "cwd"), detail);
                     }
                 }
-                else if (!looking) ShowAlert(sid, d, detail);
+                else if (!looking) ShowAlert(sid, Json.Str(d, "cwd"), detail);
             }
             else if (ev == "Notification")
             {
-                bool covered = pending.Exists(x => x.SessionId == sid) || (alert != null && alert.SessionId == sid && (DateTime.Now - alert.At).TotalSeconds < 5);
-                if (!covered && !LookingAt(sid)) ShowAlert(sid, d, Json.Str(d, "message"));
+                bool covered = pending.Exists(x => x.SessionId == sid) || alerts.Exists(a => a.SessionId == sid)
+                    || (sid == closedSession && DateTime.Now < closedUntil); // you just closed it: it's in Claude now
+                if (!covered && !LookingAt(sid)) ShowAlert(sid, Json.Str(d, "cwd"), Json.Str(d, "message"));
             }
             Refresh();
         }
 
-        void ShowAlert(string sid, Dictionary<string, object> d, string detail)
+        // Stays until it's been answered, you go to it, or you close it: Claude keeps waiting.
+        void ShowAlert(string sid, string cwd, string detail)
         {
-            string project = ProjectName(Json.Str(d, "cwd"));
+            string project = ProjectName(cwd);
             var session = sessions.Find(x => x.Id == sid);
             bool terminal = session != null && !session.Desktop;
-            alert = new Alert
+            alerts.RemoveAll(a => a.SessionId == sid);
+            alerts.Add(new Alert
             {
                 SessionId = sid,
                 At = DateTime.Now,
                 Terminal = terminal,
                 Title = project == "" ? "Needs your permission" : "Needs permission · " + project,
                 Detail = string.IsNullOrEmpty(detail) ? (terminal ? "Answer in the terminal" : "Open Claude to respond") : detail,
-            };
+            });
         }
 
         // The end of a turn in the desktop app: a recap and, sometimes, a question with one or
@@ -214,7 +226,7 @@ namespace ClaudeNotch
             if (a != null)
             {
                 var target = sessions.Find(x => x.Id == a.SessionId);
-                if (a == alert) alert = null;
+                alerts.Remove(a);
                 if (target != null) OpenSession(target); else watcher.RestoreClaude();
                 Refresh();
                 return;
@@ -237,12 +249,32 @@ namespace ClaudeNotch
         void ReleasePending(string sid)
         {
             foreach (var p in pending.ToArray())
-                if (sid == null || p.SessionId == sid) { p.Respond(HookServer.NoDecision); pending.Remove(p); }
+                if (sid == null || p.SessionId == sid) HandBack(p);
+        }
+
+        // To Claude's own prompt in that chat. Quick voice has no prompt to go back to, so there
+        // it's a no, kept in the quick voice chat.
+        void HandBack(HookServer.Pending p)
+        {
+            if (QuickVoice.IsVoiceFolder(p.Cwd)) { Decline(p, "Not allowed"); return; }
+            p.Respond(HookServer.NoDecision);
+            pending.Remove(p);
+            closedSession = p.SessionId;
+            closedUntil = DateTime.Now.AddSeconds(10);
+        }
+
+        void Decline(HookServer.Pending p, string why)
+        {
+            p.Respond(p.DenyReply);
+            pending.Remove(p);
+            quick.AddNote(why + ": " + p.Detail);
         }
 
         void Answer(HookServer.Pending p, bool allow)
         {
             if (!pending.Contains(p)) return; // already handed back to Claude
+            if (!allow && QuickVoice.IsVoiceFolder(p.Cwd)) { Decline(p, "Not allowed"); Refresh(); return; }
+            if (QuickVoice.IsVoiceFolder(p.Cwd)) quick.AddNote("Allowed: " + p.Detail);
             p.Respond(allow ? p.AllowReply : p.DenyReply);
             pending.Remove(p);
             Refresh();
@@ -259,20 +291,28 @@ namespace ClaudeNotch
             if (looking && !wasLooking && settings.DismissFor == "return") dismissedUntil = DateTime.MinValue;
             wasLooking = looking;
 
-            // A held request goes back to Claude's own prompt when you go and look at it, or
-            // before the hook times out.
+            // A held request goes back to Claude's own prompt when you go and look at that chat.
+            // Before the hook times out it does too, and the notch keeps saying it's waiting.
+            // Quick voice's are only yours to answer here: looking at Claude changes nothing.
             foreach (var p in pending.ToArray())
             {
                 if (p.Settled) { pending.Remove(p); continue; }
-                if (now - p.At > HoldPermissionFor || LookingAt(p.SessionId)) { p.Respond(HookServer.NoDecision); pending.Remove(p); }
+                bool voiceRequest = QuickVoice.IsVoiceFolder(p.Cwd);
+                bool expired = now - p.At > HoldPermissionFor;
+                if (expired && voiceRequest) Decline(p, "No answer in time");
+                else if (expired) { p.Respond(HookServer.NoDecision); pending.Remove(p); ShowAlert(p.SessionId, p.Cwd, p.Detail); }
+                else if (!voiceRequest && LookingAt(p.SessionId)) { p.Respond(HookServer.NoDecision); pending.Remove(p); }
             }
             questions.RemoveAll(q => now - q.At > TimeSpan.FromHours(12) || !SessionAlive(q.SessionId));
             var question = questions.Count > 0 ? questions[questions.Count - 1] : null;
-            if (alert != null)
+            foreach (var a in alerts.ToArray())
             {
-                if (LookingAt(alert.SessionId)) { if (alert.SeenAt == DateTime.MinValue) alert.SeenAt = now; }
-                if ((alert.SeenAt != DateTime.MinValue && now - alert.SeenAt > AlertFadeAfterSeen) || now - alert.At > TimeSpan.FromMinutes(10)) alert = null;
+                if (a.SeenAt == DateTime.MinValue && LookingAt(a.SessionId, true)) a.SeenAt = now;
+                bool seen = a.SeenAt != DateTime.MinValue && now - a.SeenAt > AlertFadeAfterSeen;
+                bool ended = now - a.At > TimeSpan.FromMinutes(1) && !SessionAlive(a.SessionId);
+                if (seen || ended || now - a.At > TimeSpan.FromHours(12)) alerts.Remove(a);
             }
+            var alert = alerts.Count > 0 ? alerts[alerts.Count - 1] : null;
 
             bool voice = watcher.InVoice;
             if (voice && !wasVoice) voiceStarted = now;
@@ -295,7 +335,7 @@ namespace ClaudeNotch
                 st.Choices = new List<string> { "Deny", "Allow" };
                 st.Primary = 1;
             }
-            else if (quick.Active) ShowQuick(st);
+            else if (quick.Active && (alert == null || quick.InUse)) ShowQuick(st); // the minimized bar doesn't hide a request
             else if (alert != null)
             {
                 st.Kind = "alert";
@@ -304,6 +344,7 @@ namespace ClaudeNotch
                 st.Owner = alert;
                 st.Choices = new List<string> { alert.Terminal ? "Open terminal" : "Open Claude" };
                 st.Primary = 0;
+                st.MorePending = alerts.Count - 1;
             }
             else if (voice) st.Kind = "voice";
             else if (question != null)
@@ -343,7 +384,8 @@ namespace ClaudeNotch
             bool fullscreenBlock = watcher.FullscreenApp && !settings.ShowOverFullscreen;
             // Permission requests show even when the notch is hidden. Over a fullscreen app they
             // wait (still held) and appear when you leave it, unless you allowed fullscreen.
-            if (alertOn) st.Visible = !fullscreenBlock;
+            // Quick voice's show anyway, like its panel: you just asked for it.
+            if (alertOn) st.Visible = !fullscreenBlock || (st.Pending != null && QuickVoice.IsVoiceFolder(st.Pending.Cwd));
             else if (st.Kind == "quick") st.Visible = true; // you just asked for it
             else if (now < dismissedUntil || fullscreenBlock || looking) st.Visible = false;
             else if (voice || st.Kind == "question") st.Visible = true;
@@ -365,10 +407,20 @@ namespace ClaudeNotch
             Refresh();
         }
 
+        // Nothing it was waiting to do goes ahead, and no note is left behind.
+        void ClearQuickChat()
+        {
+            foreach (var p in pending.ToArray())
+                if (QuickVoice.IsVoiceFolder(p.Cwd)) { p.Respond(p.DenyReply); pending.Remove(p); }
+            quick.ClearChat();
+            Refresh();
+        }
+
         // Quick voice is a small chat: earlier turns, then what you just said and the answer.
         void ShowQuick(NotchState st)
         {
             st.Kind = "quick";
+            st.QuickCanClear = settings.QuickHistory != "history";
             st.QuickNow = quick.Current;
             st.QuickHistory = quick.History;
             st.QuickMinimized = settings.QuickMinimized;
@@ -431,13 +483,18 @@ namespace ClaudeNotch
             return line;
         }
 
-        // Is the user looking at this session right now (its app window or its terminal)?
-        bool LookingAt(string sid)
+        // Is the user looking at this session right now (that chat in the app, or its terminal)?
+        // Claude being in front on another chat doesn't count: the prompt wouldn't be on screen.
+        // When it can't be told, the answer is ifUnsure, and a request that stays on the notch
+        // can still be answered there.
+        bool LookingAt(string sid, bool ifUnsure = false)
         {
             var s = sid == null ? null : sessions.Find(x => x.Id == sid);
-            if (s == null) return watcher.ClaudeInFront || ForegroundIsTerminalOf(null);
-            if (s.Desktop) return watcher.ClaudeInFront;
-            return ForegroundIsTerminalOf(s);
+            if (s == null) return ifUnsure && (watcher.ClaudeInFront || ForegroundIsTerminalOf(null));
+            if (!s.Desktop) return ForegroundIsTerminalOf(s);
+            if (!watcher.ClaudeInFront) return false;
+            if (string.IsNullOrEmpty(s.Name) || string.IsNullOrEmpty(watcher.SessionTitle)) return ifUnsure;
+            return s.Name == watcher.SessionTitle;
         }
 
         bool SessionAlive(string sid)
@@ -459,7 +516,7 @@ namespace ClaudeNotch
         void OpenPrimary()
         {
             // During quick voice a click is about the conversation: the small bar opens up again.
-            if (quick.Active && pending.Count == 0)
+            if (quick.Active && pending.Count == 0 && shownKind != "alert")
             {
                 if (settings.QuickMinimized) ToggleQuickMinimized();
                 return;
@@ -519,17 +576,24 @@ namespace ClaudeNotch
 
         void Dismiss()
         {
+            // A request from one of your chats is up, over quick voice: × closes only that.
+            if (shownKind == "alert" && quick.Active && (pending.Count == 0 || !QuickVoice.IsVoiceFolder(pending[0].Cwd)))
+            {
+                CloseShownRequest();
+                Refresh();
+                return;
+            }
             if (quick.Active)
             {
                 // Stop quick voice, and say no to anything it was waiting to do.
                 foreach (var p in pending.ToArray())
-                    if (QuickVoice.IsVoiceFolder(p.Cwd)) { p.Respond(p.DenyReply); pending.Remove(p); }
+                    if (QuickVoice.IsVoiceFolder(p.Cwd)) Decline(p, "Not allowed");
                 quick.Dismiss();
                 return;
             }
             if (watcher.InVoice) watcher.EndVoice();
             ReleasePending(null);
-            alert = null;
+            alerts.Clear();
             questions.Clear(); // they're still in Claude; the notch just stops asking
             var d = settings.DismissDuration;
             dismissedUntil = d == TimeSpan.Zero ? DateTime.MaxValue : DateTime.Now + d;
@@ -538,9 +602,17 @@ namespace ClaudeNotch
 
         string shownKind = "";
 
+        // The request on the notch, and only that one, so any others waiting behind it stay:
+        // to Claude's own prompt (quick voice's is a no, noted in its chat).
+        void CloseShownRequest()
+        {
+            if (pending.Count > 0) HandBack(pending[0]);
+            else if (alerts.Count > 0) alerts.RemoveAt(alerts.Count - 1);
+        }
+
         // Esc closes what's up on the notch: the quick voice panel (as its ×), or a permission
-        // request or question (handed back to Claude's own prompt, nothing allowed or denied,
-        // and the notch isn't hidden for later). On the minimized bar it only stops the reading.
+        // request or question (nothing allowed or denied, and the notch isn't hidden for later).
+        // On the minimized bar it only stops the reading.
         void OnEscape()
         {
             if (shownKind == "quick")
@@ -549,18 +621,22 @@ namespace ClaudeNotch
                 else if (settings.QuickMinimized) quick.Hush();
                 else Dismiss();
             }
-            else if (shownKind == "alert" || shownKind == "question")
-            {
-                ReleasePending(null);
-                alert = null;
-                questions.Clear();
-            }
+            else if (shownKind == "alert") CloseShownRequest();
+            else if (shownKind == "question" && questions.Count > 0) questions.RemoveAt(questions.Count - 1);
             Refresh();
         }
 
         void OnShortcut()
         {
-            if (settings.VoiceMode == "quick") { quick.Press(); return; }
+            if (settings.VoiceMode == "quick")
+            {
+                // This cuts off the question that's waiting, so say so before its turn moves up.
+                if (quick.State == QuickVoice.Phase.Thinking || quick.State == QuickVoice.Phase.Answering)
+                    foreach (var p in pending.ToArray())
+                        if (QuickVoice.IsVoiceFolder(p.Cwd)) Decline(p, "Stopped before you answered");
+                quick.Press();
+                return;
+            }
             if (watcher.InVoice) return; // already talking
             string mode = settings.VoiceMode;
             // Typing goes to Claude's own quick entry (Ctrl+Alt+Space).
@@ -591,7 +667,9 @@ namespace ClaudeNotch
             if (Installer.IsInstalledCopy) Installer.SetStartWithWindows(settings.StartWithWindows);
             if (settings.KeepHooksInstalled) KeepHooks();
             else if (hooksWere) HookInstaller.Uninstall();
-            if (!settings.ApproveFromNotch) ReleasePending(null);
+            if (!settings.ApproveFromNotch)
+                foreach (var p in pending.ToArray())
+                    if (!QuickVoice.IsVoiceFolder(p.Cwd)) HandBack(p);
             if (settings.VoiceMode == "quick") QuickVoice.EnsureSkill();
             if (settings.VoiceMode == "quick" && settings.QuickEngine == "local") MicRecorder.WarmUp();
             quick.SettingsChanged();

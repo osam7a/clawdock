@@ -13,8 +13,12 @@ permission requests, and lets you talk or type to Claude from anywhere.
   window forward. An app session opens Claude and selects it in the sidebar.
 - **Permission requests.** When a Claude app session needs permission while you're away from it,
   the notch shows what it wants to run (`Bash: git push`) with **Allow** and **Deny**. If you go
-  back to the session instead, Claude asks in its own window as usual. A terminal (CLI) session
-  asks in the terminal right away; the notch shows a small notice with **Open terminal**.
+  back to that chat instead, Claude asks in its own window as usual (Claude being open on another
+  chat doesn't count). A terminal (CLI) session asks in the terminal right away; the notch shows a
+  small notice with **Open terminal**. A request always stays findable: on the notch until it's
+  answered, or in that chat with a notice on the notch. Several wait behind each other ("+1 more").
+  Quick voice's requests stay on the notch until you answer, and what came of each one (allowed,
+  not allowed, no answer in time) stays in its chat.
 - **Claude's questions.** When a Claude app session ends its turn with a question ("Should I test
   …?") and buttons, the notch shows the same question with the same buttons, the recommended one
   in clay. Clicking one presses that button in Claude. If it can't be pressed, a reply button's text
@@ -72,7 +76,8 @@ permission requests, and lets you talk or type to Claude from anywhere.
     Just answer. If you say nothing for 7 seconds, or press **Esc**, it closes and the answer stays
     on screen. Turn it off with **Listen for my reply**; it needs answers read aloud.
   - *History:* private (nothing saved; follow-ups keep context for 15 minutes), or **one chat,
-    VOICE_CHATS**, in your Claude Code history, picked up again each time.
+    VOICE_CHATS**, in your Claude Code history, picked up again each time. A private chat has a
+    trash button on the panel (hover over it): the chat is gone and Claude forgets it too.
 - **Typing.** If you prefer typing, or there's no microphone for Claude voice, the shortcut opens
   the Claude app's own quick entry (it presses Ctrl+Alt+Space). If Claude isn't running, it
   starts on a new chat.
@@ -83,7 +88,8 @@ permission requests, and lets you talk or type to Claude from anywhere.
 - **Stays out of the way.** It hides while you're looking at Claude (the app, or the terminal
   running the session) and over fullscreen apps. **×** hides it until you go back to Claude, or for
   15 minutes or an hour. **Esc** closes what just came up: a permission request or a question goes
-  back to Claude's own prompt (nothing is allowed or denied), and quick voice closes. Esc still
+  back to Claude's own prompt (nothing is allowed or denied; quick voice has no prompt, so there
+  it's a no, noted in its chat), one at a time, and quick voice closes. Esc still
   reaches the app you're in; the notch only watches for it while something is showing.
 - **Tray icon.** Settings, *Type to Claude*, *Repair hooks*, and *Quit*.
 
@@ -154,8 +160,9 @@ Claude window ──UI Automation──> voice, mute, current session title, pro
   before sending anything. If the notch isn't running, the hook prints nothing and exits, so
   Claude Code behaves as if there were no hook.
 - **Permission requests** are held for at most 9 minutes (the hook's timeout is 10). They are
-  handed back to Claude's own prompt when you look at the session, when the session moves on,
-  or when you hide the notch.
+  handed back to Claude's own prompt when you look at that chat, when its turn ends, or when you
+  close them; after the 9 minutes a notice stays on the notch until you've gone to it. Quick
+  voice's never go back to a prompt: they end as a no, noted in its chat.
 
 | File | What it does |
 | --- | --- |

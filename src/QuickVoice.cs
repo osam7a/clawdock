@@ -18,6 +18,7 @@ namespace ClaudeNotch
         public string Heard = "", Text = ""; // what you said; the answer without its card
         public QuickCard Card;
         public bool Cut;                      // you cut the answer off
+        public List<string> Notes = new List<string>(); // what it asked permission for, and what came of it
     }
 
     // The key fact of an answer, shown big. Claude sends it as <card>{json}</card> before the
@@ -135,8 +136,21 @@ namespace ClaudeNotch
             get
             {
                 string heard = State == Phase.Listening ? (Heard + " " + Partial).Trim() : Heard;
-                return new QuickTurn { Heard = heard, Text = Display(Answer), Card = ParseCard(Answer) };
+                return new QuickTurn { Heard = heard, Text = Display(Answer), Card = ParseCard(Answer), Notes = new List<string>(turnNotes) };
             }
+        }
+
+        // Claude is using this, or you're talking to it, rather than an answer just sitting there.
+        public bool InUse { get { return Speaking || State == Phase.Listening || State == Phase.Thinking || State == Phase.Answering; } }
+
+        List<string> turnNotes = new List<string>();
+
+        // What happened to a permission request: it stays in this conversation's chat.
+        public void AddNote(string note)
+        {
+            if (Heard != "" && State != Phase.Listening) turnNotes.Add(note);
+            else if (history.Count > 0) history[history.Count - 1].Notes.Add(note);
+            Raise();
         }
 
         public static readonly string Folder = Path.Combine(Settings.DataDir, "voice");
@@ -187,8 +201,9 @@ namespace ClaudeNotch
         // The answer on screen moves up into the history when you ask the next thing.
         void SaveTurn(bool cut)
         {
-            if (Heard == "" || Answer == "") return;
-            history.Add(new QuickTurn { Heard = Heard, Text = Display(Answer), Card = ParseCard(Answer), Cut = cut });
+            if (Heard == "" || (Answer == "" && turnNotes.Count == 0)) return;
+            history.Add(new QuickTurn { Heard = Heard, Text = Display(Answer), Card = ParseCard(Answer), Cut = cut, Notes = turnNotes });
+            turnNotes = new List<string>();
             if (history.Count > 20) history.RemoveAt(0);
             Heard = Answer = "";
         }
@@ -203,6 +218,24 @@ namespace ClaudeNotch
             if (cut) Interrupt();
             SaveTurn(cut);
             transcribing = false;
+            State = Phase.Idle;
+            tick.Stop();
+            Raise();
+        }
+
+        // Forgets this private conversation: the chat on the notch and what Claude remembers of it.
+        // The panel closes, and the next question starts a new one.
+        public void ClearChat()
+        {
+            followUpDue = followUp = false;
+            if (State == Phase.Listening) { stopping = true; StopRecognizer(); }
+            StopSpeaking();
+            KillClaude();
+            ignoreTurns = 0;
+            transcribing = false;
+            history.Clear();
+            turnNotes.Clear();
+            Heard = Partial = Answer = Status = "";
             State = Phase.Idle;
             tick.Stop();
             Raise();
@@ -223,6 +256,7 @@ namespace ClaudeNotch
 
             heardParts.Clear();
             followUp = followUpDue = false;
+            turnNotes.Clear();
             Heard = Partial = Answer = Status = "";
             held = false; holdDecided = false; stopping = false; voiced = false; transcribing = false;
             listenId++;
@@ -432,7 +466,7 @@ namespace ClaudeNotch
             stopping = true;
             StopRecognizer();
             followUp = false;
-            if (history.Count > 0) history.RemoveAt(history.Count - 1);
+            if (history.Count > 0) { turnNotes = history[history.Count - 1].Notes; history.RemoveAt(history.Count - 1); }
             Heard = followUpHeard;
             Answer = followUpAnswer;
             Partial = Status = "";
