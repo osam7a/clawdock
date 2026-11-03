@@ -99,11 +99,17 @@ namespace ClaudeNotch
             try { return Clipboard.ContainsText() ? Clipboard.GetText() : null; } catch { return null; }
         }
 
+        // Marked so Windows leaves it out of clipboard history (Win+V) and cloud clipboard sync.
         static void SetClipboard(string text)
         {
+            var data = new DataObject();
+            data.SetText(text);
+            data.SetData("ExcludeClipboardContentFromMonitorProcessing", new System.IO.MemoryStream(new byte[4]));
+            data.SetData("CanIncludeInClipboardHistory", new System.IO.MemoryStream(BitConverter.GetBytes(0)));
+            data.SetData("CanUploadToCloudClipboard", new System.IO.MemoryStream(BitConverter.GetBytes(0)));
             for (int i = 0; i < 5; i++)
             {
-                try { Clipboard.SetText(text); return; } catch { Thread.Sleep(50); } // another app may hold it briefly
+                try { Clipboard.SetDataObject(data, true); return; } catch { Thread.Sleep(50); } // another app may hold it briefly
             }
         }
 
@@ -134,7 +140,8 @@ namespace ClaudeNotch
                     "$p = [IO.File]::ReadAllText($f)\n" +
                     "Remove-Item -LiteralPath $f -ErrorAction SilentlyContinue\n" +
                     "$p = $p -replace '(\\\\*)\"', '$1$1\\\"' -replace '(\\\\+)$', '$1$1'\n" +
-                    "claude $p\n";
+                    // "--" so a prompt starting with "-" can't be read as a flag (e.g. --dangerously-skip-permissions).
+                    "claude -- $p\n";
                 string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
                 string ps = "powershell.exe -NoLogo -NoExit -ExecutionPolicy Bypass -EncodedCommand " + encoded;
 

@@ -72,7 +72,13 @@ namespace ClaudeNotch
             refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             refreshTimer.Tick += (s, e) => Refresh();
             hookTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
-            hookTimer.Tick += (s, e) => KeepHooks();
+            hookTimer.Tick += (s, e) =>
+            {
+                KeepHooks();
+                // Windows quietly drops a low-level keyboard hook that was ever too slow to
+                // answer, so re-arm the shortcut now and then.
+                if (settings.Shortcut == "copilot") Hotkeys.Apply(settings);
+            };
         }
 
         public void Start()
@@ -110,6 +116,7 @@ namespace ClaudeNotch
                 if (p != null)
                 {
                     p.Detail = detail;
+                    p.FullDetail = FullCommand(Json.Obj(d, "tool_input"));
                     if (settings.ApproveFromNotch && !looking)
                     {
                         pending.Add(p);
@@ -151,6 +158,7 @@ namespace ClaudeNotch
 
         void Answer(HookServer.Pending p, bool allow)
         {
+            if (!pending.Contains(p)) return; // already handed back to Claude
             p.Respond(allow ? HookServer.Allow : HookServer.Deny);
             pending.Remove(p);
             Refresh();
@@ -313,7 +321,9 @@ namespace ClaudeNotch
             if (!string.IsNullOrEmpty(s.Name) && s.Name != watcher.SessionTitle) SelectInSidebar(s.Name);
         }
 
-        // Best effort: click the session's entry in Claude's sidebar.
+        // Best effort: click the session's entry in Claude's sidebar. Sidebar entries are plain
+        // buttons named after the session, so a session called e.g. "Settings" could match an
+        // action button: only click when exactly one candidate exists, never in a toolbar.
         static void SelectInSidebar(string name)
         {
             IntPtr h = Native.FindClaudeWindow();
@@ -324,15 +334,20 @@ namespace ClaudeNotch
                 {
                     var win = AutomationElement.FromHandle(h);
                     var named = new PropertyCondition(AutomationElement.NameProperty, name);
+                    var walker = TreeWalker.ControlViewWalker;
+                    var candidates = new List<AutomationElement>();
                     foreach (AutomationElement e in win.FindAll(TreeScope.Descendants, named))
                     {
                         var type = e.Current.ControlType;
-                        if (type != ControlType.Button && type != ControlType.ListItem && type != ControlType.TreeItem
-                            && type != ControlType.Hyperlink && type != ControlType.TabItem) continue;
-                        object pattern;
-                        if (e.TryGetCurrentPattern(InvokePattern.Pattern, out pattern)) { ((InvokePattern)pattern).Invoke(); return; }
-                        if (e.TryGetCurrentPattern(SelectionItemPattern.Pattern, out pattern)) { ((SelectionItemPattern)pattern).Select(); return; }
+                        if (type != ControlType.Button && type != ControlType.ListItem && type != ControlType.TreeItem) continue;
+                        var parent = walker.GetParent(e);
+                        if (parent != null && (parent.Current.ControlType == ControlType.ToolBar || parent.Current.ControlType == ControlType.MenuBar)) continue;
+                        candidates.Add(e);
                     }
+                    if (candidates.Count != 1) return;
+                    object pattern;
+                    if (candidates[0].TryGetCurrentPattern(InvokePattern.Pattern, out pattern)) ((InvokePattern)pattern).Invoke();
+                    else if (candidates[0].TryGetCurrentPattern(SelectionItemPattern.Pattern, out pattern)) ((SelectionItemPattern)pattern).Select();
                 }
                 catch { }
             });
@@ -425,6 +440,14 @@ namespace ClaudeNotch
         {
             if (string.IsNullOrEmpty(cwd)) return "";
             try { return System.IO.Path.GetFileName(cwd.TrimEnd('\\', '/')); } catch { return ""; }
+        }
+
+        static string FullCommand(Dictionary<string, object> input)
+        {
+            string what = Json.Str(input, "command");
+            if (what == "") what = Json.Str(input, "file_path");
+            if (what == "") what = Json.Str(input, "url");
+            return what.Length > 4000 ? what.Substring(0, 4000) + "…" : what;
         }
 
         static string DescribeTool(string tool, Dictionary<string, object> input)

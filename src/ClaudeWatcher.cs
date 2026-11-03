@@ -46,7 +46,7 @@ namespace ClaudeNotch
         IntPtr claudeWindow;
 
         // Written by the UI Automation thread, read by Poll.
-        volatile bool probeVoice, probeMuted, probeWorking;
+        volatile bool probeVoice, probeMuted, probeWorking, probeInFront;
         volatile IntPtr probeWindow;
         volatile string probeTitle;
 
@@ -102,7 +102,9 @@ namespace ClaudeNotch
                 probeVoice = voice;
                 probeMuted = muted;
                 probeWorking = working;
-                Thread.Sleep(700);
+                // Walking Claude's accessibility tree isn't free for Claude either, so look less
+                // often while it's in front (the notch is hidden then anyway).
+                Thread.Sleep(probeInFront ? 1500 : 700);
             }
         }
 
@@ -152,11 +154,11 @@ namespace ClaudeNotch
                 var scope = toggle;
                 for (int i = 0; i < 3 && walker.GetParent(scope) != null; i++) scope = walker.GetParent(scope);
 
-                var sb = new StringBuilder(DateTime.Now + ": could not end voice. Controls near the mic toggle:\r\n");
+                var sb = new StringBuilder("Could not end voice. Controls near the mic toggle:");
                 foreach (AutomationElement e in scope.FindAll(TreeScope.Descendants, Condition.TrueCondition))
                     if (!string.IsNullOrEmpty(e.Current.Name) && e.Current.Name.Length < 60)
-                        sb.AppendLine("  [" + e.Current.ControlType.ProgrammaticName + "] " + e.Current.Name);
-                File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ClaudeNotch.log"), sb.ToString());
+                        sb.Append(" | [" + e.Current.ControlType.ProgrammaticName + "] " + e.Current.Name);
+                Log.Write(sb.ToString());
             }
             catch { }
         }
@@ -214,6 +216,7 @@ namespace ClaudeNotch
             bool fullscreen = !inFront && IsFullscreen(fg);
             if (claudeOpen) claudeWindow = open != IntPtr.Zero ? open : minimized;
             probeWindow = claudeOpen ? claudeWindow : IntPtr.Zero;
+            probeInFront = inFront;
             bool voice = claudeOpen && (probeVoice || MicInUse());
             bool muted = voice && probeMuted;
             bool isMinimized = claudeOpen && open == IntPtr.Zero;

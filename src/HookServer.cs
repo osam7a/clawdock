@@ -42,7 +42,7 @@ namespace ClaudeNotch
         {
             static int nextId;
             public readonly int Id = Interlocked.Increment(ref nextId);
-            public string SessionId, Tool, Detail, Cwd;
+            public string SessionId, Tool, Detail, FullDetail, Cwd;
             public DateTime At = DateTime.Now;
             internal NamedPipeServerStream Pipe;
             int settled;

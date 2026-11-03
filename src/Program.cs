@@ -63,7 +63,7 @@ namespace ClaudeNotch
         static void Demo()
         {
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-            var notch = new NotchWindow(new Settings());
+            var notch = new NotchWindow(new Settings { Transient = true });
             var now = DateTime.Now;
             var working = new SessionInfo { Id = "a", Name = "CoPilot key launcher", Cwd = @"C:\Users\you\Claude-Notch", Desktop = true, Busy = true, Done = 1, Total = 5 };
             var cli = new SessionInfo { Id = "b", Name = "api refactor", Cwd = @"C:\code\api", Busy = true, Done = 0, Total = 3 };

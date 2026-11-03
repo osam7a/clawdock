@@ -67,6 +67,8 @@ namespace ClaudeNotch
         Mascot mascot;
 
         NotchState state = new NotchState();
+        HookServer.Pending actionsFor; // the request the Allow / Deny buttons are showing
+        DateTime actionsSince;
         bool shown, hover;
         string layoutKey = "", listKey = "", miniKey = "";
         double scale = 1;
@@ -74,6 +76,8 @@ namespace ClaudeNotch
         public NotchWindow(Settings settings)
         {
             this.settings = settings;
+            // Until the window first shows, use the system DPI (the prompt box is placed from it too).
+            using (var g = System.Drawing.Graphics.FromHwnd(IntPtr.Zero)) scale = g.DpiX / 96.0;
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
             Background = Brushes.Transparent;
@@ -284,6 +288,8 @@ namespace ClaudeNotch
             bool expanded = !Mini || hoverExpand || (hover && alert);
             bool showList = hoverExpand && s.Sessions.Count > 0 && !alert;
             bool showActions = alert && s.Pending != null && expanded;
+            if (!showActions) actionsFor = null;
+            else if (actionsFor != s.Pending) { actionsFor = s.Pending; actionsSince = DateTime.Now; }
 
             mascot.Talking = (s.Kind == "voice" && !s.Muted) || (s.Kind == "session" && s.Busy);
             mascot.Alert = alert;
@@ -298,6 +304,8 @@ namespace ClaudeNotch
                 showSub = false;
             }
             subtitle.Text = s.Detail;
+            // The line is cut to fit; hover shows the whole command before you allow it.
+            card.ToolTip = alert && s.Pending != null && !string.IsNullOrEmpty(s.Pending.FullDetail) ? s.Pending.FullDetail : null;
             if (s.Kind == "voice") title.Inlines.Clear();
             if (s.Kind == "voice") title.Inlines.Add(new Run(s.Muted ? "Muted" : "Listening"));
 
@@ -471,10 +479,15 @@ namespace ClaudeNotch
             return t;
         }
 
+        // Answers only the request the buttons were showing, only while they're visible, and
+        // not in the first moments after it appeared, so a request that pops up under the
+        // cursor (or a click meant for the previous one) can't be approved by accident.
         void AnswerPending(bool allow)
         {
-            var p = state.Pending;
-            if (p != null && Answer != null) Answer(p, allow);
+            var p = actionsFor;
+            if (p == null || p != state.Pending || p.Settled || actions.Visibility != Visibility.Visible) return;
+            if ((DateTime.Now - actionsSince).TotalMilliseconds < 700) return;
+            if (Answer != null) Answer(p, allow);
         }
 
         void TickVoice()

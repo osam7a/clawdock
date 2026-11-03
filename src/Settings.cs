@@ -79,8 +79,13 @@ namespace ClaudeNotch
             return new Settings();
         }
 
+        // Set for the demo, so dragging its notch around doesn't overwrite your real settings.
+        [ScriptIgnore]
+        public bool Transient { get; set; }
+
         public void Save()
         {
+            if (Transient) return;
             try
             {
                 Directory.CreateDirectory(DataDir);
