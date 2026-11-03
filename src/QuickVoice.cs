@@ -196,6 +196,7 @@ namespace ClaudeNotch
         // × on the notch: stop talking and go away.
         public void Dismiss()
         {
+            followUpDue = false;
             if (State == Phase.Listening) { stopping = true; StopRecognizer(); }
             StopSpeaking();
             bool cut = (State == Phase.Thinking && !transcribing) || State == Phase.Answering;
@@ -221,6 +222,7 @@ namespace ClaudeNotch
             if (!VoiceLauncher.HasMicrophone()) { Fail("No microphone found."); return; }
 
             heardParts.Clear();
+            followUp = followUpDue = false;
             Heard = Partial = Answer = Status = "";
             held = false; holdDecided = false; stopping = false; voiced = false; transcribing = false;
             listenId++;
@@ -377,10 +379,11 @@ namespace ClaudeNotch
                 if (!holdDecided && now - ListenStarted >= HoldThreshold) { holdDecided = true; held = Hotkeys.Held; }
                 if (held && !Hotkeys.Held) FinishListening();              // let go of the key
                 else if (!held && holdDecided && any && now - lastSpeech > EndSilence) FinishListening();
+                else if (!any && followUp && now - ListenStarted > FollowUpWait) CancelFollowUp();
                 else if (!any && now - ListenStarted > NothingHeard && !Hotkeys.Held) FinishListening();
                 else if (now - ListenStarted > MaxListen) FinishListening();
             }
-            if (player != null && settings.QuickTts == "natural" && (Speaking || player.Playing))
+            if (player != null && settings.QuickTts != "windows" && (Speaking || player.Playing))
             {
                 bool talking = NaturalSpeaking;
                 if (talking != Speaking)
@@ -390,6 +393,8 @@ namespace ClaudeNotch
                     Raise();
                 }
             }
+            // The answer ended on a question and it's been read: listen for the reply.
+            if (State == Phase.Done && followUpDue && !Speaking && now - FinishedAt > FollowUpPause) { followUpDue = false; StartFollowUp(); return; }
             if (State == Phase.Done && KeepOpen != null && KeepOpen()) FinishedAt = now;
             // Minimized, the bar stays until you close it (or the conversation times out).
             if (State == Phase.Done && Persist != null && Persist() && now - lastUsed < IdleExit) FinishedAt = now;
@@ -398,9 +403,49 @@ namespace ClaudeNotch
             if (State == Phase.Idle) tick.Stop();
         }
 
+        // ---- follow-ups ----------------------------------------------------
+
+        // Claude asked something: the microphone opens by itself, and if you don't answer it
+        // closes again and the answer stays on screen as it was.
+        static readonly TimeSpan FollowUpPause = TimeSpan.FromMilliseconds(350); // so it doesn't hear the voice's last word
+        static readonly TimeSpan FollowUpWait = TimeSpan.FromSeconds(7);
+        bool followUpDue, followUp;
+        string followUpHeard = "", followUpAnswer = "";
+
+        // Listening for the reply to a question, rather than because you pressed the shortcut.
+        public bool FollowingUp { get { return State == Phase.Listening && followUp; } }
+
+        void StartFollowUp()
+        {
+            followUpHeard = Heard;
+            followUpAnswer = Answer;
+            SaveTurn(false);
+            StartListening();
+            followUp = State == Phase.Listening;
+            if (followUp) { Status = "Go ahead, I'm listening"; Raise(); }
+        }
+
+        // No reply (or Esc): back to the answer as it was.
+        public void CancelFollowUp()
+        {
+            if (!FollowingUp) return;
+            stopping = true;
+            StopRecognizer();
+            followUp = false;
+            if (history.Count > 0) history.RemoveAt(history.Count - 1);
+            Heard = followUpHeard;
+            Answer = followUpAnswer;
+            Partial = Status = "";
+            State = Phase.Done;
+            FinishedAt = DateTime.Now;
+            tick.Start();
+            Raise();
+        }
+
         void FinishListening()
         {
             if (stopping) return;
+            if (FollowingUp && heardParts.Count == 0 && Partial == "" && !voiced) { CancelFollowUp(); return; }
             stopping = true;
             if (listeningLocal) { FinishLocal(); return; }
             if (listeningModern)
@@ -559,7 +604,7 @@ namespace ClaudeNotch
                     }
                 }
                 else args.Add("--no-session-persistence");
-                args.AddRange(new[] { "--append-system-prompt", VoiceInstructions() });
+                args.AddRange(new[] { "--append-system-prompt", VoiceInstructions(settings.QuickAccess == "full") });
                 runningConfig = config;
                 var psi = new ProcessStartInfo(exe, JoinArgs(args))
                 {
@@ -663,7 +708,7 @@ namespace ClaudeNotch
                     if (block == "tool_use" || block == "server_tool_use")
                     {
                         string name = Json.Str(Json.Obj(ev, "content_block"), "name");
-                        ui.BeginInvoke(new Action(() => OnStatus(name == "WebFetch" || name == "web_fetch" ? "Reading a page…" : "Searching the web…")));
+                        ui.BeginInvoke(new Action(() => OnStatus(ToolStatus(name))));
                     }
                 }
             }
@@ -673,6 +718,16 @@ namespace ClaudeNotch
                 string text = Json.Str(d, "result");
                 ui.BeginInvoke(new Action(() => OnResult(error, text)));
             }
+        }
+
+        static string ToolStatus(string tool)
+        {
+            if (tool == "WebFetch" || tool == "web_fetch") return "Reading a page…";
+            if (tool == "WebSearch" || tool == "web_search") return "Searching the web…";
+            if (tool == "Skill") return "Opening a skill…";
+            if (tool == "Read" || tool == "Glob" || tool == "Grep" || tool == "LS") return "Reading your files…";
+            if (tool != null && tool.StartsWith("mcp__")) return "Using a connector…";
+            return "Working on it…";
         }
 
         void OnStatus(string status)
@@ -716,6 +771,7 @@ namespace ClaudeNotch
             State = Phase.Done;
             Status = "";
             FinishedAt = DateTime.Now;
+            followUpDue = settings.QuickFollowUp && settings.QuickSpeak && !hushed && Display(Answer).TrimEnd('"', '\u201D', ' ').EndsWith("?");
             tick.Start();
             Raise();
         }
@@ -863,6 +919,7 @@ namespace ClaudeNotch
         public void Hush()
         {
             hushed = true;
+            followUpDue = false;
             StopSpeaking();
             Raise();
         }
@@ -1087,7 +1144,7 @@ namespace ClaudeNotch
             catch (Exception e) { Log.Write("Quick voice: couldn't write " + SkillFile + ": " + e.Message); }
         }
 
-        static string VoiceInstructions()
+        static string VoiceInstructions(bool full)
         {
             EnsureSkill();
             string text = DefaultSkill;
@@ -1096,7 +1153,7 @@ namespace ClaudeNotch
             var m = Regex.Match(text, @"^\s*---[\s\S]*?\n---\s*\n");
             if (m.Success) text = text.Substring(m.Length);
             return "You are answering by voice, through Claude Notch. Your reply is read aloud and shown on a panel at the edge of the screen. Today is "
-                + DateTime.Now.ToString("dddd d MMMM yyyy", CultureInfo.InvariantCulture) + ".\n\n" + CardFormat + "\n\n" + text.Trim();
+                + DateTime.Now.ToString("dddd d MMMM yyyy", CultureInfo.InvariantCulture) + ".\n\n" + CardFormat + "\n\n" + FollowUps + (full ? ManualSkills() : "") + "\n\n" + text.Trim();
         }
 
         // A resumed conversation (VOICE_CHATS) keeps the system prompt it was started with, so new
@@ -1106,10 +1163,54 @@ namespace ClaudeNotch
 
         string Reminder()
         {
-            if (instructionsSent) return CardReminder;
+            if (instructionsSent) return settings.QuickAccess == "full" && ManualSkills() != "" ? CardReminder.Replace("</system-reminder>", " If this falls under one of the skills listed under Skills you load yourself, read it and follow it.</system-reminder>") : CardReminder;
             instructionsSent = true;
             return "<system-reminder>Claude Notch's current instructions for this conversation. They replace any earlier ones.\n\n"
-                + VoiceInstructions() + "</system-reminder>";
+                + VoiceInstructions(settings.QuickAccess == "full") + "</system-reminder>";
+        }
+
+        const string FollowUps =
+@"## Follow-ups
+When your reply ends with a question mark, the microphone opens by itself right after it's read, so
+the user can simply answer out loud. So when you need something from them to go on, or the next step
+really is theirs to choose, make one clear question your last sentence, even right after listing what
+you need (""Tell me X and Y"" leaves the mic closed; add ""Which room is it for?""). Otherwise end on a statement,
+with no closers like ""anything else?"" or ""want more?"".";
+
+        // The user's skills marked disable-model-invocation can't be started through the Skill tool,
+        // and a voice has no slash command to type. They're listed for Claude to read and follow when
+        // the question calls for one. Anything they do beyond looking things up still asks on the notch.
+        static string ManualSkills()
+        {
+            var lines = new StringBuilder();
+            try
+            {
+                string root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "skills");
+                var files = new List<string>();
+                if (Directory.Exists(root))
+                    foreach (string dir in Directory.GetDirectories(root))
+                    {
+                        string name = Path.GetFileName(dir);
+                        if (name == ".trash") continue;
+                        if (name != "synced") { files.Add(Path.Combine(dir, "SKILL.md")); continue; }
+                        foreach (string account in Directory.GetDirectories(dir))
+                            foreach (string skill in Directory.GetDirectories(account)) files.Add(Path.Combine(skill, "SKILL.md"));
+                    }
+                foreach (string file in files)
+                {
+                    if (!File.Exists(file)) continue;
+                    var m = Regex.Match(File.ReadAllText(file, Encoding.UTF8), @"^\s*---\r?\n([\s\S]*?)\r?\n---");
+                    if (!m.Success || !Regex.IsMatch(m.Groups[1].Value, @"(?m)^disable-model-invocation:\s*true\s*$")) continue;
+                    string name = Regex.Match(m.Groups[1].Value, @"(?m)^name:\s*(.+?)\s*$").Groups[1].Value;
+                    string about = Regex.Match(m.Groups[1].Value, @"(?m)^description:\s*(.+?)\s*$").Groups[1].Value;
+                    lines.Append("- ").Append(name).Append(": ").Append(about).Append(" File: ").Append(file).Append('\n');
+                }
+            }
+            catch (Exception e) { Log.Write("Quick voice: reading skills: " + e.Message); }
+            if (lines.Length == 0) return "";
+            return "\n\n## Skills you load yourself\nThese are the user's own skills, and the Skill tool can't start them. When a question falls under one's "
+                + "description, or the user names it (speech recognition may garble the name), read its file with the Read tool and follow it, using "
+                + "the files in its folder. Keep your replies in this voice format. Don't announce that you're loading it.\n" + lines.ToString().TrimEnd();
         }
 
         const string CardReminder =

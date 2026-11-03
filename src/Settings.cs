@@ -25,6 +25,7 @@ namespace ClaudeNotch
         // Quick voice: push to talk, answered by a Claude Code session on the notch
         public string QuickModel { get; set; }        // "haiku" | "sonnet" | "opus"
         public bool QuickSpeak { get; set; }          // read answers aloud
+        public bool QuickFollowUp { get; set; }       // when an answer ends on a question, open the mic for the reply
         public string QuickVoiceName { get; set; }    // a Windows voice; empty = default
         public int QuickRate { get; set; }            // -5 (slow) .. 5 (fast)
         public string QuickEngine { get; set; }       // speech recognition: "windows" | "local" (whisper.cpp on this PC)
@@ -66,6 +67,7 @@ namespace ClaudeNotch
             NewChatLink = "claude://claude.ai/new";
             QuickModel = "haiku";
             QuickSpeak = true;
+            QuickFollowUp = true;
             QuickVoiceName = "";
             QuickRate = 1;
             QuickEngine = "windows";

@@ -65,7 +65,12 @@ permission requests, and lets you talk or type to Claude from anywhere.
     Settings → Privacy & security → Speech, else the older offline engine.
   - *What it can use:* web search only (fastest), or **your skills and connectors**, like a normal
     session. Then anything beyond looking things up (sending, creating, running commands) waits
-    for **Allow** on the notch.
+    for **Allow** on the notch. Skills marked `disable-model-invocation`, which Claude can't start
+    by itself, are listed for it with their paths, so it reads one when your question falls under
+    it or you name it.
+  - *Follow-ups:* when an answer ends on a question, the mic opens by itself once it's been read.
+    Just answer. If you say nothing for 7 seconds, or press **Esc**, it closes and the answer stays
+    on screen. Turn it off with **Listen for my reply**; it needs answers read aloud.
   - *History:* private (nothing saved; follow-ups keep context for 15 minutes), or **one chat,
     VOICE_CHATS**, in your Claude Code history, picked up again each time.
 - **Typing.** If you prefer typing, or there's no microphone for Claude voice, the shortcut opens
@@ -128,7 +133,7 @@ from `~/.claude/settings.json`; everything else in that file stays as it is.
 | --- | --- |
 | General | Start with Windows. Answer permission requests from the notch. Show Claude's questions with their choices. Keep the hooks installed (repaired automatically every 5 minutes if something removes them). |
 | Shortcut | Copilot key, your own key combination, or none. |
-| Voice and prompts | Quick voice, Claude voice (with Claude's quick entry as the fallback without a mic), or always Claude's quick entry. Quick voice: speech recognition (built in or Windows), what it can use, history, model, reading answers aloud, the reading voice (natural or Windows, with a preview) and its speed, and editing the answer style. |
+| Voice and prompts | Quick voice, Claude voice (with Claude's quick entry as the fallback without a mic), or always Claude's quick entry. Quick voice: speech recognition (built in or Windows), what it can use, history, model, reading answers aloud, listening for your reply, the reading voice (natural or Windows, with a preview) and its speed, and editing the answer style. |
 | Notch | Style, screen edge, display, position along the edge, whether to list sessions on hover. |
 | When it shows | Only when something's going on (or Claude is minimized), whenever you're away from Claude, or only for permission requests and voice. How long × hides it. How long "Done" stays. Whether to show over fullscreen apps. |
 

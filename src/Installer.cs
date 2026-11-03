@@ -48,6 +48,30 @@ namespace ClaudeNotch
             }
         }
 
+        static string ShortcutPath
+        {
+            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Claude Notch.lnk"); }
+        }
+
+        // A Start menu entry, so the app can be found and opened (it opens the settings when
+        // it's already running). Runs at each start of the installed copy.
+        public static void EnsureShortcut()
+        {
+            try
+            {
+                if (File.Exists(ShortcutPath)) return;
+                var type = Type.GetTypeFromProgID("WScript.Shell");
+                object shell = Activator.CreateInstance(type);
+                object link = type.InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { ShortcutPath });
+                var lt = link.GetType();
+                lt.InvokeMember("TargetPath", System.Reflection.BindingFlags.SetProperty, null, link, new object[] { InstalledExe });
+                lt.InvokeMember("WorkingDirectory", System.Reflection.BindingFlags.SetProperty, null, link, new object[] { Settings.DataDir });
+                lt.InvokeMember("Description", System.Reflection.BindingFlags.SetProperty, null, link, new object[] { "Claude Notch" });
+                lt.InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, link, null);
+            }
+            catch (Exception e) { Log.Write("Couldn't add the Start menu entry: " + e.Message); }
+        }
+
         // `--uninstall` from the command line: stop the running copy, then remove everything.
         public static void Uninstall()
         {
@@ -62,6 +86,7 @@ namespace ClaudeNotch
             HookInstaller.Uninstall();
             SetStartWithWindows(false);
             RemoveOldStartupEntries();
+            try { File.Delete(ShortcutPath); } catch { }
             try
             {
                 string dir = Settings.DataDir;

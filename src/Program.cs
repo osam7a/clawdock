@@ -47,6 +47,7 @@ namespace ClaudeNotch
                 }
                 if (mode == "--settings") firstRun = true;
                 if (firstRun) settings.Save();
+                if (Installer.IsInstalledCopy) Installer.EnsureShortcut();
 
                 var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
                 app.DispatcherUnhandledException += (s, e) => { Log.Write("Unhandled: " + e.Exception); e.Handled = true; };

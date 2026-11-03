@@ -329,6 +329,7 @@ namespace ClaudeNotch
                     Row("Model", "Haiku answers fastest.",
                         Combo(new[] { "haiku", "Haiku", "sonnet", "Sonnet", "opus", "Opus" }, s.QuickModel, v => s.QuickModel = v)),
                     Toggle("Read answers aloud", "Otherwise answers only appear on the notch.", s.QuickSpeak, v => s.QuickSpeak = v),
+                    Toggle("Listen for my reply", "When Claude ends on a question, the mic opens by itself once it's read. It closes again if you say nothing.", s.QuickFollowUp, v => s.QuickFollowUp = v),
                     Row("Reading voice", "Natural runs on this PC, so nothing leaves it. ElevenLabs sounds the most human, in the cloud with your own account.",
                         Combo(new[] { "natural", "Natural (KittenTTS)", "elevenlabs", "ElevenLabs", "windows", "Windows voice" }, s.QuickTts, v =>
                         {
@@ -432,6 +433,7 @@ namespace ClaudeNotch
             save = new Button { Content = "Save", IsDefault = true, MinWidth = 92, Style = (Style)Resources["Primary"], Margin = new Thickness(8, 0, 0, 0), IsEnabled = false };
             save.Click += (a, b) => Save();
             var cancel = new Button { Content = "Close", IsCancel = true, MinWidth = 92 };
+            cancel.Click += (a, b) => Close(); // IsCancel only closes a window by itself under ShowDialog
             Closed += (a, b) => closing = true; // stops a download in progress
             Closing += (a, b) =>
             {
