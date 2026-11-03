@@ -185,7 +185,7 @@ namespace ClaudeNotch
                     try
                     {
                         int sampleRate;
-                        var samples = NaturalVoice.Generate("Hi, I'm " + NaturalVoice.Voices[sid] + ". This is how I'll read your answers.", sid, (float)Math.Max(0.6, Math.Min(1.6, 1 + rate * 0.08)), out sampleRate);
+                        var samples = NaturalVoice.Generate("Hi, I'm " + NaturalVoice.Voices[sid] + ". This is how I'll read your answers.", sid, NaturalVoice.Speed(rate), out sampleRate);
                         if (voiceSample == null) voiceSample = new AudioPlayer();
                         voiceSample.Stop();
                         voiceSample.Enqueue(samples, sampleRate);
@@ -196,6 +196,101 @@ namespace ClaudeNotch
             };
             showNatural();
             var naturalPanel = new StackPanel { Children = { new StackPanel { Orientation = Orientation.Horizontal, Children = { naturalCombo, naturalDownload, naturalPlay } }, naturalStatus } };
+
+            // ElevenLabs: your API key (kept encrypted), then a voice from your account.
+            var elevenKey = new PasswordBox { Width = 230, Password = ElevenLabs.Unseal(s.ElevenLabsKey), ToolTip = "Your ElevenLabs API key (elevenlabs.io → Developers → API keys)" };
+            var elevenStatus = new TextBlock { FontSize = 11.5, Foreground = p.Sub, Margin = new Thickness(2, 6, 0, 0), TextWrapping = TextWrapping.Wrap, MaxWidth = 230 };
+            var elevenVoices = new ComboBox { Width = 150 };
+            var elevenLoad = new Button { Content = "Check", Margin = new Thickness(8, 0, 0, 0), ToolTip = "Check the key and load your voices" };
+            var elevenPlay = new Button { Content = "▶ Play", Margin = new Thickness(8, 0, 0, 0), ToolTip = "Hear this voice" };
+            bool fillingVoices = false;
+            Action<List<KeyValuePair<string, string>>> fillVoices = list =>
+            {
+                fillingVoices = true;
+                elevenVoices.Items.Clear();
+                foreach (var v in list)
+                {
+                    var item = new ComboBoxItem { Content = v.Value, Tag = v.Key };
+                    elevenVoices.Items.Add(item);
+                    if (v.Key == (s.ElevenLabsVoice != "" ? s.ElevenLabsVoice : ElevenLabs.DefaultVoice)) elevenVoices.SelectedItem = item;
+                }
+                if (elevenVoices.SelectedIndex < 0 && elevenVoices.Items.Count > 0) elevenVoices.SelectedIndex = 0;
+                fillingVoices = false;
+            };
+            fillVoices(new List<KeyValuePair<string, string>> { new KeyValuePair<string, string>(s.ElevenLabsVoice != "" ? s.ElevenLabsVoice : ElevenLabs.DefaultVoice, s.ElevenLabsVoiceName != "" ? s.ElevenLabsVoiceName : "George") });
+            elevenVoices.SelectionChanged += (a, b) =>
+            {
+                var item = elevenVoices.SelectedItem as ComboBoxItem;
+                if (item == null || fillingVoices) return;
+                s.ElevenLabsVoice = (string)item.Tag;
+                s.ElevenLabsVoiceName = (string)item.Content;
+                Changed();
+            };
+            Action showEleven = () =>
+            {
+                bool hasKey = elevenKey.Password.Trim() != "";
+                elevenStatus.Text = !hasKey ? "Paste your API key from elevenlabs.io (Developers → API keys)."
+                    : QuickVoice.LastCloudError != "" ? "Last try failed: " + QuickVoice.LastCloudError
+                    : "Press Check to load your voices.";
+                elevenLoad.IsEnabled = elevenPlay.IsEnabled = hasKey;
+            };
+            Action loadVoices = () =>
+            {
+                string key = elevenKey.Password.Trim();
+                if (key == "") return;
+                elevenLoad.IsEnabled = false;
+                elevenStatus.Text = "Checking…";
+                var ui = Dispatcher;
+                System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    List<KeyValuePair<string, string>> list = null;
+                    string error = null;
+                    try { list = ElevenLabs.Voices(key); }
+                    catch (Exception ex) { error = ex.Message; }
+                    ui.BeginInvoke(new Action(() =>
+                    {
+                        elevenLoad.IsEnabled = true;
+                        if (error != null) { elevenStatus.Text = error; return; }
+                        if (list.Count > 0) fillVoices(list);
+                        QuickVoice.LastCloudError = "";
+                        elevenStatus.Text = "✓  The key works · " + list.Count + " voice" + (list.Count == 1 ? "" : "s");
+                    }));
+                });
+            };
+            elevenKey.PasswordChanged += (a, b) => { s.ElevenLabsKey = ElevenLabs.Seal(elevenKey.Password.Trim()); Changed(); showEleven(); };
+            elevenLoad.Click += (a, b) => loadVoices();
+            elevenPlay.Click += (a, b) =>
+            {
+                string key = elevenKey.Password.Trim(), voice = s.ElevenLabsVoice, name = s.ElevenLabsVoiceName != "" ? s.ElevenLabsVoiceName : "George";
+                int rate = s.QuickRate;
+                elevenPlay.IsEnabled = false;
+                var ui = Dispatcher;
+                System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    string error = null;
+                    try
+                    {
+                        int sampleRate;
+                        var samples = ElevenLabs.Generate(key, voice, "Hi, I'm " + name + ". This is how I'll read your answers.", null, ElevenLabs.Speed(rate), out sampleRate);
+                        if (voiceSample == null) voiceSample = new AudioPlayer();
+                        voiceSample.Stop();
+                        voiceSample.Enqueue(samples, sampleRate);
+                    }
+                    catch (Exception ex) { error = ex.Message; Log.Write("ElevenLabs preview: " + ex.Message); }
+                    ui.BeginInvoke(new Action(() => { elevenPlay.IsEnabled = true; elevenStatus.Text = error ?? "✓  Playing"; }));
+                });
+            };
+            showEleven();
+            if (s.QuickTts == "elevenlabs" && elevenKey.Password != "") loadVoices();
+            var elevenPanel = new StackPanel
+            {
+                Children =
+                {
+                    elevenKey,
+                    new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0), Children = { elevenVoices, elevenLoad, elevenPlay } },
+                    elevenStatus,
+                },
+            };
 
             Page("voice", "Voice and prompts",
                 Card(
@@ -218,9 +313,10 @@ namespace ClaudeNotch
                     Row("Model", "Haiku answers fastest.",
                         Combo(new[] { "haiku", "Haiku", "sonnet", "Sonnet", "opus", "Opus" }, s.QuickModel, v => s.QuickModel = v)),
                     Toggle("Read answers aloud", "Otherwise answers only appear on the notch.", s.QuickSpeak, v => s.QuickSpeak = v),
-                    Row("Reading voice", "Natural runs KittenTTS on this PC: it sounds far more human than the Windows voices, and nothing leaves your computer.",
-                        Combo(new[] { "natural", "Natural (KittenTTS)", "windows", "Windows voice" }, s.QuickTts, v => s.QuickTts = v)),
+                    Row("Reading voice", "Natural runs KittenTTS on this PC: it sounds far more human than the Windows voices, and nothing leaves your computer. ElevenLabs sounds the most human, in the cloud with your own account.",
+                        Combo(new[] { "natural", "Natural (KittenTTS)", "elevenlabs", "ElevenLabs", "windows", "Windows voice" }, s.QuickTts, v => s.QuickTts = v)),
                     Row("Natural voice", "Downloaded once from the sherpa-onnx project, then checked. Until it's ready, the Windows voice reads.", naturalPanel),
+                    Row("ElevenLabs", "Answers are sent to ElevenLabs to be read and use your account's credits. The key is stored encrypted for your Windows user. If ElevenLabs can't be reached, the natural or Windows voice reads instead.", elevenPanel),
                     Row("Windows voice", null, Combo(VoicePairs(), s.QuickVoiceName, v => s.QuickVoiceName = v)),
                     Row("Speaking speed", null,
                         Combo(new[] { "-2", "Slower", "0", "Normal", "1", "A little faster", "3", "Fast" }, RateKey(s.QuickRate), v => s.QuickRate = int.Parse(v))),
@@ -798,6 +894,26 @@ namespace ClaudeNotch
           <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource Sub}'/></Trigger>
           <Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource Clay}'/></Trigger>
           <Trigger Property='IsEnabled' Value='False'><Setter Property='Opacity' Value='0.45'/></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate>
+    </Setter.Value></Setter>
+  </Style>
+
+  <Style TargetType='PasswordBox'>
+    <Setter Property='Foreground' Value='{StaticResource Text}'/>
+    <Setter Property='Background' Value='{StaticResource Field}'/>
+    <Setter Property='BorderBrush' Value='{StaticResource Line}'/>
+    <Setter Property='CaretBrush' Value='{StaticResource Text}'/>
+    <Setter Property='SelectionBrush' Value='{StaticResource Clay}'/>
+    <Setter Property='Height' Value='34'/>
+    <Setter Property='Template'><Setter.Value>
+      <ControlTemplate TargetType='PasswordBox'>
+        <Border x:Name='b' Background='{TemplateBinding Background}' BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='1' CornerRadius='8'>
+          <ScrollViewer x:Name='PART_ContentHost' VerticalAlignment='Center' Margin='8,0'/>
+        </Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource Sub}'/></Trigger>
+          <Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource Clay}'/></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate>
     </Setter.Value></Setter>

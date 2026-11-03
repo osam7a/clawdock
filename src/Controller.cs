@@ -69,6 +69,7 @@ namespace ClaudeNotch
             server.CommandReceived += cmd => { if (cmd == "settings") OpenSettings(); else if (cmd == "quit") Quit(); };
             watcher.Changed += Refresh;
             Hotkeys.Pressed += OnShortcut;
+            Hotkeys.Escape += OnEscape;
 
             refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             refreshTimer.Tick += (s, e) => Refresh();
@@ -351,6 +352,8 @@ namespace ClaudeNotch
             else st.Visible = ongoing || (watcher.ClaudeOpen && watcher.ClaudeMinimized);
 
             notch.Render(st);
+            shownKind = st.Visible ? st.Kind : "";
+            Hotkeys.WatchEscape = shownKind == "quick" ? !settings.QuickMinimized || quick.Speaking : shownKind == "alert" || shownKind == "question";
             tray.SetStatus(st.Kind == "alert" ? "Needs permission" : st.Kind == "quick" ? "Quick voice" : st.Kind == "question" ? "Claude asked you something" : voice ? "Voice conversation" : primary != null && primary.Busy ? "Working: " + primary.DisplayName : "Idle");
         }
 
@@ -533,6 +536,27 @@ namespace ClaudeNotch
             Refresh();
         }
 
+        string shownKind = "";
+
+        // Esc closes what's up on the notch: the quick voice panel (as its ×), or a permission
+        // request or question (handed back to Claude's own prompt, nothing allowed or denied,
+        // and the notch isn't hidden for later). On the minimized bar it only stops the reading.
+        void OnEscape()
+        {
+            if (shownKind == "quick")
+            {
+                if (settings.QuickMinimized) quick.Hush();
+                else Dismiss();
+            }
+            else if (shownKind == "alert" || shownKind == "question")
+            {
+                ReleasePending(null);
+                alert = null;
+                questions.Clear();
+            }
+            Refresh();
+        }
+
         void OnShortcut()
         {
             if (settings.VoiceMode == "quick") { quick.Press(); return; }
@@ -569,6 +593,7 @@ namespace ClaudeNotch
             if (!settings.ApproveFromNotch) ReleasePending(null);
             if (settings.VoiceMode == "quick") QuickVoice.EnsureSkill();
             if (settings.VoiceMode == "quick" && settings.QuickEngine == "local") MicRecorder.WarmUp();
+            quick.SettingsChanged();
             Refresh();
         }
 

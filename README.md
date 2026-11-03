@@ -32,20 +32,32 @@ permission requests, and lets you talk or type to Claude from anywhere.
   no markdown or links. Needs Claude Code signed in (`claude auth login`).
   - *The panel* is a small chat: what you said in a bubble, the answer in large text, and the
     earlier questions of this conversation above it (scroll to read them; it stays open while the
-    pointer is on it). When the answer has a key fact (a price, a time, a total, a short list),
-    it's shown as a **card** first: the figure big and bold with what it is and a short note, or a
-    few name and value rows. Claude sends the card as `<card>{json}</card>` before the spoken
-    answer; it's never read aloud. Try it with `ClaudeNotch.exe --demo quick`.
+    pointer is on it). **Esc** closes it, like its ×.
+  - *Cards:* when the answer has a key fact, it's shown as a card first. Claude sends it as
+    `<card>{json}</card>` before the spoken answer; it's never read aloud. There are five kinds:
+    - **Value:** one figure big and bold (a price, a time, a total) with what it is and a note.
+      It can show a **change** (green ▲ up, red ▼ down, for prices and rates) and a **progress**
+      bar (a budget, a goal).
+    - **List:** up to six name and value rows.
+    - **Steps:** numbered steps for a how-to.
+    - **Compare:** two or three things side by side, one row per point (for "X or Y?").
+    - **Weather:** the temperature now with its sign (sun, partly, cloud, rain, storm, snow, fog,
+      wind, night), and up to five days ahead.
+
+    Try them with `ClaudeNotch.exe --demo cards` (or `--demo quick` for a whole conversation).
   - *Minimized:* the − button (hover the panel) shrinks quick voice to a small bar that stays
     up: bars for your voice while it listens and for the answer while it's read, and the answer's
-    key figure (like **$1,249** MacBook Air). The shortcut works as usual; click the bar to see
-    the whole conversation again. It's remembered, and the bar goes away with its × or after 15
-    minutes unused.
+    key figure (like **$1,249** MacBook Air, or ⛅ **18°C** Amman now). The shortcut works as
+    usual; click the bar to see the whole conversation again. Esc stops the reading (the bar stays).
+    It's remembered, and the bar goes away with its × or after 15 minutes unused.
   - *Reading voice:* **natural** runs [KittenTTS](https://github.com/KittenML/KittenTTS) (Apache
     2.0, the Nano model, eight voices) with [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)
     (Apache 2.0) on your PC, about six times faster than real time on a laptop CPU. It's an 85 MB
     download from settings, checked against its SHA-256, and needs 64-bit Windows 10 1803 or later
-    on an Intel or AMD processor (nothing else to install). Or a **Windows** voice.
+    on an Intel or AMD processor (nothing else to install). Or **ElevenLabs** with your own API
+    key (the most human, in the cloud: answers are sent to ElevenLabs and use your credits; the
+    key is stored encrypted for your Windows user with DPAPI; when it can't be reached, the natural
+    or Windows voice reads instead for a few minutes). Or a **Windows** voice.
   - *Speech recognition:* **built in** runs [whisper.cpp](https://github.com/ggml-org/whisper.cpp)
     (MIT) with an English Whisper model on your PC, downloaded once from settings (Accurate,
     190 MB, or Fast, 60 MB) and checked against its SHA-256; nothing leaves the computer. Or
@@ -65,7 +77,9 @@ permission requests, and lets you talk or type to Claude from anywhere.
   any edge of any display. Drag it and it snaps to the nearest edge.
 - **Stays out of the way.** It hides while you're looking at Claude (the app, or the terminal
   running the session) and over fullscreen apps. **×** hides it until you go back to Claude, or for
-  15 minutes or an hour.
+  15 minutes or an hour. **Esc** closes what just came up: a permission request or a question goes
+  back to Claude's own prompt (nothing is allowed or denied), and quick voice closes. Esc still
+  reaches the app you're in; the notch only watches for it while something is showing.
 - **Tray icon.** Settings, *Type to Claude*, *Repair hooks*, and *Quit*.
 
 ## Install
@@ -99,7 +113,7 @@ Other ways to run it:
 | Command | What it does |
 | --- | --- |
 | `ClaudeNotch.exe --here` | Run from where it is, without installing. Use this for testing a build. |
-| `ClaudeNotch.exe --demo` | Preview the notch's states without touching Claude (about a minute). `--demo quick` shows only quick voice. |
+| `ClaudeNotch.exe --demo` | Preview the notch's states without touching Claude (about a minute). `--demo quick` shows only quick voice, `--demo cards` each kind of card. |
 | `ClaudeNotch.exe --settings` | Open the settings of the running copy. |
 | `ClaudeNotch.exe --uninstall` | Remove the app, its hooks, and its startup entry. |
 
@@ -154,6 +168,7 @@ Claude window ──UI Automation──> voice, mute, current session title, pro
 | `src/ModernDictation.cs` | Windows' modern (online) dictation, used by quick voice when allowed. |
 | `src/LocalSpeech.cs`, `src/MicRecorder.cs` | The built-in speech recognition (whisper.cpp): download, checks, transcribing; recording the microphone. |
 | `src/NaturalVoice.cs`, `src/AudioPlayer.cs` | The natural voice (KittenTTS through sherpa-onnx's C API): download, checks, speaking; playing it with its loudness for the bars. |
+| `src/ElevenLabs.cs` | The ElevenLabs voice: speaking a sentence, listing your voices, keeping the key encrypted. |
 | `src/PromptSender.cs` | Sending text to the Claude app's prompt box; opening its quick entry. |
 | `src/TerminalFocus.cs` | Finds the terminal window a CLI session runs in. |
 | `src/Hotkeys.cs` | The Copilot key hook and custom shortcuts. |

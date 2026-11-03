@@ -12,14 +12,14 @@ namespace ClaudeNotch
         //   ClaudeNotch.exe --settings   open the settings of the running copy
         //   ClaudeNotch.exe --uninstall  remove the app, its hooks and its startup entry
         //   ClaudeNotch.exe --hook       what Claude Code's hooks run (see HookServer)
-        //   ClaudeNotch.exe --demo       preview the notch's states without touching Claude (--demo quick: just quick voice)
+        //   ClaudeNotch.exe --demo       preview the notch's states without touching Claude (--demo quick: just quick voice; --demo cards: each kind of card)
         [STAThread]
         static void Main(string[] args)
         {
             string mode = args.Length > 0 ? args[0].ToLowerInvariant() : "";
             if (mode == "--hook") { HookServer.RunHookClient(false); return; }
             if (mode == "--voice-hook") { HookServer.RunHookClient(true); return; }
-            if (mode == "--demo") { Demo(args.Length > 1 && args[1] == "quick"); return; }
+            if (mode == "--demo") { Demo(args.Length > 1 ? args[1] : ""); return; }
             if (mode == "--uninstall")
             {
                 Installer.Uninstall();
@@ -61,8 +61,10 @@ namespace ClaudeNotch
         }
 
         // Preview the notch's states without touching Claude (about 40 seconds).
-        static void Demo(bool quickOnly)
+        static void Demo(string only)
         {
+            bool quickOnly = only == "quick" || only == "cards";
+            bool cardsOnly = only == "cards";
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             var notch = new NotchWindow(new Settings { Transient = true });
             var now = DateTime.Now;
@@ -86,6 +88,9 @@ namespace ClaudeNotch
                 else if (step < 220) st = new NotchState { Visible = true, Kind = "voice", Muted = step > 175 && step < 195, VoiceStarted = now.AddSeconds(14), Sessions = all };
                 else if (step < 260) st = new NotchState { Visible = true, Kind = "alert", Title = "Allow Bash? · Claude-Notch", Detail = "Bash: git push origin main", Pending = demoPending, Owner = demoPending, Choices = new List<string> { "Deny", "Allow" }, Primary = 1, Sessions = all };
                 else if (step < 300) st = new NotchState { Visible = true, Kind = "question", Title = "Claude asks · " + working.Name, Detail = "Should I test approve-from-notch with a real Claude Code CLI session?", Owner = demoQuestion, Choices = new List<string> { "Not now", "Yes, test it" }, Primary = 1, Sessions = all };
+                else if (cardsOnly && step < 300 + DemoCards.Length * 40) st = DemoCard(step - 300);
+                else if (cardsOnly && step < 310 + DemoCards.Length * 40) st = new NotchState { Visible = false };
+                else if (cardsOnly) { app.Shutdown(); return; }
                 else if (step < 580) st = DemoQuick(step - 300);
                 else if (step < 590 && quickOnly) st = new NotchState { Visible = false };
                 else if (quickOnly) { app.Shutdown(); return; }
@@ -101,6 +106,30 @@ namespace ClaudeNotch
             notch.Show();
             timer.Start();
             app.Run();
+        }
+
+        // Each kind of card, four seconds each, as answers to a question (--demo cards); the last
+        // two again in the minimized bar.
+        static readonly string[][] DemoCards =
+        {
+            new[] { "What's Bitcoin at?", "<card>{\"value\": \"$96,410\", \"label\": \"Bitcoin\", \"change\": \"+2.4% today\", \"note\": \"CoinGecko, 2:10 PM\"}</card>It's about ninety-six thousand four hundred, up two point four percent today." },
+            new[] { "How's my budget this month?", "<card>{\"value\": \"$1,360 of $2,000\", \"label\": \"November budget\", \"progress\": 0.68, \"note\": \"12 days left\"}</card>You've spent thirteen sixty of two thousand, so about two thirds, with twelve days to go." },
+            new[] { "How do I reset my router?", "<card>{\"title\": \"Reset the router\", \"steps\": [\"Unplug it for 30 seconds\", \"Plug it back in\", \"Wait for the white light\", \"Reconnect your laptop to the Wi-Fi\"]}</card>Unplug it for thirty seconds, plug it back in, and wait for the light to turn white." },
+            new[] { "iPhone 17 or Pixel 10?", "<card>{\"title\": \"iPhone 17 vs Pixel 10\", \"columns\": [\"iPhone 17\", \"Pixel 10\"], \"rows\": [[\"Price\", \"$799\", \"$699\"], [\"Battery\", \"22 h\", \"24 h\"], [\"Camera\", \"48 MP\", \"50 MP\"], [\"Updates\", \"6 years\", \"7 years\"]]}</card>The Pixel is a hundred dollars cheaper with slightly better battery; the iPhone if you're already on a Mac." },
+            new[] { "What's the weather in Amman?", "<card>{\"weather\": \"partly\", \"value\": \"18°C\", \"label\": \"Amman now\", \"note\": \"High 21°, low 12°\", \"days\": [[\"Thu\", \"sun\", \"23°\", \"13°\"], [\"Fri\", \"rain\", \"17°\", \"11°\"], [\"Sat\", \"storm\", \"15°\", \"9°\"], [\"Sun\", \"cloud\", \"19°\", \"10°\"]]}</card>It's eighteen and partly cloudy, with rain coming Friday." },
+            new[] { "What's Bitcoin at?", "<card>{\"value\": \"$96,410\", \"label\": \"Bitcoin\", \"change\": \"+2.4%\"}</card>About ninety-six thousand." },
+            new[] { "What's the weather in Amman?", "<card>{\"weather\": \"partly\", \"value\": \"18°C\", \"label\": \"Amman now\"}</card>Eighteen and partly cloudy." },
+        };
+
+        static NotchState DemoCard(int i)
+        {
+            int n = i / 40;
+            var a = DemoCards[n];
+            var st = new NotchState { Visible = true, Kind = "quick", Title = "Claude", QuickMinimized = n >= DemoCards.Length - 2 };
+            if (n > 0 && n < 5) st.QuickHistory.Add(new QuickTurn { Heard = DemoCards[n - 1][0], Text = QuickVoice.Display(DemoCards[n - 1][1]), Card = QuickVoice.ParseCard(DemoCards[n - 1][1]) });
+            st.QuickNow = new QuickTurn { Heard = a[0], Text = QuickVoice.Display(a[1]), Card = QuickVoice.ParseCard(a[1]) };
+            if (st.QuickMinimized) st.Title = "Ready";
+            return st;
         }
 
         // Quick voice in the demo: a question answered with a value card, then a follow-up

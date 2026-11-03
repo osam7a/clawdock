@@ -18,6 +18,7 @@ $refs = @(
     "$fw\System.Drawing.dll",
     "$fw\System.Windows.Forms.dll",
     "$fw\System.Web.Extensions.dll",
+    "$fw\System.Security.dll",
     "$fw\System.IO.Compression.dll",
     "$fw\System.IO.Compression.FileSystem.dll",
     "$wpf\System.Speech.dll",

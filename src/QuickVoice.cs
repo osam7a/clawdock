@@ -20,12 +20,36 @@ namespace ClaudeNotch
         public bool Cut;                      // you cut the answer off
     }
 
-    // The key fact of an answer, shown big: a value ("$1,249", with a label and a note) or a few
-    // rows (name and value). Claude sends it as <card>{json}</card> before the spoken answer.
+    // The key fact of an answer, shown big. Claude sends it as <card>{json}</card> before the
+    // spoken answer. Kind is one of:
+    //   value    one figure ("$1,249") with a label and a note; optionally a change ("+2.4%") and
+    //            a progress bar (0 to 1)
+    //   list     a few rows, name and value
+    //   steps    numbered steps
+    //   compare  two or three things side by side, one row per attribute
+    //   weather  the temperature now with its condition, and a few days ahead
     class QuickCard
     {
-        public string Source = "", Title = "", Value = "", Label = "", Note = "";
+        public string Kind = "value", Source = "", Title = "", Value = "", Label = "", Note = "", Change = "", Weather = "";
+        public double Progress = -1; // -1: no bar
         public List<KeyValuePair<string, string>> Items = new List<KeyValuePair<string, string>>();
+        public List<string> Steps = new List<string>();
+        public List<string> Columns = new List<string>();
+        public List<string[]> Rows = new List<string[]>();  // compare: [attribute, one value per column]
+        public List<string[]> Days = new List<string[]>();  // weather: [day, condition, high, low]
+
+        // Whether the change reads as up (true), down (false) or neither (null).
+        public bool? ChangeUp
+        {
+            get
+            {
+                string c = Change.TrimStart();
+                if (c == "") return null;
+                if (c[0] == '+' || c[0] == '↑' || c[0] == '▲') return true;
+                if (c[0] == '-' || c[0] == '−' || c[0] == '↓' || c[0] == '▼') return false;
+                return null;
+            }
+        }
     }
 
     // Quick voice: push to talk, answered on the notch.
@@ -421,7 +445,7 @@ namespace ClaudeNotch
             State = Phase.Thinking;
             Status = "Thinking…";
             Answer = "";
-            lock (unspoken) { unspoken.Length = 0; sourcesReached = false; fed = 0; }
+            lock (unspoken) { unspoken.Length = 0; sourcesReached = false; fed = 0; hushed = false; }
             lastUsed = DateTime.Now;
             Raise();
             ThreadPool.QueueUserWorkItem(_ =>
@@ -743,22 +767,76 @@ namespace ClaudeNotch
             Dictionary<string, object> d;
             try { d = Json.ParseObject(m.Groups[1].Value.Trim()); } catch { return null; }
             if (d == null) return null;
-            var card = new QuickCard { Source = m.Groups[1].Value, Title = Json.Str(d, "title"), Value = Json.Str(d, "value"), Label = Json.Str(d, "label"), Note = Json.Str(d, "note") };
-            object items;
-            if (d.TryGetValue("items", out items) && items is System.Collections.IList)
+            var card = new QuickCard
             {
-                foreach (object item in (System.Collections.IList)items)
-                {
-                    var pair = item as System.Collections.IList;
-                    var named = item as Dictionary<string, object>;
-                    string name = "", value = "";
-                    if (pair != null && pair.Count > 0) { name = Convert.ToString(pair[0], CultureInfo.InvariantCulture); value = pair.Count > 1 ? Convert.ToString(pair[1], CultureInfo.InvariantCulture) : ""; }
-                    else if (named != null) { name = Json.Str(named, "name"); value = Json.Str(named, "value"); }
-                    else if (item != null) name = Convert.ToString(item, CultureInfo.InvariantCulture);
-                    if (name != "" && card.Items.Count < 8) card.Items.Add(new KeyValuePair<string, string>(name, value));
-                }
+                Source = m.Groups[1].Value, Title = Json.Str(d, "title"), Value = Json.Str(d, "value"), Label = Json.Str(d, "label"),
+                Note = Json.Str(d, "note"), Change = Json.Str(d, "change"), Weather = Json.Str(d, "weather").ToLowerInvariant(),
+            };
+            card.Progress = Fraction(Json.Str(d, "progress"));
+            foreach (var item in List(d, "items"))
+            {
+                var pair = item as System.Collections.IList;
+                var named = item as Dictionary<string, object>;
+                string name = "", value = "";
+                if (pair != null && pair.Count > 0) { name = Text(pair[0]); value = pair.Count > 1 ? Text(pair[1]) : ""; }
+                else if (named != null) { name = Json.Str(named, "name"); value = Json.Str(named, "value"); }
+                else name = Text(item);
+                if (name != "" && card.Items.Count < 8) card.Items.Add(new KeyValuePair<string, string>(name, value));
             }
-            return card.Value == "" && card.Items.Count == 0 ? null : card;
+            foreach (var step in List(d, "steps"))
+            {
+                var named = step as Dictionary<string, object>;
+                string text = named != null ? Json.Str(named, "text") : Text(step);
+                if (text != "" && card.Steps.Count < 8) card.Steps.Add(text);
+            }
+            foreach (var col in List(d, "columns")) if (card.Columns.Count < 3) card.Columns.Add(Text(col));
+            foreach (var row in List(d, "rows"))
+            {
+                var cells = row as System.Collections.IList;
+                if (cells == null || cells.Count < 2 || card.Rows.Count >= 8) continue;
+                var r = new string[card.Columns.Count + 1];
+                for (int i = 0; i < r.Length; i++) r[i] = i < cells.Count ? Text(cells[i]) : "";
+                card.Rows.Add(r);
+            }
+            foreach (var day in List(d, "days"))
+            {
+                var cells = day as System.Collections.IList;
+                var named = day as Dictionary<string, object>;
+                string[] r;
+                if (named != null) r = new[] { Json.Str(named, "day"), Json.Str(named, "weather").ToLowerInvariant(), Json.Str(named, "high"), Json.Str(named, "low") };
+                else if (cells != null && cells.Count > 0) r = new[] { Text(cells[0]), cells.Count > 1 ? Text(cells[1]).ToLowerInvariant() : "", cells.Count > 2 ? Text(cells[2]) : "", cells.Count > 3 ? Text(cells[3]) : "" };
+                else continue;
+                if (r[0] != "" && card.Days.Count < 5) card.Days.Add(r);
+            }
+
+            if (card.Steps.Count > 0) card.Kind = "steps";
+            else if (card.Columns.Count >= 2 && card.Rows.Count > 0) card.Kind = "compare";
+            else if (card.Weather != "" || card.Days.Count > 0) card.Kind = "weather";
+            else if (card.Items.Count > 0) card.Kind = "list";
+            else if (card.Value != "") card.Kind = "value";
+            else return null;
+            return card;
+        }
+
+        static System.Collections.IList List(Dictionary<string, object> d, string key)
+        {
+            object v;
+            return d.TryGetValue(key, out v) && v is System.Collections.IList ? (System.Collections.IList)v : new object[0];
+        }
+
+        static string Text(object v)
+        {
+            return v == null ? "" : Convert.ToString(v, CultureInfo.InvariantCulture);
+        }
+
+        // "0.68", "68" or "68%" as 0.68; -1 when there's none.
+        static double Fraction(string s)
+        {
+            s = (s ?? "").Trim().TrimEnd('%').Trim();
+            double f;
+            if (s == "" || !double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out f) || f < 0) return -1;
+            if (f > 1) f /= 100;
+            return Math.Min(f, 1);
         }
 
         // Passes the newly arrived speakable text (no card) on to be read aloud.
@@ -773,9 +851,18 @@ namespace ClaudeNotch
             }
         }
 
+        // Stops reading this answer aloud (Esc on the minimized bar); the text still arrives.
+        public void Hush()
+        {
+            hushed = true;
+            StopSpeaking();
+            Raise();
+        }
+        bool hushed;
+
         void SpeakFinishedSentences(bool all)
         {
-            if (!settings.QuickSpeak) return;
+            if (!settings.QuickSpeak || hushed) return;
             string chunk;
             lock (unspoken)
             {
@@ -792,7 +879,7 @@ namespace ClaudeNotch
             }
             chunk = Speakable(chunk);
             if (chunk == "") return;
-            if (UseNatural) { SayNatural(chunk); return; }
+            if (UseCloud || UseNatural) { SayNatural(chunk); return; }
             try
             {
                 if (voice == null)
@@ -834,7 +921,30 @@ namespace ClaudeNotch
         readonly AutoResetEvent sayWake = new AutoResetEvent(false);
         volatile bool synthesizing, naturalBroken;
 
-        bool UseNatural { get { return settings.QuickTts == "natural" && !naturalBroken && NaturalVoice.Supported && NaturalVoice.Installed; } }
+        // The natural voice reads when it's picked, or in place of ElevenLabs while that's not working.
+        bool UseNatural
+        {
+            get { return (settings.QuickTts == "natural" || (settings.QuickTts == "elevenlabs" && !UseCloud)) && !naturalBroken && NaturalVoice.Supported && NaturalVoice.Installed; }
+        }
+
+        // ---- ElevenLabs ----------------------------------------------------
+
+        // After a failure (offline, a bad key, out of credits) ElevenLabs rests for a few minutes,
+        // and the natural or Windows voice reads instead.
+        DateTime cloudBrokenUntil = DateTime.MinValue;
+        string sealedKey, cloudKey;
+        public static string LastCloudError = "";
+
+        bool UseCloud { get { return settings.QuickTts == "elevenlabs" && settings.ElevenLabsKey != "" && DateTime.Now >= cloudBrokenUntil; } }
+
+        string CloudKey
+        {
+            get
+            {
+                if (sealedKey != settings.ElevenLabsKey) { sealedKey = settings.ElevenLabsKey; cloudKey = ElevenLabs.Unseal(sealedKey); }
+                return cloudKey;
+            }
+        }
 
         // Sentences are made into audio one at a time on their own thread, and each plays as soon
         // as it's ready (the next one is made while it plays).
@@ -849,6 +959,8 @@ namespace ClaudeNotch
 
         void SayLoop()
         {
+            string previous = "";
+            int lastGeneration = -1;
             while (true)
             {
                 string text = null;
@@ -859,23 +971,35 @@ namespace ClaudeNotch
                     generation = player.Generation;
                 }
                 if (text == null) { sayWake.WaitOne(); continue; }
+                if (generation != lastGeneration) { previous = ""; lastGeneration = generation; } // cut off: a new answer
+                bool cloud = UseCloud;
                 try
                 {
                     int rate;
-                    float speed = (float)Math.Max(0.6, Math.Min(1.6, 1 + settings.QuickRate * 0.08)); // the same -5..5 setting as the Windows voice
-                    var samples = NaturalVoice.Generate(text, settings.QuickNaturalVoice, speed, out rate);
-                    player.Enqueue(samples, rate, generation); // dropped if you cut it off meanwhile
+                    float[] samples;
+                    if (cloud) samples = ElevenLabs.Generate(CloudKey, settings.ElevenLabsVoice, text, previous, ElevenLabs.Speed(settings.QuickRate), out rate);
+                    else samples = NaturalVoice.Generate(text, settings.QuickNaturalVoice, NaturalVoice.Speed(settings.QuickRate), out rate);
+                    player.Enqueue(NaturalVoice.Trim(samples, rate), rate, generation); // dropped if you cut it off meanwhile
+                    previous = text;
+                    if (cloud) LastCloudError = "";
                 }
                 catch (Exception e)
                 {
-                    // Something's wrong with the download or this PC: use the Windows voice from now on.
-                    Log.Write("Natural voice: " + e.Message);
-                    naturalBroken = true;
+                    // ElevenLabs: rest it for a few minutes. The natural voice: something's wrong
+                    // with the download or this PC, so the Windows voice reads from now on.
+                    if (cloud) { Log.Write("ElevenLabs: " + e.Message); LastCloudError = e.Message; cloudBrokenUntil = DateTime.Now.AddMinutes(5); }
+                    else { Log.Write("Natural voice: " + e.Message); naturalBroken = true; }
                     string rest = text;
                     ui.BeginInvoke(new Action(() => { lock (unspoken) unspoken.Insert(0, rest + " "); SpeakFinishedSentences(false); }));
                 }
                 finally { synthesizing = false; }
             }
+        }
+
+        // A changed key or voice gets another try right away.
+        public void SettingsChanged()
+        {
+            cloudBrokenUntil = DateTime.MinValue;
         }
 
         bool NaturalSpeaking
@@ -886,7 +1010,7 @@ namespace ClaudeNotch
         // How loud the answer being read is right now, 0..1; -1 when it can't be measured (the Windows voice).
         public double OutputLevel
         {
-            get { return player != null && (player.Playing || UseNatural) ? player.Level : Speaking ? -1 : 0; }
+            get { return player != null && (player.Playing || UseNatural || UseCloud) ? player.Level : Speaking ? -1 : 0; }
         }
 
         // Loads the natural voice ahead of the first answer.
@@ -971,22 +1095,40 @@ namespace ClaudeNotch
         const string CardFormat =
 @"## Cards
 When the answer has a key fact someone would want to see at a glance (a price, amount, number,
-time, date, score, temperature, name, or a short list), start your reply with one card, then
+time, date, score, the weather, a name, a short list, steps, or a comparison), start your reply with one card, then
 the spoken answer. The card is shown big on the panel and never read aloud.
 
 One value:
 <card>{""value"": ""$1,249"", ""label"": ""MacBook Air 13-inch, M4"", ""note"": ""Your price list, March 2026""}</card>
 
+One value that moved (change: up with +, down with -) or that's part of a whole (progress: 0 to 1):
+<card>{""value"": ""$96,410"", ""label"": ""Bitcoin"", ""change"": ""+2.4% today""}</card>
+<card>{""value"": ""$1,360 of $2,000"", ""label"": ""November budget"", ""progress"": 0.68, ""note"": ""12 days left""}</card>
+
 A few items (at most six), each [name, value]; value can be """":
 <card>{""title"": ""Flights to Dubai, Friday"", ""items"": [[""flydubai"", ""$189""], [""Royal Jordanian"", ""$214""]]}</card>
 
+Steps to follow, in order (at most six, each a few words):
+<card>{""title"": ""Reset the router"", ""steps"": [""Unplug it for 30 seconds"", ""Plug it back in"", ""Wait for the white light""]}</card>
+
+Two or three things side by side (columns), one row per point: [what, then one value per column]:
+<card>{""title"": ""iPhone 17 vs Pixel 10"", ""columns"": [""iPhone 17"", ""Pixel 10""], ""rows"": [[""Price"", ""$799"", ""$699""], [""Battery"", ""22 h"", ""24 h""]]}</card>
+
+Weather: weather is one of sun, partly, cloud, rain, storm, snow, fog, wind, night. days (optional,
+at most five): [day, weather, high, low]:
+<card>{""weather"": ""partly"", ""value"": ""18°C"", ""label"": ""Amman now"", ""note"": ""High 21°, low 12°"", ""days"": [[""Thu"", ""sun"", ""23°"", ""13°""], [""Fri"", ""rain"", ""17°"", ""11°""]]}</card>
+
 - The card is one line of valid JSON between <card> and </card>, at the very start.
+- Pick the one card that fits best: a value for one figure, weather for weather, steps for how-to,
+  compare when weighing options against each other, a list for anything else with several items.
 - value: the exact figure, short (under 20 characters), in digits with its currency or unit:
   ""$1,249"", ""24°C"", ""3:15 PM"", ""Thu 6 Nov"". label: what it is, in a few words.
   note (optional): one short line, like where it's from or a condition.
 - The spoken answer after it must still make sense on its own. Say the figure the way people
   say it, and add what matters that the card doesn't show. Never mention the card.
-- No card for chat, opinions, explanations or yes/no answers without a figure.";
+- Choosing between products or options (""X or Y?"") gets a compare card with the facts that
+  matter, even when you then say which you'd pick.
+- No other card for chat, opinions, explanations or yes/no answers without a figure.";
 
         const string DefaultSkill =
 @"---

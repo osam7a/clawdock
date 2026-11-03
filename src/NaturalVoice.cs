@@ -150,6 +150,29 @@ namespace ClaudeNotch
             }
         }
 
+        // The speed for the -5..5 reading speed setting (shared with the Windows voice). Kitten's
+        // own pace is slow (about 110 words a minute), so "Normal" is 1.4 times that.
+        public static float Speed(int rate)
+        {
+            return (float)Math.Max(0.9, Math.Min(2.0, 1.4 + rate * 0.1));
+        }
+
+        // Cuts the silence the model leaves at each end of a sentence down to a short pause, so
+        // sentences follow each other the way people talk.
+        public static float[] Trim(float[] samples, int sampleRate)
+        {
+            const float Quiet = 0.01f;
+            int first = 0, last = samples.Length - 1;
+            while (first < samples.Length && Math.Abs(samples[first]) < Quiet) first++;
+            while (last > first && Math.Abs(samples[last]) < Quiet) last--;
+            if (first >= samples.Length) return samples;
+            first = Math.Max(0, first - sampleRate * 30 / 1000);                 // keep 30 ms before
+            last = Math.Min(samples.Length - 1, last + sampleRate * 80 / 1000);  // and 80 ms after
+            var trimmed = new float[last - first + 1];
+            Array.Copy(samples, first, trimmed, 0, trimmed.Length);
+            return trimmed;
+        }
+
         // Loads the model in the background (about a second), so the first sentence isn't late.
         public static void Preload()
         {

@@ -31,7 +31,10 @@ namespace ClaudeNotch
         public string QuickLocalModel { get; set; }   // "small" | "base"
         public string QuickAccess { get; set; }       // "web": web search only | "full": your skills and connectors
         public string QuickHistory { get; set; }      // "private": not saved | "history": one VOICE_CHATS session
-        public string QuickTts { get; set; }          // the voice that reads answers: "windows" | "natural" (KittenTTS on this PC)
+        public string QuickTts { get; set; }          // the voice that reads answers: "windows" | "natural" (KittenTTS on this PC) | "elevenlabs"
+        public string ElevenLabsKey { get; set; }     // your ElevenLabs API key, encrypted for your Windows user (ElevenLabs.Seal)
+        public string ElevenLabsVoice { get; set; }   // its voice id; empty = the default one
+        public string ElevenLabsVoiceName { get; set; }
         public int QuickNaturalVoice { get; set; }    // which natural voice, 0..7
         public bool QuickMinimized { get; set; }      // quick voice shows as a small bar
 
@@ -145,7 +148,10 @@ namespace ClaudeNotch
             QuickLocalModel = OneOf(QuickLocalModel, "small", "base");
             QuickAccess = OneOf(QuickAccess, "web", "full");
             QuickHistory = OneOf(QuickHistory, "private", "history");
-            QuickTts = OneOf(QuickTts, "windows", "natural");
+            QuickTts = OneOf(QuickTts, "windows", "natural", "elevenlabs");
+            if (ElevenLabsKey == null) ElevenLabsKey = "";
+            if (ElevenLabsVoice == null) ElevenLabsVoice = "";
+            if (ElevenLabsVoiceName == null) ElevenLabsVoiceName = "";
             if (QuickNaturalVoice < 0 || QuickNaturalVoice > 7) QuickNaturalVoice = 1;
             Style = OneOf(Style, "classic", "compact", "line", "dot");
             Edge = OneOf(Edge, "top", "bottom", "left", "right");

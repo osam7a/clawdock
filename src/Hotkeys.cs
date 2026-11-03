@@ -14,6 +14,36 @@ namespace ClaudeNotch
     static class Hotkeys
     {
         public static event Action Pressed;
+        public static event Action Escape; // Esc, while WatchEscape is on
+
+        // Listens for Esc (on its own, no modifiers) while something is up on the notch. Esc
+        // still reaches the app you're in; the hook only watches.
+        public static bool WatchEscape
+        {
+            set
+            {
+                if (value == (escHook != IntPtr.Zero)) return;
+                if (value) { ui = ui ?? Dispatcher.CurrentDispatcher; escHook = SetWindowsHookEx(WH_KEYBOARD_LL, escProc, GetModuleHandle(null), 0); }
+                else { UnhookWindowsHookEx(escHook); escHook = IntPtr.Zero; }
+            }
+        }
+
+        const int VK_ESCAPE = 0x1B, VK_SHIFT = 0x10, VK_CONTROL = 0x11, VK_MENU = 0x12;
+        static readonly HookProc escProc = EscCallback;
+        static IntPtr escHook;
+
+        static IntPtr EscCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0 && ((int)wParam == WM_KEYDOWN))
+            {
+                var k = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
+                bool modifier = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0 || (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0 || (GetAsyncKeyState(VK_MENU) & 0x8000) != 0
+                    || (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+                if (k.vkCode == VK_ESCAPE && !modifier && ui != null)
+                    ui.BeginInvoke(new Action(() => { if (Escape != null) Escape(); }));
+            }
+            return CallNextHookEx(escHook, nCode, wParam, lParam);
+        }
 
         const int WH_KEYBOARD_LL = 13, WM_KEYDOWN = 0x0100, WM_SYSKEYDOWN = 0x0104, WM_HOTKEY = 0x0312;
         const int VK_F23 = 0x86, VK_LWIN = 0x5B, VK_RWIN = 0x5C;
