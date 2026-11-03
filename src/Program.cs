@@ -12,14 +12,14 @@ namespace ClaudeNotch
         //   ClaudeNotch.exe --settings   open the settings of the running copy
         //   ClaudeNotch.exe --uninstall  remove the app, its hooks and its startup entry
         //   ClaudeNotch.exe --hook       what Claude Code's hooks run (see HookServer)
-        //   ClaudeNotch.exe --demo       preview the notch's states without touching Claude
+        //   ClaudeNotch.exe --demo       preview the notch's states without touching Claude (--demo quick: just quick voice)
         [STAThread]
         static void Main(string[] args)
         {
             string mode = args.Length > 0 ? args[0].ToLowerInvariant() : "";
             if (mode == "--hook") { HookServer.RunHookClient(false); return; }
             if (mode == "--voice-hook") { HookServer.RunHookClient(true); return; }
-            if (mode == "--demo") { Demo(); return; }
+            if (mode == "--demo") { Demo(args.Length > 1 && args[1] == "quick"); return; }
             if (mode == "--uninstall")
             {
                 Installer.Uninstall();
@@ -61,7 +61,7 @@ namespace ClaudeNotch
         }
 
         // Preview the notch's states without touching Claude (about 40 seconds).
-        static void Demo()
+        static void Demo(bool quickOnly)
         {
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             var notch = new NotchWindow(new Settings { Transient = true });
@@ -73,7 +73,7 @@ namespace ClaudeNotch
 
             var demoPending = new HookServer.Pending();
             var demoQuestion = new Question();
-            int step = 0;
+            int step = quickOnly ? 299 : 0;
             var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
             timer.Tick += (s, e) =>
             {
@@ -86,9 +86,12 @@ namespace ClaudeNotch
                 else if (step < 220) st = new NotchState { Visible = true, Kind = "voice", Muted = step > 175 && step < 195, VoiceStarted = now.AddSeconds(14), Sessions = all };
                 else if (step < 260) st = new NotchState { Visible = true, Kind = "alert", Title = "Allow Bash? · Claude-Notch", Detail = "Bash: git push origin main", Pending = demoPending, Owner = demoPending, Choices = new List<string> { "Deny", "Allow" }, Primary = 1, Sessions = all };
                 else if (step < 300) st = new NotchState { Visible = true, Kind = "question", Title = "Claude asks · " + working.Name, Detail = "Should I test approve-from-notch with a real Claude Code CLI session?", Owner = demoQuestion, Choices = new List<string> { "Not now", "Yes, test it" }, Primary = 1, Sessions = all };
-                else if (step < 360) st = new NotchState { Visible = true, Kind = "session", Title = working.Name, JustFinished = true, Done = 5, Total = 5, Detail = "Done in 4:12 · 5 done", Sessions = all };
-                else if (step < 400) st = new NotchState { Visible = true, Kind = "idle", Sessions = all };
-                else if (step < 410) st = new NotchState { Visible = false };
+                else if (step < 500) st = DemoQuick(step - 300);
+                else if (step < 510 && quickOnly) st = new NotchState { Visible = false };
+                else if (quickOnly) { app.Shutdown(); return; }
+                else if (step < 560) st = new NotchState { Visible = true, Kind = "session", Title = working.Name, JustFinished = true, Done = 5, Total = 5, Detail = "Done in 4:12 · 5 done", Sessions = all };
+                else if (step < 600) st = new NotchState { Visible = true, Kind = "idle", Sessions = all };
+                else if (step < 610) st = new NotchState { Visible = false };
                 else { app.Shutdown(); return; }
                 notch.Render(st);
             };
@@ -98,6 +101,46 @@ namespace ClaudeNotch
             notch.Show();
             timer.Start();
             app.Run();
+        }
+
+        // Quick voice in the demo: a question answered with a value card, then a follow-up
+        // answered with a list (the answers stream in, card first, like Claude sends them).
+        static NotchState DemoQuick(int i)
+        {
+            const string q1 = "How much is the MacBook Air M4 on my price list?";
+            const string a1 = "<card>{\"value\": \"$1,249\", \"label\": \"MacBook Air 13-inch, M4, 16 GB\", \"note\": \"Your price list, updated March 2026\"}</card>"
+                + "It's twelve hundred and forty-nine dollars for the sixteen gig model. The twenty-four gig one is fourteen forty-nine.";
+            const string q2 = "And the other laptops?";
+            const string a2 = "<card>{\"title\": \"Laptops on your price list\", \"items\": [[\"MacBook Air 13, M4\", \"$1,249\"], [\"MacBook Air 15, M4\", \"$1,449\"], [\"MacBook Pro 14, M4 Pro\", \"$1,999\"], [\"Surface Laptop 7\", \"$1,099\"]]}</card>"
+                + "There are four. The cheapest is the Surface Laptop at ten ninety-nine, and the MacBook Pro tops out at nineteen ninety-nine.";
+            var st = new NotchState { Visible = true, Kind = "quick" };
+            bool second = i >= 100;
+            string q = second ? q2 : q1, a = second ? a2 : a1;
+            int j = second ? i - 100 : i;
+            if (second) st.QuickHistory.Add(new QuickTurn { Heard = q1, Text = QuickVoice.Display(a1), Card = QuickVoice.ParseCard(a1) });
+            if (j < 22)
+            {
+                st.Listening = true;
+                st.VoiceStarted = DateTime.Now.AddSeconds(-j / 10.0);
+                st.Title = "Listening";
+                string heard = q.Substring(0, Math.Min(q.Length, j * q.Length / 16));
+                st.QuickNow = new QuickTurn { Heard = heard };
+                if (heard == "") st.QuickStatus = "Go ahead, I'm listening";
+            }
+            else if (j < 34)
+            {
+                st.Busy = true;
+                st.Title = second ? "Thinking…" : "Searching your files…";
+                st.QuickNow = new QuickTurn { Heard = q };
+            }
+            else
+            {
+                string sofar = a.Substring(0, Math.Min(a.Length, (j - 34) * 20));
+                st.Answering = st.Busy = true;
+                st.Title = sofar.Length < a.Length ? "Speaking" : "Claude";
+                st.QuickNow = new QuickTurn { Heard = q, Text = QuickVoice.Display(sofar), Card = QuickVoice.ParseCard(sofar) };
+            }
+            return st;
         }
     }
 }

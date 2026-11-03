@@ -12,6 +12,22 @@ using System.Windows.Threading;
 
 namespace ClaudeNotch
 {
+    // One question and its answer, as the notch shows them.
+    class QuickTurn
+    {
+        public string Heard = "", Text = ""; // what you said; the answer without its card
+        public QuickCard Card;
+        public bool Cut;                      // you cut the answer off
+    }
+
+    // The key fact of an answer, shown big: a value ("$1,249", with a label and a note) or a few
+    // rows (name and value). Claude sends it as <card>{json}</card> before the spoken answer.
+    class QuickCard
+    {
+        public string Source = "", Title = "", Value = "", Label = "", Note = "";
+        public List<KeyValuePair<string, string>> Items = new List<KeyValuePair<string, string>>();
+    }
+
     // Quick voice: push to talk, answered on the notch.
     //
     // The shortcut starts listening (Windows speech recognition). Hold it and let go when you're
@@ -64,7 +80,9 @@ namespace ClaudeNotch
         bool held, holdDecided, stopping;
         DateTime lastSpeech, lastUsed;
         readonly StringBuilder unspoken = new StringBuilder();
+        int fed;                            // how much of the answer's speakable text went to unspoken
         readonly List<string> heardParts = new List<string>();
+        readonly List<QuickTurn> history = new List<QuickTurn>(); // earlier turns of this conversation
 
         public QuickVoice(Settings settings)
         {
@@ -80,6 +98,19 @@ namespace ClaudeNotch
         public double Level { get; private set; }   // microphone loudness, 0..1 (built-in engine)
         public bool MicReady { get; private set; }  // audio is coming in (the microphone takes a moment to start)
         public string HookExe { get; set; }         // ClaudeNotch.exe, for approving tools from the notch
+        public Func<bool> KeepOpen { get; set; }    // the answer stays while this is true (you're reading it)
+
+        public List<QuickTurn> History { get { return new List<QuickTurn>(history); } }
+
+        // The turn in progress (or just answered).
+        public QuickTurn Current
+        {
+            get
+            {
+                string heard = State == Phase.Listening ? (Heard + " " + Partial).Trim() : Heard;
+                return new QuickTurn { Heard = heard, Text = Display(Answer), Card = ParseCard(Answer) };
+            }
+        }
 
         public static readonly string Folder = Path.Combine(Settings.DataDir, "voice");
 
@@ -120,8 +151,19 @@ namespace ClaudeNotch
         {
             if (State == Phase.Listening) { FinishListening(); return; } // second press: that's all
             StopSpeaking();
-            if ((State == Phase.Thinking && !transcribing) || State == Phase.Answering) Interrupt();
+            bool cut = (State == Phase.Thinking && !transcribing) || State == Phase.Answering;
+            if (cut) Interrupt();
+            SaveTurn(cut);
             StartListening();
+        }
+
+        // The answer on screen moves up into the history when you ask the next thing.
+        void SaveTurn(bool cut)
+        {
+            if (Heard == "" || Answer == "") return;
+            history.Add(new QuickTurn { Heard = Heard, Text = Display(Answer), Card = ParseCard(Answer), Cut = cut });
+            if (history.Count > 20) history.RemoveAt(0);
+            Heard = Answer = "";
         }
 
         // × on the notch: stop talking and go away.
@@ -129,7 +171,9 @@ namespace ClaudeNotch
         {
             if (State == Phase.Listening) { stopping = true; StopRecognizer(); }
             StopSpeaking();
-            if ((State == Phase.Thinking && !transcribing) || State == Phase.Answering) Interrupt();
+            bool cut = (State == Phase.Thinking && !transcribing) || State == Phase.Answering;
+            if (cut) Interrupt();
+            SaveTurn(cut);
             transcribing = false;
             State = Phase.Idle;
             tick.Stop();
@@ -308,7 +352,8 @@ namespace ClaudeNotch
                 else if (!any && now - ListenStarted > NothingHeard && !Hotkeys.Held) FinishListening();
                 else if (now - ListenStarted > MaxListen) FinishListening();
             }
-            if (State == Phase.Done && !Speaking && now - FinishedAt > Linger) { State = Phase.Idle; Raise(); }
+            if (State == Phase.Done && KeepOpen != null && KeepOpen()) FinishedAt = now;
+            if (State == Phase.Done && !Speaking && now - FinishedAt > Linger) { SaveTurn(false); State = Phase.Idle; Raise(); }
             if (State == Phase.Error && now - FinishedAt > TimeSpan.FromSeconds(8)) { State = Phase.Idle; Raise(); }
             if (State == Phase.Idle) tick.Stop();
         }
@@ -360,7 +405,7 @@ namespace ClaudeNotch
             State = Phase.Thinking;
             Status = "Thinking…";
             Answer = "";
-            lock (unspoken) { unspoken.Length = 0; sourcesReached = false; }
+            lock (unspoken) { unspoken.Length = 0; sourcesReached = false; fed = 0; }
             lastUsed = DateTime.Now;
             Raise();
             ThreadPool.QueueUserWorkItem(_ =>
@@ -426,6 +471,9 @@ namespace ClaudeNotch
                 string config = settings.QuickModel + "|" + settings.QuickAccess + "|" + settings.QuickHistory;
                 if (claude != null && !claude.HasExited && DateTime.Now - lastUsed < IdleExit && config == runningConfig) return;
                 KillClaude();
+                // A private conversation starts over, so what it said before is gone from the notch too.
+                if (settings.QuickHistory != "history" && runningConfig != null)
+                    ui.BeginInvoke(new Action(() => { history.Clear(); Raise(); }));
                 string exe = FindClaude();
                 if (exe == null) throw new FileNotFoundException("claude.exe");
                 string folder = Folder;
@@ -593,7 +641,7 @@ namespace ClaudeNotch
             State = Phase.Answering;
             Status = "";
             Answer += t;
-            lock (unspoken) unspoken.Append(t);
+            Feed();
             SpeakFinishedSentences(false);
             Raise();
         }
@@ -614,7 +662,8 @@ namespace ClaudeNotch
                     return;
                 }
             }
-            if (Answer == "" && text != "") { Answer = text; lock (unspoken) unspoken.Append(text); }
+            if (Answer == "" && text != "") Answer = text;
+            Feed();
             SpeakFinishedSentences(true);
             State = Phase.Done;
             Status = "";
@@ -644,6 +693,68 @@ namespace ClaudeNotch
         {
             var m = SourcesStart.Match(s ?? "");
             return m.Success ? s.Substring(0, m.Index).TrimEnd() : s;
+        }
+
+        static readonly Regex CardBlock = new Regex(@"<card>([\s\S]*?)</card>\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        // The answer without its card. While a card is still arriving, it (and anything after it)
+        // is held back, so its JSON is never shown or read aloud. Only ever grows as text arrives.
+        static string WithoutCard(string s)
+        {
+            s = CardBlock.Replace(s ?? "", "");
+            int open = s.IndexOf("<card", StringComparison.OrdinalIgnoreCase);
+            if (open >= 0) s = s.Substring(0, open);
+            int lt = s.LastIndexOf('<');
+            if (lt >= 0 && "<card>".StartsWith(s.Substring(lt), StringComparison.OrdinalIgnoreCase)) s = s.Substring(0, lt);
+            return s;
+        }
+
+        // The answer as the notch shows it: no card, no sources, no markdown marks.
+        public static string Display(string s)
+        {
+            s = WithoutSources(WithoutCard(s));
+            s = Regex.Replace(s, @"\[([^\]]*)\]\([^)]*\)", "$1");
+            s = s.Replace("**", "").Replace("__", "").Replace("`", "");
+            s = Regex.Replace(s, @"(?m)^\s*#+\s+", "");
+            s = Regex.Replace(s, @"[ \t]+", " ");
+            return Regex.Replace(s, @"\n{3,}", "\n\n").Trim();
+        }
+
+        public static QuickCard ParseCard(string s)
+        {
+            var m = CardBlock.Match(s ?? "");
+            if (!m.Success) return null;
+            Dictionary<string, object> d;
+            try { d = Json.ParseObject(m.Groups[1].Value.Trim()); } catch { return null; }
+            if (d == null) return null;
+            var card = new QuickCard { Source = m.Groups[1].Value, Title = Json.Str(d, "title"), Value = Json.Str(d, "value"), Label = Json.Str(d, "label"), Note = Json.Str(d, "note") };
+            object items;
+            if (d.TryGetValue("items", out items) && items is System.Collections.IList)
+            {
+                foreach (object item in (System.Collections.IList)items)
+                {
+                    var pair = item as System.Collections.IList;
+                    var named = item as Dictionary<string, object>;
+                    string name = "", value = "";
+                    if (pair != null && pair.Count > 0) { name = Convert.ToString(pair[0], CultureInfo.InvariantCulture); value = pair.Count > 1 ? Convert.ToString(pair[1], CultureInfo.InvariantCulture) : ""; }
+                    else if (named != null) { name = Json.Str(named, "name"); value = Json.Str(named, "value"); }
+                    else if (item != null) name = Convert.ToString(item, CultureInfo.InvariantCulture);
+                    if (name != "" && card.Items.Count < 8) card.Items.Add(new KeyValuePair<string, string>(name, value));
+                }
+            }
+            return card.Value == "" && card.Items.Count == 0 ? null : card;
+        }
+
+        // Passes the newly arrived speakable text (no card) on to be read aloud.
+        void Feed()
+        {
+            string clean = WithoutCard(Answer);
+            lock (unspoken)
+            {
+                if (clean.Length <= fed) return;
+                unspoken.Append(clean.Substring(fed));
+                fed = clean.Length;
+            }
         }
 
         void SpeakFinishedSentences(bool all)
@@ -733,12 +844,23 @@ namespace ClaudeNotch
             get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "skills", "voice-replies", "SKILL.md"); }
         }
 
+        // SHA-256 of earlier default skills (LF line endings): a file still exactly like one of
+        // them was never edited, so it gets the new default.
+        static readonly string[] OldDefaultSkills = { "4f7fc8aa5a04e0bdb8b387db594b11cb2e3a97642e9b1c185924d92ab2abefc6" };
+
         // Writes the voice-replies skill if it isn't there yet (never over your edits).
         public static void EnsureSkill()
         {
             try
             {
-                if (File.Exists(SkillFile)) return;
+                if (File.Exists(SkillFile))
+                {
+                    string old = File.ReadAllText(SkillFile, Encoding.UTF8).Replace("\r\n", "\n");
+                    string hash;
+                    using (var sha = System.Security.Cryptography.SHA256.Create())
+                        hash = BitConverter.ToString(sha.ComputeHash(new UTF8Encoding(false).GetBytes(old))).Replace("-", "").ToLowerInvariant();
+                    if (Array.IndexOf(OldDefaultSkills, hash) < 0) return;
+                }
                 Directory.CreateDirectory(Path.GetDirectoryName(SkillFile));
                 File.WriteAllText(SkillFile, DefaultSkill, new UTF8Encoding(false));
             }
@@ -753,9 +875,30 @@ namespace ClaudeNotch
             // Drop the frontmatter: only the rules matter here.
             var m = Regex.Match(text, @"^\s*---[\s\S]*?\n---\s*\n");
             if (m.Success) text = text.Substring(m.Length);
-            return "You are answering by voice, through Claude Notch. Your reply is shown on a small notch and read aloud. Today is "
-                + DateTime.Now.ToString("dddd d MMMM yyyy", CultureInfo.InvariantCulture) + ".\n\n" + text.Trim();
+            return "You are answering by voice, through Claude Notch. Your reply is read aloud and shown on a panel at the edge of the screen. Today is "
+                + DateTime.Now.ToString("dddd d MMMM yyyy", CultureInfo.InvariantCulture) + ".\n\n" + CardFormat + "\n\n" + text.Trim();
         }
+
+        // How to put the key fact on screen. Part of the app, not the skill, so it can't be edited away.
+        const string CardFormat =
+@"## Cards
+When the answer has a key fact someone would want to see at a glance (a price, amount, number,
+time, date, score, temperature, name, or a short list), start your reply with one card, then
+the spoken answer. The card is shown big on the panel and never read aloud.
+
+One value:
+<card>{""value"": ""$1,249"", ""label"": ""MacBook Air 13-inch, M4"", ""note"": ""Your price list, March 2026""}</card>
+
+A few items (at most six), each [name, value]; value can be """":
+<card>{""title"": ""Flights to Dubai, Friday"", ""items"": [[""flydubai"", ""$189""], [""Royal Jordanian"", ""$214""]]}</card>
+
+- The card is one line of valid JSON between <card> and </card>, at the very start.
+- value: the exact figure, short (under 20 characters), in digits with its currency or unit:
+  ""$1,249"", ""24°C"", ""3:15 PM"", ""Thu 6 Nov"". label: what it is, in a few words.
+  note (optional): one short line, like where it's from or a condition.
+- The spoken answer after it must still make sense on its own. Say the figure the way people
+  say it, and add what matters that the card doesn't show. Never mention the card.
+- No card for chat, opinions, explanations or yes/no answers without a figure.";
 
         const string DefaultSkill =
 @"---
@@ -765,10 +908,12 @@ description: How to answer when the reply will be read aloud (voice assistants, 
 
 # Voice replies
 
-Your answer is spoken aloud by a text-to-speech voice and shown in a small box. Write the way a
+Your answer is spoken aloud by a text-to-speech voice and shown on a small panel. Write the way a
 sharp, friendly assistant talks.
 
 - Lead with the answer itself. No preamble, no restating the question, no ""Great question"".
+- When there's one figure that matters (a price, a time, a total), say it first and plainly,
+  then the one detail that helps most (""It's twelve hundred and forty-nine dollars, for the sixteen gig model."").
 - Keep it to one to three short sentences, about 40 words. Go up to about 100 words only when
   asked for detail, steps, or an explanation.
 - Plain spoken sentences only: no markdown, headings, bullet points, tables, code blocks, emoji,

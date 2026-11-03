@@ -42,7 +42,7 @@ namespace ClaudeNotch
             hub.FinishedFor = TimeSpan.FromSeconds(settings.FinishedSeconds);
             notch = new NotchWindow(settings);
             tray = new TrayIcon();
-            quick = new QuickVoice(settings) { HookExe = HookExe };
+            quick = new QuickVoice(settings) { HookExe = HookExe, KeepOpen = () => notch.Hovering };
             quick.Changed += Refresh;
 
             notch.OpenPrimary += OpenPrimary;
@@ -352,40 +352,31 @@ namespace ClaudeNotch
             tray.SetStatus(st.Kind == "alert" ? "Needs permission" : st.Kind == "quick" ? "Quick voice" : st.Kind == "question" ? "Claude asked you something" : voice ? "Voice conversation" : primary != null && primary.Busy ? "Working: " + primary.DisplayName : "Idle");
         }
 
+        // Quick voice is a small chat: earlier turns, then what you just said and the answer.
         void ShowQuick(NotchState st)
         {
             st.Kind = "quick";
+            st.QuickNow = quick.Current;
+            st.QuickHistory = quick.History;
             switch (quick.State)
             {
                 case QuickVoice.Phase.Listening:
                     st.Listening = true;
                     st.VoiceStarted = quick.ListenStarted;
                     st.Title = "Listening";
-                    string said = (quick.Heard + " " + quick.Partial).Trim();
-                    st.Detail = said != "" ? Tail(said, 160) : !quick.MicReady ? "One moment…" : Hotkeys.Held ? "Go ahead, let go when you're done" : "Go ahead, I'm listening";
+                    st.QuickStatus = st.QuickNow.Heard != "" ? "" : !quick.MicReady ? "One moment…" : Hotkeys.Held ? "Go ahead, let go when you're done" : "Go ahead, I'm listening";
                     break;
                 case QuickVoice.Phase.Error:
                     st.Title = "Quick voice";
-                    st.Detail = quick.Status;
+                    st.QuickStatus = quick.Status;
                     break;
                 default:
-                    st.Title = quick.Heard == "" ? "Transcribing" : "“" + Tail(quick.Heard, 70) + "”";
                     st.Answering = quick.Answer != "";
                     st.Busy = quick.Speaking || quick.State == QuickVoice.Phase.Thinking;
-                    string answer = QuickVoice.WithoutSources(quick.Answer);
-                    st.Detail = answer != "" ? Tail(answer, 260) : quick.Status;
+                    st.Title = quick.State == QuickVoice.Phase.Thinking ? (quick.Status != "" ? quick.Status : "Thinking…") : quick.Speaking ? "Speaking" : "Claude";
+                    st.QuickStatus = quick.State == QuickVoice.Phase.Thinking ? quick.Status : "";
                     break;
             }
-        }
-
-        // The end of a long text, from a word boundary.
-        static string Tail(string s, int max)
-        {
-            s = s.Trim();
-            if (s.Length <= max) return s;
-            s = s.Substring(s.Length - max);
-            int sp = s.IndexOf(' ');
-            return "…" +(sp > 0 && sp < 20 ? s.Substring(sp + 1) : s);
         }
 
         // The session the notch talks about: the one asking for permission, else the app

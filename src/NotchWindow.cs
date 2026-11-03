@@ -22,6 +22,9 @@ namespace ClaudeNotch
         public bool Visible;
         public string Kind = "idle";        // idle | session | voice | alert | question | quick
         public bool Listening, Answering;   // quick voice: hearing you / reading out the answer
+        public QuickTurn QuickNow;          // quick voice: the turn in progress, and the ones before it
+        public List<QuickTurn> QuickHistory = new List<QuickTurn>();
+        public string QuickStatus = "";     // "Thinking…", "Searching the web…", an error
         public string Title = "Claude", Detail = "", Short = ""; // Short: "4:12 · 3/5", for the compact style
         public bool Busy, JustFinished, Muted;
         public int Done, Total;
@@ -50,7 +53,7 @@ namespace ClaudeNotch
     // request shows Allow / Deny. Drag it anywhere: it snaps to the nearest screen edge.
     class NotchWindow : Window
     {
-        const double WinW = 460, WinH = 440;
+        const double WinW = 560, WinH = 640; // room for the biggest card; the rest is transparent and clicks pass through
 
         public event Action OpenPrimary, ToggleMute, EndVoice, OpenSettings, Quit, Dismiss;
         public event Action<SessionInfo> OpenSession;
@@ -70,6 +73,12 @@ namespace ClaudeNotch
         readonly ColumnDefinition miniDone = new ColumnDefinition(), miniLeft = new ColumnDefinition();
         readonly StackPanel compactTasks;
         readonly TextBlock compactCount;
+        // Quick voice: earlier turns, then what you said, the answer's card, and the answer.
+        readonly ScrollViewer quickScroll;
+        readonly StackPanel quickHistory;
+        readonly Border youBubble, cardHost;
+        readonly TextBlock youText, answerText, quickStatus;
+        string historyKey = "", cardKey = "", turnKey = "";
         readonly MenuItem endVoiceItem;
         readonly TranslateTransform slide = new TranslateTransform();
         readonly DispatcherTimer voiceTimer, leaveTimer, topTimer;
@@ -168,13 +177,34 @@ namespace ClaudeNotch
 
             list = new StackPanel { Margin = new Thickness(8, 0, 8, 8) };
 
+            quickHistory = new StackPanel();
+            youText = Wrapped(13.5, Brushes.White);
+            youBubble = new Border
+            {
+                Background = Theme.Chip, CornerRadius = new CornerRadius(14, 14, 4, 14), Padding = new Thickness(12, 7, 12, 8),
+                HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(48, 0, 0, 0), Child = youText,
+            };
+            cardHost = new Border { Margin = new Thickness(0, 10, 0, 0) };
+            answerText = Wrapped(14.5, Brushes.White);
+            answerText.LineHeight = 21;
+            answerText.Margin = new Thickness(2, 10, 2, 0);
+            quickStatus = Wrapped(12.5, Theme.Dim);
+            quickStatus.Margin = new Thickness(2, 10, 2, 0);
+            quickScroll = new ScrollViewer
+            {
+                Content = new StackPanel { Margin = new Thickness(16, 2, 16, 14), Children = { quickHistory, youBubble, cardHost, answerText, quickStatus } },
+                VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, // the wheel still scrolls
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Focusable = false, Visibility = Visibility.Collapsed,
+            };
+
             card = new Border
             {
                 Width = 150, // animations need a starting value
                 Background = Theme.Black,
                 Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 2, Opacity = 0.35, Direction = 270 },
                 Cursor = Cursors.Hand,
-                Child = new StackPanel { Children = { header, progressTrack, actions, list } },
+                Child = new StackPanel { Children = { header, progressTrack, quickScroll, actions, list } },
             };
             mini = new Border { Cursor = Cursors.Hand };
             AutomationProperties.SetName(mini, "Claude Notch");
@@ -205,6 +235,8 @@ namespace ClaudeNotch
         }
 
         // ---- settings ------------------------------------------------------
+
+        public bool Hovering { get { return hover; } }
 
         bool Mini { get { return settings.Style == "line" || settings.Style == "dot"; } }
         bool Compact { get { return settings.Style == "compact"; } }
@@ -302,7 +334,7 @@ namespace ClaudeNotch
 
             title.Inlines.Clear();
             title.Inlines.Add(new Run(s.Title));
-            bool showSub = (s.Kind == "session" || asking || quick) && !string.IsNullOrEmpty(s.Detail);
+            bool showSub = (s.Kind == "session" || asking) && !string.IsNullOrEmpty(s.Detail);
             if (Compact && s.Kind == "session")
             {
                 string brief = !string.IsNullOrEmpty(s.Short) ? s.Short : s.Detail;
@@ -312,9 +344,8 @@ namespace ClaudeNotch
             }
             subtitle.Text = s.Detail;
             // A question can be a full sentence: let it wrap onto a second line.
-            subtitle.TextWrapping = s.Kind == "question" || quick ? TextWrapping.Wrap : TextWrapping.NoWrap;
-            subtitle.MaxHeight = s.Kind == "question" ? 34 : quick ? (Compact ? 64 : 80) : double.PositiveInfinity;
-            subtitle.Foreground = quick && s.Answering ? Brushes.White : Theme.Dim;
+            subtitle.TextWrapping = s.Kind == "question" ? TextWrapping.Wrap : TextWrapping.NoWrap;
+            subtitle.MaxHeight = s.Kind == "question" ? 34 : double.PositiveInfinity;
             // The line is cut to fit; hover shows the whole command before you allow it.
             card.ToolTip = alert && s.Pending != null && !string.IsNullOrEmpty(s.Pending.FullDetail) ? s.Pending.FullDetail : null;
             if (s.Kind == "voice") title.Inlines.Clear();
@@ -340,6 +371,7 @@ namespace ClaudeNotch
             moreText.Text = s.MorePending > 0 ? "+" + s.MorePending + " more" : "";
             if (s.Kind == "voice" || listening) TickVoice();
             if (showList) BuildList(s.Sessions);
+            if (quick) UpdateQuick(s);
             UpdateMini(s);
 
             string key = s.Kind + "|" + listening + "|" + hover + "|" + s.Visible + "|" + hasTasks + "|" + compactHasTasks + "|" + showList + "|" + showActions + "|" + showSub + "|" + settings.Style + "|" + settings.Edge;
@@ -351,7 +383,9 @@ namespace ClaudeNotch
             subtitle.Visibility = showSub ? Visibility.Visible : Visibility.Collapsed;
             voicePanel.Visibility = s.Kind == "voice" || listening ? Visibility.Visible : Visibility.Collapsed;
             micButton.Visibility = quick ? Visibility.Collapsed : Visibility.Visible;
-            alertDot.Visibility = asking || (quick && !listening) ? Visibility.Visible : Visibility.Collapsed;
+            alertDot.Visibility = asking ? Visibility.Visible : Visibility.Collapsed;
+            quickScroll.Visibility = quick ? Visibility.Visible : Visibility.Collapsed;
+            quickScroll.MaxHeight = Compact ? 380 : 460;
             alertDot.Fill = alert ? Theme.Amber : Theme.Blue;
             closeButton.Visibility = hover ? Visibility.Visible : Visibility.Collapsed;
             progressTrack.Visibility = hasTasks ? Visibility.Visible : Visibility.Collapsed;
@@ -361,7 +395,7 @@ namespace ClaudeNotch
 
             // A notice (a permission request to answer elsewhere) is a small card with one button.
             bool notice = alert && s.Pending == null;
-            double w = (notice ? (Compact ? 270 : 300) : CardWidth(s.Kind)) + (hover && !Mini ? 26 : 0);
+            double w = (notice ? (Compact ? 270 : 300) : CardWidth(s.Kind)) + (hover && !Mini && !quick ? 26 : 0); // quick: don't reflow what you're reading
             if (compactHasTasks) w += 56;
             if (showList || (showActions && !notice)) w = Math.Max(w, Compact ? 330 : 360);
             Animate(card, WidthProperty, w, 220);
@@ -405,8 +439,121 @@ namespace ClaudeNotch
 
         double CardWidth(string kind)
         {
-            if (Compact) return kind == "quick" ? 380 : kind == "alert" || kind == "question" ? 330 : kind == "session" ? 280 : kind == "voice" ? 230 : 110;
-            return kind == "quick" ? 420 : kind == "question" ? 380 : kind == "alert" ? 360 : kind == "session" ? 340 : kind == "voice" ? 280 : 150;
+            if (Compact) return kind == "quick" ? 420 : kind == "alert" || kind == "question" ? 330 : kind == "session" ? 280 : kind == "voice" ? 230 : 110;
+            return kind == "quick" ? 460 : kind == "question" ? 380 : kind == "alert" ? 360 : kind == "session" ? 340 : kind == "voice" ? 280 : 150;
+        }
+
+        // ---- quick voice ---------------------------------------------------
+
+        void UpdateQuick(NotchState s)
+        {
+            var now = s.QuickNow ?? new QuickTurn();
+            bool follow = !hover || quickScroll.VerticalOffset >= quickScroll.ScrollableHeight - 4; // you scrolled up to read: stay there
+
+            var sb = new StringBuilder();
+            foreach (var t in s.QuickHistory) sb.Append(t.Heard).Append('|').Append(t.Text.Length).Append('\n');
+            if (sb.ToString() != historyKey)
+            {
+                historyKey = sb.ToString();
+                quickHistory.Children.Clear();
+                foreach (var t in s.QuickHistory) quickHistory.Children.Add(PastTurn(t));
+                if (s.QuickHistory.Count > 0) quickHistory.Children.Add(new Border { Height = 1, Background = Theme.Line, Margin = new Thickness(0, 2, 0, 12) });
+                follow = true;
+            }
+
+            youText.Text = now.Heard;
+            youText.Foreground = s.Listening ? Theme.Dim : Brushes.White; // still hearing you
+            youBubble.Visibility = now.Heard != "" ? Visibility.Visible : Visibility.Collapsed;
+            string ck = now.Card == null ? "" : now.Card.Source;
+            if (ck != cardKey) { cardKey = ck; cardHost.Child = now.Card == null ? null : CardView(now.Card, false); }
+            cardHost.Visibility = now.Card != null ? Visibility.Visible : Visibility.Collapsed;
+            cardHost.Margin = new Thickness(0, now.Heard != "" ? 10 : 0, 0, 0);
+            answerText.Text = now.Text;
+            answerText.Visibility = now.Text != "" ? Visibility.Visible : Visibility.Collapsed;
+            quickStatus.Text = s.QuickStatus;
+            quickStatus.Visibility = s.QuickStatus != "" ? Visibility.Visible : Visibility.Collapsed;
+
+            if (now.Heard != turnKey) { turnKey = now.Heard; follow = true; }
+            if (follow) Dispatcher.BeginInvoke(new Action(() => quickScroll.ScrollToEnd()), DispatcherPriority.Loaded);
+        }
+
+        // An earlier question and its answer, smaller and dimmer.
+        FrameworkElement PastTurn(QuickTurn t)
+        {
+            var q = Wrapped(12, Theme.Dim);
+            q.Text = t.Heard;
+            var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
+            panel.Children.Add(new Border
+            {
+                Background = Theme.Chip, CornerRadius = new CornerRadius(12, 12, 4, 12), Padding = new Thickness(10, 5, 10, 6),
+                HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(72, 0, 0, 6), Child = q,
+            });
+            if (t.Card != null) panel.Children.Add(CardView(t.Card, true));
+            if (t.Text != "")
+            {
+                var a = Wrapped(12.5, Theme.Dim);
+                a.Text = t.Text + (t.Cut ? " …" : "");
+                a.LineHeight = 18;
+                a.MaxHeight = 54; // three lines
+                a.TextTrimming = TextTrimming.WordEllipsis;
+                a.Margin = new Thickness(2, t.Card != null ? 6 : 0, 2, 0);
+                panel.Children.Add(a);
+            }
+            return panel;
+        }
+
+        // The key fact, big: one value with its label and note, or a few name / value rows.
+        static FrameworkElement CardView(QuickCard c, bool small)
+        {
+            var stack = new StackPanel();
+            if (c.Items.Count == 0)
+            {
+                if (c.Label != "") { var l = Wrapped(small ? 11 : 12.5, Theme.Dim); l.Text = c.Label; stack.Children.Add(l); }
+                var v = Wrapped(small ? 17 : 30, Brushes.White);
+                v.FontWeight = FontWeights.Bold;
+                v.Text = c.Value;
+                v.Margin = new Thickness(0, small ? 0 : 1, 0, 0);
+                stack.Children.Add(v);
+                if (c.Note != "" && !small) { var n = Wrapped(12, Theme.Dim); n.Text = c.Note; n.Margin = new Thickness(0, 3, 0, 0); stack.Children.Add(n); }
+            }
+            else
+            {
+                if (c.Title != "")
+                {
+                    var title = Wrapped(small ? 11 : 12.5, Theme.Dim);
+                    title.FontWeight = FontWeights.SemiBold;
+                    title.Text = c.Title;
+                    title.Margin = new Thickness(0, 0, 0, small ? 2 : 4);
+                    stack.Children.Add(title);
+                }
+                int rows = small ? Math.Min(c.Items.Count, 3) : c.Items.Count;
+                for (int i = 0; i < rows; i++)
+                {
+                    var name = Wrapped(small ? 12 : 14, Brushes.White);
+                    name.Text = c.Items[i].Key;
+                    var value = Wrapped(small ? 12 : 14, Brushes.White);
+                    value.Text = c.Items[i].Value;
+                    value.FontWeight = FontWeights.Bold;
+                    value.TextAlignment = TextAlignment.Right;
+                    value.Margin = new Thickness(12, 0, 0, 0);
+                    value.MaxWidth = 200;
+                    var row = new DockPanel { LastChildFill = true, Margin = new Thickness(0, small ? 2 : 6, 0, small ? 2 : 6) };
+                    DockPanel.SetDock(value, Dock.Right);
+                    row.Children.Add(value);
+                    row.Children.Add(name);
+                    if (i > 0) stack.Children.Add(new Border { Height = 1, Background = Theme.Line });
+                    stack.Children.Add(row);
+                }
+                if (c.Items.Count > rows) { var more = Wrapped(11, Theme.Dim); more.Text = "+" + (c.Items.Count - rows) + " more"; stack.Children.Add(more); }
+                if (c.Note != "" && !small) { var n = Wrapped(12, Theme.Dim); n.Text = c.Note; n.Margin = new Thickness(0, 4, 0, 0); stack.Children.Add(n); }
+            }
+            return new Border
+            {
+                Background = Theme.Raised, BorderBrush = Theme.Line, BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(small ? 10 : 14),
+                Padding = small ? new Thickness(10, 6, 10, 7) : new Thickness(16, 12, 16, 14),
+                Child = stack,
+            };
         }
 
         void UpdateMini(NotchState s)
@@ -630,6 +777,11 @@ namespace ClaudeNotch
         static TextBlock Text(double size, Brush color, FontWeight weight)
         {
             return new TextBlock { FontFamily = Theme.Font, FontSize = size, Foreground = color, FontWeight = weight, TextTrimming = TextTrimming.CharacterEllipsis };
+        }
+
+        static TextBlock Wrapped(double size, Brush color)
+        {
+            return new TextBlock { FontFamily = Theme.Font, FontSize = size, Foreground = color, TextWrapping = TextWrapping.Wrap };
         }
 
         // Real buttons (so screen readers and UI Automation can press them), drawn as a rounded

@@ -28,8 +28,14 @@ permission requests, and lets you talk or type to Claude from anywhere.
   background. The answer streams onto the notch and is read aloud with a Windows voice, sentence
   by sentence. Press the shortcut again to cut it off and ask something else. Answers follow the
   `voice-replies` skill (`~/.claude/skills/voice-replies/SKILL.md`, written on first use and
-  yours to edit): short, plain spoken sentences, no markdown or links. Needs Claude Code signed
-  in (`claude auth login`).
+  yours to edit; an unedited one is updated with new versions): short, plain spoken sentences,
+  no markdown or links. Needs Claude Code signed in (`claude auth login`).
+  - *The panel* is a small chat: what you said in a bubble, the answer in large text, and the
+    earlier questions of this conversation above it (scroll to read them; it stays open while the
+    pointer is on it). When the answer has a key fact (a price, a time, a total, a short list),
+    it's shown as a **card** first: the figure big and bold with what it is and a short note, or a
+    few name and value rows. Claude sends the card as `<card>{json}</card>` before the spoken
+    answer; it's never read aloud. Try it with `ClaudeNotch.exe --demo quick`.
   - *Speech recognition:* **built in** runs [whisper.cpp](https://github.com/ggml-org/whisper.cpp)
     (MIT) with an English Whisper model on your PC, downloaded once from settings (Accurate,
     190 MB, or Fast, 60 MB) and checked against its SHA-256; nothing leaves the computer. Or
@@ -83,7 +89,7 @@ Other ways to run it:
 | Command | What it does |
 | --- | --- |
 | `ClaudeNotch.exe --here` | Run from where it is, without installing. Use this for testing a build. |
-| `ClaudeNotch.exe --demo` | Preview the notch's states without touching Claude (about 40 s). |
+| `ClaudeNotch.exe --demo` | Preview the notch's states without touching Claude (about a minute). `--demo quick` shows only quick voice. |
 | `ClaudeNotch.exe --settings` | Open the settings of the running copy. |
 | `ClaudeNotch.exe --uninstall` | Remove the app, its hooks, and its startup entry. |
 
