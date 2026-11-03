@@ -95,16 +95,20 @@ namespace ClaudeNotch
             var buttons = new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button);
             AutomationElement target = null;
 
-            var text = win.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.NameProperty, ask));
-            if (text != null)
+            // The question's text can also appear in the chat history, so widen the scope one
+            // level at a time around every copy: the box's own buttons are found first.
+            var scopes = new List<AutomationElement>();
+            foreach (AutomationElement t in win.FindAll(TreeScope.Descendants, new PropertyCondition(AutomationElement.NameProperty, ask)))
+                scopes.Add(t);
+            var walker = TreeWalker.ControlViewWalker;
+            for (int i = 0; i < 5 && target == null; i++)
             {
-                var walker = TreeWalker.ControlViewWalker;
-                var scope = text;
-                for (int i = 0; i < 5 && target == null; i++)
+                for (int k = 0; k < scopes.Count && target == null; k++)
                 {
-                    scope = walker.GetParent(scope);
-                    if (scope == null) break;
-                    foreach (AutomationElement b in scope.FindAll(TreeScope.Descendants, buttons))
+                    if (scopes[k] == null) continue;
+                    scopes[k] = walker.GetParent(scopes[k]);
+                    if (scopes[k] == null) continue;
+                    foreach (AutomationElement b in scopes[k].FindAll(TreeScope.Descendants, buttons))
                         if (Matches(b.Current.Name, label)) { target = b; break; }
                 }
             }
