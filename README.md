@@ -16,6 +16,7 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 This builds the app, copies it to `%LOCALAPPDATA%\ClaudeNotch`, adds it to Windows startup, and starts it.
 To build without installing, run `build.ps1`. The output goes to `bin\ClaudeNotch.exe`.
+To preview the notch without minimizing Claude, run `bin\ClaudeNotch.exe --demo`. It shows the idle notch, switches to voice, then slides away after about 20 seconds.
 
 No SDK is needed. It compiles with the C# compiler that ships with Windows (.NET Framework 4.x).
 
