@@ -65,6 +65,10 @@ namespace ClaudeNotch
         readonly Ellipse alertDot;
         readonly Rectangle[] bars = new Rectangle[5];
         readonly ColumnDefinition progressDone = new ColumnDefinition(), progressLeft = new ColumnDefinition();
+        // Compact style: a short bar and "4/6" at the right of the line, instead of the full-width bar.
+        readonly ColumnDefinition miniDone = new ColumnDefinition(), miniLeft = new ColumnDefinition();
+        readonly StackPanel compactTasks;
+        readonly TextBlock compactCount;
         readonly MenuItem endVoiceItem;
         readonly TranslateTransform slide = new TranslateTransform();
         readonly DispatcherTimer voiceTimer, leaveTimer, topTimer;
@@ -128,7 +132,17 @@ namespace ClaudeNotch
             }, "Hide", () => { if (Dismiss != null) Dismiss(); });
             closeButton.Margin = new Thickness(8, 0, 0, 0);
 
-            var right = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 0), Children = { voicePanel, alertDot, closeButton } };
+            var miniGrid = new Grid();
+            miniGrid.ColumnDefinitions.Add(miniDone);
+            miniGrid.ColumnDefinitions.Add(miniLeft);
+            miniGrid.Children.Add(new Rectangle { Fill = Theme.Clay });
+            var miniBar = new Border { Width = 34, Height = 4, CornerRadius = new CornerRadius(2), Background = Theme.Chip, ClipToBounds = true, VerticalAlignment = VerticalAlignment.Center, Child = miniGrid };
+            compactCount = Text(11, Theme.Dim, FontWeights.SemiBold);
+            compactCount.Margin = new Thickness(6, 0, 0, 0);
+            compactCount.VerticalAlignment = VerticalAlignment.Center;
+            compactTasks = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0), Visibility = Visibility.Collapsed, Children = { miniBar, compactCount } };
+
+            var right = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 0), Children = { compactTasks, voicePanel, alertDot, closeButton } };
             header = new DockPanel { LastChildFill = true };
             DockPanel.SetDock(right, Dock.Right);
             header.Children.Add(right);
@@ -305,6 +319,7 @@ namespace ClaudeNotch
             if (Compact && s.Kind == "session")
             {
                 string brief = !string.IsNullOrEmpty(s.Short) ? s.Short : s.Detail;
+                if (s.Total > 0 && brief != null) { int dot = brief.IndexOf(" · "); if (dot > 0) brief = brief.Substring(0, dot); }
                 if (!string.IsNullOrEmpty(brief)) title.Inlines.Add(new Run("  " + brief) { Foreground = Theme.Dim, FontWeight = FontWeights.Normal });
                 showSub = false;
             }
@@ -318,6 +333,13 @@ namespace ClaudeNotch
             if (s.Kind == "voice") title.Inlines.Add(new Run(s.Muted ? "Muted" : "Listening"));
 
             bool hasTasks = s.Kind == "session" && s.Total > 0 && !Compact;
+            bool compactHasTasks = s.Kind == "session" && s.Total > 0 && Compact;
+            if (compactHasTasks)
+            {
+                miniDone.Width = new GridLength(s.Done, GridUnitType.Star);
+                miniLeft.Width = new GridLength(Math.Max(s.Total - s.Done, 0), GridUnitType.Star);
+                compactCount.Text = s.Done + "/" + s.Total;
+            }
             if (hasTasks)
             {
                 progressDone.Width = new GridLength(s.Done, GridUnitType.Star);
@@ -332,7 +354,7 @@ namespace ClaudeNotch
             if (showList) BuildList(s.Sessions);
             UpdateMini(s);
 
-            string key = s.Kind + "|" + hover + "|" + s.Visible + "|" + hasTasks + "|" + showList + "|" + showActions + "|" + showSub + "|" + settings.Style + "|" + settings.Edge;
+            string key = s.Kind + "|" + hover + "|" + s.Visible + "|" + hasTasks + "|" + compactHasTasks + "|" + showList + "|" + showActions + "|" + showSub + "|" + settings.Style + "|" + settings.Edge;
             if (key == layoutKey) return;
             layoutKey = key;
 
@@ -344,12 +366,14 @@ namespace ClaudeNotch
             alertDot.Fill = alert ? Theme.Amber : Theme.Blue;
             closeButton.Visibility = hover ? Visibility.Visible : Visibility.Collapsed;
             progressTrack.Visibility = hasTasks ? Visibility.Visible : Visibility.Collapsed;
+            compactTasks.Visibility = compactHasTasks ? Visibility.Visible : Visibility.Collapsed;
             actions.Visibility = showActions ? Visibility.Visible : Visibility.Collapsed;
             list.Visibility = showList ? Visibility.Visible : Visibility.Collapsed;
 
             // A notice (a permission request to answer elsewhere) is a small card with one button.
             bool notice = alert && s.Pending == null;
             double w = (notice ? (Compact ? 270 : 300) : CardWidth(s.Kind)) + (hover && !Mini ? 26 : 0);
+            if (compactHasTasks) w += 56;
             if (showList || (showActions && !notice)) w = Math.Max(w, Compact ? 330 : 360);
             Animate(card, WidthProperty, w, 220);
             if (s.Kind == "question") header.Height = double.NaN; // the question may wrap: fit it
