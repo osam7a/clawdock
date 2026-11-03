@@ -93,6 +93,12 @@ namespace ClaudeNotch
                 try { System.Diagnostics.Process.Start("notepad.exe", "\"" + QuickVoice.SkillFile + "\""); }
                 catch (Exception ex) { Log.Write("Couldn't open " + QuickVoice.SkillFile + ": " + ex.Message); }
             };
+            var speechSettings = new Button { Content = ModernDictation.OnlineSpeechOn ? "Windows settings…" : "Turn it on…" };
+            speechSettings.Click += (a, b) =>
+            {
+                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:privacy-speech") { UseShellExecute = true }); }
+                catch (Exception ex) { Log.Write("Couldn't open speech settings: " + ex.Message); }
+            };
             Page("voice", "Voice and prompts",
                 Card(
                     Row("When I press the shortcut", VoiceLauncher.HasMicrophone() ? "A microphone is available." : "No microphone found right now, so the shortcut opens a prompt box.",
@@ -100,6 +106,10 @@ namespace ClaudeNotch
                 Hint("Quick voice is push to talk: hold the shortcut while you speak (or press it and talk), and Claude's answer appears on the notch and is read aloud. Press again to cut it off. It runs Claude Code in the background, so you don't need the app open."),
                 Section("Quick voice"),
                 Card(
+                    Row("Speech recognition", ModernDictation.OnlineSpeechOn
+                            ? "Using Windows online speech recognition, the same as Win+H voice typing."
+                            : "Turn on Online speech recognition in Windows for much better accuracy. Until then the older, offline engine is used.",
+                        speechSettings),
                     Row("Model", "Haiku answers fastest.",
                         Combo(new[] { "haiku", "Haiku", "sonnet", "Sonnet", "opus", "Opus" }, s.QuickModel, v => s.QuickModel = v)),
                     Toggle("Read answers aloud", "Otherwise answers only appear on the notch.", s.QuickSpeak, v => s.QuickSpeak = v),

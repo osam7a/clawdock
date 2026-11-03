@@ -18,7 +18,13 @@ $refs = @(
     "$fw\System.Drawing.dll",
     "$fw\System.Windows.Forms.dll",
     "$fw\System.Web.Extensions.dll",
-    "$wpf\System.Speech.dll"
+    "$wpf\System.Speech.dll",
+    # Windows Runtime, for modern dictation
+    "$fw\System.Runtime.dll",
+    "$fw\System.Runtime.InteropServices.WindowsRuntime.dll",
+    "$env:WINDIR\System32\WinMetadata\Windows.Foundation.winmd",
+    "$env:WINDIR\System32\WinMetadata\Windows.Globalization.winmd",
+    "$env:WINDIR\System32\WinMetadata\Windows.Media.winmd"
 ) | ForEach-Object { "/r:$_" }
 
 $sources = Get-ChildItem (Join-Path $PSScriptRoot 'src') -Filter *.cs | ForEach-Object FullName

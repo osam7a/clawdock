@@ -48,7 +48,10 @@ namespace ClaudeNotch
         readonly Settings settings;
         readonly Dispatcher ui;
         readonly DispatcherTimer tick;
-        SpeechRecognitionEngine recognizer;
+        SpeechRecognitionEngine recognizer; // the old desktop engine, when modern dictation can't be used
+        ModernDictation modern;
+        bool listeningModern, modernBroken, privacyBlocked; // privacyBlocked: online speech recognition is off
+        readonly object listenGate = new object();
         SpeechSynthesizer voice;
         Process claude;
         Stream claudeIn;
@@ -103,19 +106,68 @@ namespace ClaudeNotch
         void StartListening()
         {
             if (!VoiceLauncher.HasMicrophone()) { Fail("No microphone found."); return; }
-            try { EnsureRecognizer(); }
-            catch (Exception e) { Log.Write("Quick voice: speech recognition: " + e.Message); Fail("Windows speech recognition isn't available."); return; }
 
             heardParts.Clear();
             Heard = Partial = Answer = Status = "";
             held = false; holdDecided = false; stopping = false;
             ListenStarted = lastSpeech = DateTime.Now;
             State = Phase.Listening;
-            try { recognizer.RecognizeAsync(RecognizeMode.Multiple); }
-            catch (InvalidOperationException) { } // still running from last time
-            catch (Exception e) { Log.Write("Quick voice: " + e.Message); Fail("Couldn't use the microphone."); return; }
             ThreadPool.QueueUserWorkItem(_ => { try { EnsureClaude(); } catch (Exception e) { Log.Write("Quick voice: " + e.Message); } }); // warm up while you talk
             tick.Start();
+            Raise();
+
+            // Windows' modern dictation when it's allowed (much better), else the old engine.
+            listeningModern = !modernBroken && (!privacyBlocked || ModernDictation.OnlineSpeechOn);
+            if (!listeningModern) { StartLegacy(); return; }
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    lock (listenGate)
+                    {
+                        if (modern == null)
+                        {
+                            var m = new ModernDictation();
+                            m.Hypothesis += t => ui.BeginInvoke(new Action(() => OnPartial(t)));
+                            m.Result += t => ui.BeginInvoke(new Action(() => OnPhrase(t)));
+                            modern = m;
+                        }
+                        modern.Start();
+                    }
+                }
+                catch (Exception e)
+                {
+                    Log.Write("Quick voice: modern speech recognition: 0x" + e.HResult.ToString("X") + " " + e.Message);
+                    if (e.HResult == ModernDictation.PrivacyNotAccepted) privacyBlocked = true; else modernBroken = true;
+                    ui.BeginInvoke(new Action(() => { if (State == Phase.Listening && !stopping) { listeningModern = false; StartLegacy(); } }));
+                }
+            });
+        }
+
+        void StartLegacy()
+        {
+            try { EnsureRecognizer(); }
+            catch (Exception e) { Log.Write("Quick voice: speech recognition: " + e.Message); Fail("Windows speech recognition isn't available."); return; }
+            try { recognizer.RecognizeAsync(RecognizeMode.Multiple); }
+            catch (InvalidOperationException) { } // still running from last time
+            catch (Exception e) { Log.Write("Quick voice: " + e.Message); Fail("Couldn't use the microphone."); }
+        }
+
+        void OnPartial(string text)
+        {
+            if (State != Phase.Listening) return;
+            Partial = text;
+            lastSpeech = DateTime.Now;
+            Raise();
+        }
+
+        void OnPhrase(string text)
+        {
+            if (State != Phase.Listening) return;
+            heardParts.Add(text);
+            Heard = string.Join(" ", heardParts.ToArray());
+            Partial = "";
+            lastSpeech = DateTime.Now;
             Raise();
         }
 
@@ -132,22 +184,8 @@ namespace ClaudeNotch
             var engine = new SpeechRecognitionEngine(info);
             engine.LoadGrammar(new DictationGrammar());
             engine.SetInputToDefaultAudioDevice();
-            engine.SpeechHypothesized += (s, e) => ui.BeginInvoke(new Action(() =>
-            {
-                if (State != Phase.Listening) return;
-                Partial = e.Result.Text;
-                lastSpeech = DateTime.Now;
-                Raise();
-            }));
-            engine.SpeechRecognized += (s, e) => ui.BeginInvoke(new Action(() =>
-            {
-                if (State != Phase.Listening) return;
-                heardParts.Add(e.Result.Text);
-                Heard = string.Join(" ", heardParts.ToArray());
-                Partial = "";
-                lastSpeech = DateTime.Now;
-                Raise();
-            }));
+            engine.SpeechHypothesized += (s, e) => { string t = e.Result.Text; ui.BeginInvoke(new Action(() => OnPartial(t))); };
+            engine.SpeechRecognized += (s, e) => { string t = e.Result.Text; ui.BeginInvoke(new Action(() => OnPhrase(t))); };
             engine.SpeechDetected += (s, e) => ui.BeginInvoke(new Action(() => { lastSpeech = DateTime.Now; }));
             engine.RecognizeCompleted += (s, e) => ui.BeginInvoke(new Action(OnRecognizeCompleted));
             recognizer = engine;
@@ -174,6 +212,16 @@ namespace ClaudeNotch
         {
             if (stopping) return;
             stopping = true;
+            if (listeningModern)
+            {
+                // Stopping finishes the phrase being spoken; its result is queued before this.
+                ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    lock (listenGate) { if (modern != null) modern.Stop(); }
+                    ui.BeginInvoke(new Action(OnRecognizeCompleted));
+                });
+                return;
+            }
             // Stopping lets the words being recognized finish; RecognizeCompleted follows.
             try { recognizer.RecognizeAsyncStop(); } catch { }
             var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
@@ -195,6 +243,7 @@ namespace ClaudeNotch
         void StopRecognizer()
         {
             try { if (recognizer != null) recognizer.RecognizeAsyncCancel(); } catch { }
+            if (modern != null) ThreadPool.QueueUserWorkItem(_ => { lock (listenGate) { if (modern != null) modern.Cancel(); } });
         }
 
         // ---- asking Claude -------------------------------------------------

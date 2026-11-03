@@ -30,7 +30,9 @@ permission requests, and lets you talk or type to Claude from anywhere.
   conversation's context for 15 minutes. It can search the web, nothing else. Answers follow the
   `voice-replies` skill (`~/.claude/skills/voice-replies/SKILL.md`, written on first use and
   yours to edit): short, plain spoken sentences, no markdown or links. Needs Claude Code signed
-  in (`claude auth login`).
+  in (`claude auth login`). Listening uses Windows' online speech recognition (the engine behind
+  Win+H voice typing) when it's turned on in Settings → Privacy & security → Speech, and the
+  older offline engine otherwise.
 - **Typed prompts.** If there's no microphone, or you prefer typing, the shortcut opens a small
   prompt box under the notch. Enter sends it to the Claude app (the open chat or session) or
   starts a new Claude Code session in a terminal. You choose the default in settings and can
@@ -126,6 +128,7 @@ Claude window ──UI Automation──> voice, mute, current session title, pro
 | `src/ClaudeWatcher.cs` | Claude's window: open, minimized, in front, voice, mute, current session, fullscreen apps. |
 | `src/VoiceLauncher.cs` | Starts voice mode; microphone detection. |
 | `src/QuickVoice.cs` | Quick voice: speech recognition, the background Claude Code session, reading answers aloud, the voice-replies skill. |
+| `src/ModernDictation.cs` | Windows' modern (online) dictation, used by quick voice when allowed. |
 | `src/PromptWindow.cs`, `src/PromptSender.cs` | The typed prompt box, and sending to the app or a terminal. |
 | `src/TerminalFocus.cs` | Finds the terminal window a CLI session runs in. |
 | `src/Hotkeys.cs` | The Copilot key hook and custom shortcuts. |
