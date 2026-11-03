@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -28,6 +29,11 @@ namespace ClaudeNotch
         public bool FullscreenApp { get; private set; }
         public bool InVoice { get; private set; }
         public bool MicMuted { get; private set; }
+        public bool ClaudeMinimized { get; private set; }
+
+        // Name of the session Claude Code was showing the last time we could read it
+        // (the header's "<name>, rename session" button). Kept after you leave Claude.
+        public string SessionTitle { get; private set; }
 
         readonly DispatcherTimer timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         HashSet<uint> claudePids = new HashSet<uint>();
@@ -37,6 +43,7 @@ namespace ClaudeNotch
         // Written by the UI Automation thread, read by Poll.
         volatile bool probeVoice, probeMuted;
         volatile IntPtr probeWindow;
+        volatile string probeTitle;
 
         public void Start()
         {
@@ -53,6 +60,8 @@ namespace ClaudeNotch
             var cond = new OrCondition(
                 new PropertyCondition(AutomationElement.NameProperty, MicOnButton),
                 new PropertyCondition(AutomationElement.NameProperty, MicOffButton));
+            var buttons = new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button);
+            int round = 0;
             while (true)
             {
                 bool voice = false, muted = false;
@@ -61,8 +70,23 @@ namespace ClaudeNotch
                     IntPtr h = probeWindow;
                     if (h != IntPtr.Zero)
                     {
-                        var el = AutomationElement.FromHandle(h).FindFirst(TreeScope.Descendants, cond);
+                        var win = AutomationElement.FromHandle(h);
+                        var el = win.FindFirst(TreeScope.Descendants, cond);
                         if (el != null) { voice = true; muted = el.Current.Name == MicOffButton; }
+
+                        // Scanning every button is slower, so the title is only refreshed now and then.
+                        if (round++ % 3 == 0)
+                        {
+                            foreach (AutomationElement b in win.FindAll(TreeScope.Descendants, buttons))
+                            {
+                                string n = b.Current.Name;
+                                if (n != null && n.EndsWith(RenameSuffix, StringComparison.Ordinal))
+                                {
+                                    probeTitle = n.Substring(0, n.Length - RenameSuffix.Length);
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
                 catch { }
@@ -70,6 +94,61 @@ namespace ClaudeNotch
                 probeMuted = muted;
                 Thread.Sleep(700);
             }
+        }
+
+        const string RenameSuffix = ", rename session";
+
+        // Ends the voice conversation. Claude's end control isn't labelled the same
+        // in every state, so try the likely names in turn until the mic toggle is gone.
+        // "Close" is left out on purpose: that one closes the whole window.
+        public void EndVoice()
+        {
+            IntPtr h = claudeWindow;
+            if (h == IntPtr.Zero) return;
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    var win = AutomationElement.FromHandle(h);
+                    var mic = new OrCondition(
+                        new PropertyCondition(AutomationElement.NameProperty, MicOnButton),
+                        new PropertyCondition(AutomationElement.NameProperty, MicOffButton));
+                    string[] names = { "End voice mode", "End voice", "End conversation", "End call", "Hang up", "Exit voice mode", "Cancel", "Stop" };
+
+                    foreach (string name in names)
+                    {
+                        var el = win.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.NameProperty, name));
+                        object pattern;
+                        if (el == null || !el.TryGetCurrentPattern(InvokePattern.Pattern, out pattern)) continue;
+                        ((InvokePattern)pattern).Invoke();
+                        Thread.Sleep(1200);
+                        if (win.FindFirst(TreeScope.Descendants, mic) == null) { probeVoice = false; return; }
+                    }
+                    LogVoiceControls(win, mic);
+                }
+                catch { }
+            });
+        }
+
+        // If nothing ended voice, record the controls around the mic toggle so the
+        // right name can be added to the list above.
+        static void LogVoiceControls(AutomationElement win, Condition mic)
+        {
+            try
+            {
+                var toggle = win.FindFirst(TreeScope.Descendants, mic);
+                if (toggle == null) return;
+                var walker = TreeWalker.ControlViewWalker;
+                var scope = toggle;
+                for (int i = 0; i < 3 && walker.GetParent(scope) != null; i++) scope = walker.GetParent(scope);
+
+                var sb = new StringBuilder(DateTime.Now + ": could not end voice. Controls near the mic toggle:\r\n");
+                foreach (AutomationElement e in scope.FindAll(TreeScope.Descendants, Condition.TrueCondition))
+                    if (!string.IsNullOrEmpty(e.Current.Name) && e.Current.Name.Length < 60)
+                        sb.AppendLine("  [" + e.Current.ControlType.ProgrammaticName + "] " + e.Current.Name);
+                File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ClaudeNotch.log"), sb.ToString());
+            }
+            catch { }
         }
 
         // Presses Claude's own mic toggle, so mute state stays in sync with the app.
@@ -127,14 +206,19 @@ namespace ClaudeNotch
             probeWindow = claudeOpen ? claudeWindow : IntPtr.Zero;
             bool voice = claudeOpen && (probeVoice || MicInUse());
             bool muted = voice && probeMuted;
+            bool isMinimized = claudeOpen && open == IntPtr.Zero;
+            string title = probeTitle ?? SessionTitle;
 
-            if (claudeOpen != ClaudeOpen || inFront != ClaudeInFront || fullscreen != FullscreenApp || voice != InVoice || muted != MicMuted)
+            if (claudeOpen != ClaudeOpen || inFront != ClaudeInFront || fullscreen != FullscreenApp || voice != InVoice
+                || muted != MicMuted || isMinimized != ClaudeMinimized || title != SessionTitle)
             {
                 ClaudeOpen = claudeOpen;
                 ClaudeInFront = inFront;
                 FullscreenApp = fullscreen;
                 InVoice = voice;
                 MicMuted = muted;
+                ClaudeMinimized = isMinimized;
+                SessionTitle = title;
                 if (Changed != null) Changed();
             }
         }

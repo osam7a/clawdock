@@ -8,12 +8,18 @@ using System.Windows.Automation;
 
 namespace ClaudeNotch
 {
-    // Makes the Copilot key open a new Claude voice conversation.
+    // Makes the Copilot key start a Claude voice conversation.
     //
     // The Copilot key sends Left Win + Left Shift + F23. A low-level keyboard hook
-    // swallows that F23 so Windows Copilot never sees it, and opens Claude instead.
-    // Put a different target in ClaudeNotch.txt next to the exe to override it
-    // (e.g. https://claude.ai/new to use the browser instead of the desktop app).
+    // swallows that F23 so Windows Copilot never sees it, then:
+    //   - if voice is already running, nothing happens
+    //   - if the open view has Claude's "Use voice mode" button (a chat is open), it
+    //     presses that, so the conversation carries on in the existing chat
+    //   - otherwise (e.g. you're on the Code tab) it opens a new chat first
+    // Once voice is up, Claude is minimized so the conversation carries on from the notch.
+    //
+    // Put a different target in ClaudeNotch.txt next to the exe to override the
+    // new-chat link (e.g. https://claude.ai/new to use the browser; no voice auto-start then).
     static class CopilotKey
     {
         const int WH_KEYBOARD_LL = 13;
@@ -22,6 +28,7 @@ namespace ClaudeNotch
         const int VK_MASK = 0xE8; // unassigned key, used to stop Win-release from opening Start
         const uint LLKHF_INJECTED = 0x10;
         const string DefaultTarget = "claude://claude.ai/new";
+        const string VoiceButton = "Use voice mode";
 
         delegate IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam);
 
@@ -40,14 +47,17 @@ namespace ClaudeNotch
         [DllImport("user32.dll")] static extern short GetAsyncKeyState(int vk);
         [DllImport("user32.dll")] static extern uint SendInput(uint n, INPUT[] inputs, int size);
         [DllImport("kernel32.dll")] static extern IntPtr GetModuleHandle(string name);
+        [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+        [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int cmd);
         // ShowWindow(SW_MINIMIZE) is ignored by the Claude window; the system command works.
         [DllImport("user32.dll")] static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
         const uint WM_SYSCOMMAND = 0x0112;
-        const int SC_MINIMIZE = 0xF020;
+        const int SC_MINIMIZE = 0xF020, SW_RESTORE = 9;
 
         static readonly HookProc hookProc = HookCallback; // kept alive so the GC can't collect it
         static IntPtr hook;
         static DateTime lastLaunch = DateTime.MinValue;
+        static int running; // 1 while a launch is in progress
 
         public static void Install()
         {
@@ -98,22 +108,105 @@ namespace ClaudeNotch
 
         static void Launch()
         {
-            string target = DefaultTarget;
+            if (Interlocked.Exchange(ref running, 1) == 1) return; // already handling a key press
             try
             {
+                string target = DefaultTarget;
                 string cfg = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ClaudeNotch.txt");
                 if (File.Exists(cfg))
                 {
                     string t = File.ReadAllText(cfg).Trim();
                     if (t.Length > 0) target = t;
                 }
-                Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
-                if (target.StartsWith("claude://")) StartVoice();
+
+                if (!target.StartsWith("claude://", StringComparison.OrdinalIgnoreCase))
+                {
+                    Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
+                    return;
+                }
+                StartVoice(target);
             }
             catch
             {
                 try { Process.Start(new ProcessStartInfo("https://claude.ai/new") { UseShellExecute = true }); } catch { }
             }
+            finally { Interlocked.Exchange(ref running, 0); }
+        }
+
+        static void StartVoice(string newChatLink)
+        {
+            IntPtr hwnd = FindClaudeWindow();
+            if (hwnd == IntPtr.Zero)
+            {
+                // Claude isn't running: launching it opens a new chat.
+                Process.Start(new ProcessStartInfo(newChatLink) { UseShellExecute = true });
+                hwnd = WaitForClaudeWindow(15000);
+                if (hwnd == IntPtr.Zero) return;
+            }
+
+            var win = AutomationElement.FromHandle(hwnd);
+            if (InVoice(win)) return;                            // already talking to Claude
+            if (IsIconic(hwnd)) ShowWindow(hwnd, SW_RESTORE);    // a hidden window can stall the voice connection
+
+            // Continue in whatever chat is open; only start a new one if this view has no voice button.
+            if (!PressVoiceButton(win, 2500))
+            {
+                Process.Start(new ProcessStartInfo(newChatLink) { UseShellExecute = true });
+                if (!PressVoiceButton(win, 12000)) { LogButtons(win); return; }
+            }
+            TuckAwayOnceVoiceStarts(win, hwnd);
+        }
+
+        static IntPtr FindClaudeWindow()
+        {
+            foreach (var p in Process.GetProcessesByName("claude"))
+                if (p.MainWindowHandle != IntPtr.Zero) return p.MainWindowHandle;
+            return IntPtr.Zero;
+        }
+
+        static IntPtr WaitForClaudeWindow(int timeoutMs)
+        {
+            for (int waited = 0; waited < timeoutMs; waited += 500)
+            {
+                Thread.Sleep(500);
+                IntPtr h = FindClaudeWindow();
+                if (h != IntPtr.Zero) { Thread.Sleep(2500); return h; } // let the first screen load
+            }
+            return IntPtr.Zero;
+        }
+
+        static bool InVoice(AutomationElement win)
+        {
+            try { return win.FindFirst(TreeScope.Descendants, MicToggle()) != null; } catch { return false; }
+        }
+
+        static Condition MicToggle()
+        {
+            return new OrCondition(
+                new PropertyCondition(AutomationElement.NameProperty, ClaudeWatcher.MicOnButton),
+                new PropertyCondition(AutomationElement.NameProperty, ClaudeWatcher.MicOffButton));
+        }
+
+        // Polls for the voice button and presses it. False if it never shows up.
+        static bool PressVoiceButton(AutomationElement win, int timeoutMs)
+        {
+            var exact = new PropertyCondition(AutomationElement.NameProperty, VoiceButton);
+            for (int waited = 0; waited < timeoutMs; waited += 300)
+            {
+                try
+                {
+                    var button = win.FindFirst(TreeScope.Descendants, exact);
+                    object pattern;
+                    if (button != null && button.TryGetCurrentPattern(InvokePattern.Pattern, out pattern))
+                    {
+                        ((InvokePattern)pattern).Invoke();
+                        return true;
+                    }
+                }
+                catch { }
+                Thread.Sleep(300);
+            }
+            return false;
         }
 
         // Once Claude's voice screen is up (its mic toggle exists), minimize Claude so
@@ -121,71 +214,28 @@ namespace ClaudeNotch
         // stays in front so you can see what happened.
         static void TuckAwayOnceVoiceStarts(AutomationElement win, IntPtr hwnd)
         {
-            var micToggle = new OrCondition(
-                new PropertyCondition(AutomationElement.NameProperty, ClaudeWatcher.MicOnButton),
-                new PropertyCondition(AutomationElement.NameProperty, ClaudeWatcher.MicOffButton));
-            for (int i = 0; i < 20; i++)
+            for (int i = 0; i < 25; i++)
             {
                 Thread.Sleep(300);
-                try
+                if (InVoice(win))
                 {
-                    if (win.FindFirst(TreeScope.Descendants, micToggle) != null)
-                    {
-                        Thread.Sleep(400); // let voice finish connecting before hiding the window
-                        PostMessage(hwnd, WM_SYSCOMMAND, (IntPtr)SC_MINIMIZE, IntPtr.Zero);
-                        return;
-                    }
+                    Thread.Sleep(400); // let voice finish connecting before hiding the window
+                    PostMessage(hwnd, WM_SYSCOMMAND, (IntPtr)SC_MINIMIZE, IntPtr.Zero);
+                    return;
                 }
-                catch { }
             }
         }
 
-        // Waits for the new chat to load in the Claude window, then presses its
-        // voice mode button through UI Automation. If no voice button turns up,
-        // the button names it saw go to ClaudeNotch.log for troubleshooting.
-        static void StartVoice()
+        // If no voice button turned up, the button names it saw go to ClaudeNotch.log for troubleshooting.
+        static void LogButtons(AutomationElement win)
         {
-            var buttonCond = new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button);
-            string seen = "";
-            Thread.Sleep(700); // let the app switch to the new chat first
-
-            for (int attempt = 0; attempt < 24; attempt++)
-            {
-                try
-                {
-                    foreach (var p in Process.GetProcessesByName("claude"))
-                    {
-                        if (p.MainWindowHandle == IntPtr.Zero) continue;
-                        var win = AutomationElement.FromHandle(p.MainWindowHandle);
-                        AutomationElement best = null;
-                        var names = new StringBuilder();
-
-                        foreach (AutomationElement b in win.FindAll(TreeScope.Descendants, buttonCond))
-                        {
-                            string n = (b.Current.Name ?? "").ToLowerInvariant();
-                            names.AppendLine(b.Current.Name);
-                            if (n == "use voice mode" || n.Contains("voice mode")) { best = b; break; }
-                            if (best == null && n.Contains("voice") && !n.Contains("dictat")) best = b;
-                        }
-                        seen = names.ToString();
-
-                        object pattern;
-                        if (best != null && best.TryGetCurrentPattern(InvokePattern.Pattern, out pattern))
-                        {
-                            ((InvokePattern)pattern).Invoke();
-                            TuckAwayOnceVoiceStarts(win, p.MainWindowHandle);
-                            return;
-                        }
-                    }
-                }
-                catch { }
-                Thread.Sleep(500);
-            }
-
             try
             {
-                File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ClaudeNotch.log"),
-                    DateTime.Now + ": no voice button found. Buttons seen:\r\n" + seen);
+                var sb = new StringBuilder(DateTime.Now + ": no voice button found. Buttons seen:\r\n");
+                foreach (AutomationElement b in win.FindAll(TreeScope.Descendants,
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button)))
+                    sb.AppendLine(b.Current.Name);
+                File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ClaudeNotch.log"), sb.ToString());
             }
             catch { }
         }
