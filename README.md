@@ -4,7 +4,7 @@ A small Windows companion for the Claude desktop app.
 
 - **Notch:** a black pill with an animated pixel mascot that shows while Claude is open but not the window in front.
   - *Minimized:* it always shows.
-  - *Alt+Tabbed away:* it only shows while something is going on (a voice conversation, a session that's working, or a permission request). If nothing is happening, it stays hidden.
+  - *Alt+Tabbed away:* it only shows while something is going on (a voice conversation, a session that's working, or a permission request). If nothing is happening, it stays hidden. "Working" is read from the Stop button in Claude's input box, so it works for any session, including ones the hooks don't cover. The hooks add task counts and exact working time on top.
   - It stays hidden over fullscreen apps.
 - **Session info:** when you leave a Claude Code session, the notch shows its name, how long it has been working, and how many tasks are done and left (`Working 4:12 · 3 done · 2 left`, with a thin progress bar). When the session finishes it shows `Done in 4:12` for a few seconds. If you minimized, the last session stays on the notch for 30 minutes.
 - **Voice indicator:** during a Claude voice conversation, the notch widens and shows "Listening", a timer, live bars, and a mute button. The mute button presses Claude's own mic toggle. The mascot hops around.

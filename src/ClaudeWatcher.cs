@@ -31,6 +31,11 @@ namespace ClaudeNotch
         public bool MicMuted { get; private set; }
         public bool ClaudeMinimized { get; private set; }
 
+        // True while the session Claude is showing is mid-turn: its input box then has a
+        // Stop button. This works for any session, including ones the hooks don't report.
+        public bool Working { get; private set; }
+        public DateTime WorkingSince { get; private set; }
+
         // Name of the session Claude Code was showing the last time we could read it
         // (the header's "<name>, rename session" button). Kept after you leave Claude.
         public string SessionTitle { get; private set; }
@@ -41,7 +46,7 @@ namespace ClaudeNotch
         IntPtr claudeWindow;
 
         // Written by the UI Automation thread, read by Poll.
-        volatile bool probeVoice, probeMuted;
+        volatile bool probeVoice, probeMuted, probeWorking;
         volatile IntPtr probeWindow;
         volatile string probeTitle;
 
@@ -61,10 +66,11 @@ namespace ClaudeNotch
                 new PropertyCondition(AutomationElement.NameProperty, MicOnButton),
                 new PropertyCondition(AutomationElement.NameProperty, MicOffButton));
             var buttons = new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button);
+            var stopButton = new AndCondition(buttons, new PropertyCondition(AutomationElement.NameProperty, "Stop"));
             int round = 0;
             while (true)
             {
-                bool voice = false, muted = false;
+                bool voice = false, muted = false, working = false;
                 try
                 {
                     IntPtr h = probeWindow;
@@ -73,6 +79,9 @@ namespace ClaudeNotch
                         var win = AutomationElement.FromHandle(h);
                         var el = win.FindFirst(TreeScope.Descendants, cond);
                         if (el != null) { voice = true; muted = el.Current.Name == MicOffButton; }
+
+                        // The voice screen has a Stop button too, so only count it outside voice.
+                        if (!voice) working = win.FindFirst(TreeScope.Descendants, stopButton) != null;
 
                         // Scanning every button is slower, so the title is only refreshed now and then.
                         if (round++ % 3 == 0)
@@ -92,6 +101,7 @@ namespace ClaudeNotch
                 catch { }
                 probeVoice = voice;
                 probeMuted = muted;
+                probeWorking = working;
                 Thread.Sleep(700);
             }
         }
@@ -208,10 +218,13 @@ namespace ClaudeNotch
             bool muted = voice && probeMuted;
             bool isMinimized = claudeOpen && open == IntPtr.Zero;
             string title = probeTitle ?? SessionTitle;
+            bool working = claudeOpen && !voice && probeWorking;
 
             if (claudeOpen != ClaudeOpen || inFront != ClaudeInFront || fullscreen != FullscreenApp || voice != InVoice
-                || muted != MicMuted || isMinimized != ClaudeMinimized || title != SessionTitle)
+                || muted != MicMuted || isMinimized != ClaudeMinimized || title != SessionTitle || working != Working)
             {
+                if (working && !Working) WorkingSince = DateTime.Now;
+                Working = working;
                 ClaudeOpen = claudeOpen;
                 ClaudeInFront = inFront;
                 FullscreenApp = fullscreen;

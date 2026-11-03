@@ -63,8 +63,9 @@ namespace ClaudeNotch
         readonly Random rnd = new Random();
 
         // Latest state from the watcher.
-        bool claudeOpen, claudeInFront, claudeMinimized, fullscreenApp, voice, muted;
+        bool claudeOpen, claudeInFront, claudeMinimized, fullscreenApp, voice, muted, working;
         string sessionTitle;
+        DateTime workingSince;
 
         bool shown, hover, dismissed, docked = true;
         string appliedKey = "";
@@ -248,7 +249,7 @@ namespace ClaudeNotch
             alertTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
             alertTimer.Tick += (s, e) => { alertTimer.Stop(); ClearAlert(); };
             refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-            refreshTimer.Tick += (s, e) => Apply(); // keeps the working time ticking
+            refreshTimer.Tick += (s, e) => { Apply(); if (shown) KeepOnTop(); }; // keeps the working time ticking
             refreshTimer.Start();
 
             SourceInitialized += (s, e) => MakeToolWindow();
@@ -256,8 +257,11 @@ namespace ClaudeNotch
 
         // ---- state ---------------------------------------------------------
 
-        public void Update(bool isOpen, bool isInFront, bool isFullscreenApp, bool inVoice, bool micMuted, bool isMinimized, string title)
+        public void Update(bool isOpen, bool isInFront, bool isFullscreenApp, bool inVoice, bool micMuted, bool isMinimized, string title,
+            bool isWorking = false, DateTime started = default(DateTime))
         {
+            working = isWorking;
+            workingSince = started;
             if (isInFront && !claudeInFront)
             {
                 dismissed = false;                 // coming back to Claude resets "hide for now"
@@ -347,7 +351,21 @@ namespace ClaudeNotch
 
         void Apply()
         {
-            var s = tracker.Current(DateTime.Now);
+            var now = DateTime.Now;
+            var s = tracker.Current(now);
+
+            // The hooks only report sessions started after they were added, so Claude's own
+            // Stop button (visible while a turn runs) also counts as "working".
+            if (working && (s == null || !s.Busy))
+                s = new SessionTracker.Snapshot
+                {
+                    Busy = true,
+                    Elapsed = now - workingSince,
+                    Project = s != null ? s.Project : null,
+                    Done = s != null ? s.Done : 0,
+                    Total = s != null ? s.Total : 0,
+                };
+
             Mode mode = alert ? Mode.Alert : voice ? Mode.Voice : s != null ? Mode.Session : Mode.Idle;
 
             // Alt+Tab only counts as "leaving a session" if something is going on.
@@ -589,8 +607,19 @@ namespace ClaudeNotch
             SetWindowLong(hwnd, GWL_EXSTYLE, ex | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
         }
 
+        // Another always-on-top window (or a shell flyout) can push the notch behind it,
+        // so while it's meant to be visible it re-asserts its place without taking focus.
+        void KeepOnTop()
+        {
+            var hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd != IntPtr.Zero) SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
+
         const int GWL_EXSTYLE = -20, WS_EX_TOOLWINDOW = 0x80, WS_EX_NOACTIVATE = 0x08000000;
+        static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10;
         [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int i);
         [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr h, int i, int v);
+        [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
     }
 }

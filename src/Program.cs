@@ -27,7 +27,8 @@ namespace ClaudeNotch
                 var watcher = new ClaudeWatcher();
 
                 watcher.Changed += () => notch.Update(watcher.ClaudeOpen, watcher.ClaudeInFront, watcher.FullscreenApp,
-                    watcher.InVoice, watcher.MicMuted, watcher.ClaudeMinimized, watcher.SessionTitle);
+                    watcher.InVoice, watcher.MicMuted, watcher.ClaudeMinimized, watcher.SessionTitle,
+                    watcher.Working, watcher.WorkingSince);
                 notch.OpenClaude += watcher.RestoreClaude;
                 notch.ToggleMute += watcher.ToggleMute;
                 notch.EndVoice += watcher.EndVoice;
