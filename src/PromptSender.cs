@@ -56,7 +56,7 @@ namespace ClaudeNotch
 
             // Paste rather than type, so long and multi-line prompts arrive intact. Keys are only
             // sent while Claude is in front, so they can never land in another app.
-            string previous = GetClipboard();
+            var previous = GetClipboard();
             SetClipboard(text);
             if (Native.GetForegroundWindow() != hwnd) return false;
             Native.PressKeys(Native.VK_CONTROL, Native.VK_V);
@@ -94,16 +94,42 @@ namespace ClaudeNotch
             return null;
         }
 
-        static string GetClipboard()
+        // A copy of everything on the clipboard (text, images, copied files, ...), so it can be
+        // put back after pasting. Formats that can't be read are skipped.
+        static DataObject GetClipboard()
         {
-            try { return Clipboard.ContainsText() ? Clipboard.GetText() : null; } catch { return null; }
+            try
+            {
+                var current = Clipboard.GetDataObject();
+                if (current == null) return null;
+                var copy = new DataObject();
+                int kept = 0;
+                foreach (string format in current.GetFormats(false))
+                {
+                    try
+                    {
+                        object value = current.GetData(format, false);
+                        if (value == null) continue;
+                        copy.SetData(format, value, false);
+                        kept++;
+                    }
+                    catch { }
+                }
+                return kept > 0 ? copy : null;
+            }
+            catch { return null; }
         }
 
-        // Marked so Windows leaves it out of clipboard history (Win+V) and cloud clipboard sync.
         static void SetClipboard(string text)
         {
             var data = new DataObject();
             data.SetText(text);
+            SetClipboard(data);
+        }
+
+        // Marked so Windows leaves it out of clipboard history (Win+V) and cloud clipboard sync.
+        static void SetClipboard(DataObject data)
+        {
             data.SetData("ExcludeClipboardContentFromMonitorProcessing", new System.IO.MemoryStream(new byte[4]));
             data.SetData("CanIncludeInClipboardHistory", new System.IO.MemoryStream(BitConverter.GetBytes(0)));
             data.SetData("CanUploadToCloudClipboard", new System.IO.MemoryStream(BitConverter.GetBytes(0)));

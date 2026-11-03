@@ -27,7 +27,8 @@ namespace ClaudeNotch
         readonly Dictionary<string, FrameworkElement> pages = new Dictionary<string, FrameworkElement>();
         readonly Canvas preview = new Canvas { Width = 224, Height = 126 };
         readonly Border previewNotch = new Border();
-        bool built;
+        readonly Button save;
+        bool built, dirty;
 
         public SettingsWindow(Settings settings, Controller controller)
         {
@@ -134,7 +135,7 @@ namespace ClaudeNotch
                     Row("Hiding it with × lasts", null, Combo(new[] { "return", "Until I go back to Claude", "15m", "15 minutes", "1h", "1 hour" }, s.DismissFor, v => s.DismissFor = v)),
                     Row("Keep \"Done\" on the notch for", null, Combo(new[] { "5", "5 seconds", "12", "12 seconds", "30", "30 seconds", "60", "1 minute" },
                         s.FinishedSeconds.ToString(), v => s.FinishedSeconds = int.Parse(v))),
-                    Toggle("Show over fullscreen apps", "Games, videos and presentations. Permission requests always show.", s.ShowOverFullscreen, v => s.ShowOverFullscreen = v)),
+                    Toggle("Show over fullscreen apps", "Games, videos and presentations. When off, permission requests wait and appear once you leave the fullscreen app.", s.ShowOverFullscreen, v => s.ShowOverFullscreen = v)),
                 Hint("\"When something's going on\" means a session is working, just finished or needs you, or Claude is minimized. \"Only when Claude needs me\" is permission requests, questions and voice."));
 
             // ---- Sidebar
@@ -180,16 +181,16 @@ namespace ClaudeNotch
             pageTitle = new TextBlock { FontFamily = p.Serif, FontSize = 26, Foreground = p.Text, Margin = new Thickness(36, 28, 36, 14) };
             scroller = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false };
 
-            unsaved = new TextBlock { Text = "You have unsaved changes", Foreground = p.Sub, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Hidden };
-            var save = new Button { Content = "Save", IsDefault = true, MinWidth = 92, Style = (Style)Resources["Primary"], Margin = new Thickness(8, 0, 0, 0) };
-            save.Click += (a, b) =>
+            unsaved = new TextBlock { FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Hidden };
+            save = new Button { Content = "Save", IsDefault = true, MinWidth = 92, Style = (Style)Resources["Primary"], Margin = new Thickness(8, 0, 0, 0), IsEnabled = false };
+            save.Click += (a, b) => Save();
+            var cancel = new Button { Content = "Close", IsCancel = true, MinWidth = 92 };
+            Closing += (a, b) =>
             {
-                if (Saved != null) Saved(s);
-                shortcutNote.Text = controller.ShortcutError ?? "";
-                if (controller.ShortcutError == null) Close();
-                else Show("shortcut");
+                if (!dirty) return;
+                var answer = MessageBox.Show(this, "Save your changes before closing?", "Claude Notch settings", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                if (answer == MessageBoxResult.Cancel || (answer == MessageBoxResult.Yes && !Save())) b.Cancel = true;
             };
-            var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 92 };
             var footer = new DockPanel { LastChildFill = false, Margin = new Thickness(36, 12, 28, 14) };
             DockPanel.SetDock(unsaved, Dock.Left);
             DockPanel.SetDock(save, Dock.Right);
@@ -223,8 +224,25 @@ namespace ClaudeNotch
         void Changed()
         {
             if (!built) return;
+            dirty = true;
+            save.IsEnabled = true;
+            unsaved.Text = "You have unsaved changes";
+            unsaved.Foreground = p.Sub;
             unsaved.Visibility = Visibility.Visible;
             UpdatePreview();
+        }
+
+        // Applies the changes and stays open. False if the shortcut couldn't be registered.
+        bool Save()
+        {
+            if (Saved != null) Saved(s);
+            shortcutNote.Text = controller.ShortcutError ?? "";
+            if (controller.ShortcutError != null) { Show("shortcut"); return false; }
+            dirty = false;
+            save.IsEnabled = false;
+            unsaved.Text = "✓  Saved";
+            unsaved.Foreground = Theme.Green;
+            return true;
         }
 
         void Show(string key)
@@ -563,6 +581,7 @@ namespace ClaudeNotch
         <ControlTemplate.Triggers>
           <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='Background' Value='{StaticResource ClayHover}'/><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource ClayHover}'/></Trigger>
           <Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource Text}'/></Trigger>
+          <Trigger Property='IsEnabled' Value='False'><Setter Property='Opacity' Value='0.45'/></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate>
     </Setter.Value></Setter>

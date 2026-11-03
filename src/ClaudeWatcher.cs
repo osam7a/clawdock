@@ -146,6 +146,7 @@ namespace ClaudeNotch
         // right name can be added to the list above.
         static void LogVoiceControls(AutomationElement win, Condition mic)
         {
+            if (!Log.Verbose) { Log.Write("Could not end voice. Set CLAUDE_NOTCH_DEBUG=1 to record the controls near the mic toggle."); return; }
             try
             {
                 var toggle = win.FindFirst(TreeScope.Descendants, mic);

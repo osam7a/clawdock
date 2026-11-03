@@ -141,6 +141,7 @@ namespace ClaudeNotch
 
         static void LogButtons(AutomationElement win)
         {
+            if (!Log.Verbose) { Log.Write("No voice button found. Set CLAUDE_NOTCH_DEBUG=1 to record the buttons seen."); return; }
             try
             {
                 var sb = new StringBuilder("No voice button found. Buttons seen:");

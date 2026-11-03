@@ -299,7 +299,9 @@ namespace ClaudeNotch
 
             bool alertOn = st.Kind == "alert";
             bool fullscreenBlock = watcher.FullscreenApp && !settings.ShowOverFullscreen;
-            if (alertOn) st.Visible = true; // permission requests show even when hidden or over fullscreen
+            // Permission requests show even when the notch is hidden. Over a fullscreen app they
+            // wait (still held) and appear when you leave it, unless you allowed fullscreen.
+            if (alertOn) st.Visible = !fullscreenBlock;
             else if (now < dismissedUntil || fullscreenBlock || looking) st.Visible = false;
             else if (voice || st.Kind == "question") st.Visible = true;
             else if (settings.ShowWhen == "alerts") st.Visible = false;

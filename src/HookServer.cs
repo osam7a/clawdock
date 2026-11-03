@@ -190,7 +190,7 @@ namespace ClaudeNotch
 
                 using (var pipe = Connect(500))
                 {
-                    if (Environment.GetEnvironmentVariable("CLAUDE_NOTCH_DEBUG") == "1") Log.Write("Hook relay: connected=" + (pipe != null) + " wait=" + wait + " bytes=" + input.Length);
+                    if (Log.Verbose) Log.Write("Hook relay: connected=" + (pipe != null) + " wait=" + wait + " bytes=" + input.Length);
                     if (pipe == null) return;
                     WriteFrame(pipe, wait ? "hook-wait" : "hook");
                     WriteFrame(pipe, input);
@@ -198,7 +198,7 @@ namespace ClaudeNotch
                     if (!wait) return;
 
                     string reply = ReadFrame(pipe);
-                    if (Environment.GetEnvironmentVariable("CLAUDE_NOTCH_DEBUG") == "1") Log.Write("Hook relay reply: " + (reply ?? "(none)"));
+                    if (Log.Verbose) Log.Write("Hook relay reply: " + (reply ?? "(none)"));
                     if (!string.IsNullOrEmpty(reply) && reply != NoDecision)
                     {
                         var stdout = Console.OpenStandardOutput();

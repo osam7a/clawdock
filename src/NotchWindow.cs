@@ -76,6 +76,7 @@ namespace ClaudeNotch
         DateTime actionsSince;
         bool shown, hover;
         string layoutKey = "", listKey = "", miniKey = "";
+        readonly List<TextBlock> rowStatus = new List<TextBlock>(); // the status text of each session row
         double scale = 1;
 
         public NotchWindow(Settings settings)
@@ -428,15 +429,25 @@ namespace ClaudeNotch
         // Rows for every running session: a status dot, the name, where it runs, and what it's doing.
         void BuildList(List<SessionInfo> sessions)
         {
+            // Rebuild only when the rows themselves change. A working session's clock ticks every
+            // second, so its text is updated in place (rebuilding made hovering flicker).
             var sb = new StringBuilder();
             int shownCount = Math.Min(sessions.Count, 5);
             for (int i = 0; i < shownCount; i++)
-                sb.Append(sessions[i].Id).Append(sessions[i].Busy).Append(RowStatus(sessions[i])).Append(sessions[i].DisplayName).Append('|');
+            {
+                var x = sessions[i];
+                sb.Append(x.Id).Append(x.Busy).Append(x.JustFinished).Append(x.Done).Append('/').Append(x.Total).Append(x.DisplayName).Append(x.Cwd).Append('|');
+            }
             sb.Append(sessions.Count);
-            if (sb.ToString() == listKey) return;
+            if (sb.ToString() == listKey)
+            {
+                for (int i = 0; i < shownCount && i < rowStatus.Count; i++) rowStatus[i].Text = RowStatus(sessions[i]);
+                return;
+            }
             listKey = sb.ToString();
 
             list.Children.Clear();
+            rowStatus.Clear();
             list.Children.Add(new Border { Height = 1, Background = Theme.Chip, Margin = new Thickness(8, 0, 8, 6) });
             for (int i = 0; i < shownCount; i++) list.Children.Add(Row(sessions[i]));
             if (sessions.Count > shownCount)
@@ -464,6 +475,7 @@ namespace ClaudeNotch
             status.Text = RowStatus(s);
             status.Margin = new Thickness(8, 0, 6, 0);
             status.VerticalAlignment = VerticalAlignment.Center;
+            rowStatus.Add(status);
 
             var dock = new DockPanel { LastChildFill = true };
             DockPanel.SetDock(dot, Dock.Left);

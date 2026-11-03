@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 
 namespace ClaudeNotch
 {
@@ -25,7 +26,7 @@ namespace ClaudeNotch
             new object[] { "UserPromptSubmit", null, 5 },
             new object[] { "Stop", null, 5 },
             new object[] { "SessionEnd", null, 5 },
-            new object[] { "PostToolUse", "mcp__ccd_turn__update_plan|mcp__ccd_turn__wrap_up|TodoWrite", 5 },
+            new object[] { "PostToolUse", "mcp__ccd_turn__update_plan|mcp__ccd_turn__wrap_up|TodoWrite|TaskCreate|TaskUpdate", 5 },
             new object[] { "Notification", "permission_prompt", 5 },
             // Waits while the notch shows Allow / Deny. The notch itself gives up well before this.
             new object[] { "PermissionRequest", "*", 600 },
@@ -59,45 +60,66 @@ namespace ClaudeNotch
 
         public static bool Uninstall() { return Rewrite(null, false); }
 
+        // Claude Code writes this file too. Only replace it if it still holds what was read,
+        // otherwise read it again and redo the change, so neither write is lost.
         static bool Rewrite(string exePath, bool add)
         {
-            Dictionary<string, object> root;
-            if (!TryRead(out root))
+            for (int attempt = 0; attempt < 3; attempt++)
             {
-                Log.Write("Hooks not changed: " + SettingsPath + " could not be read as JSON.");
-                return false;
-            }
-            string before = Json.Write(root);
-            var after = Merge(Copy(root), exePath, add);
-            string text = Json.Write(after);
-            if (text == before) return true;
+                Dictionary<string, object> root;
+                string raw;
+                if (!TryRead(out root, out raw))
+                {
+                    Log.Write("Hooks not changed: " + SettingsPath + " could not be read as JSON.");
+                    return false;
+                }
+                string before = Json.Write(root);
+                var after = Merge(Copy(root), exePath, add);
+                string text = Json.Write(after);
+                if (text == before) return true;
 
-            try
-            {
-                Directory.CreateDirectory(ClaudeDir);
-                if (File.Exists(SettingsPath) && !File.Exists(BackupPath)) File.Copy(SettingsPath, BackupPath);
                 string tmp = SettingsPath + ".claudenotch-tmp";
-                File.WriteAllText(tmp, text);
-                if (File.Exists(SettingsPath)) File.Replace(tmp, SettingsPath, null);
-                else File.Move(tmp, SettingsPath);
-                return true;
+                try
+                {
+                    Directory.CreateDirectory(ClaudeDir);
+                    if (File.Exists(SettingsPath) && !File.Exists(BackupPath)) File.Copy(SettingsPath, BackupPath);
+                    File.WriteAllText(tmp, text);
+                    if (CurrentText() != raw) { File.Delete(tmp); Thread.Sleep(200); continue; } // changed meanwhile
+                    if (File.Exists(SettingsPath)) File.Replace(tmp, SettingsPath, null);
+                    else File.Move(tmp, SettingsPath);
+                    return true;
+                }
+                catch (Exception e)
+                {
+                    try { File.Delete(tmp); } catch { }
+                    Log.Write("Hooks not changed: " + e.Message);
+                    return false;
+                }
             }
-            catch (Exception e)
-            {
-                Log.Write("Hooks not changed: " + e.Message);
-                return false;
-            }
+            Log.Write("Hooks not changed: " + SettingsPath + " kept changing.");
+            return false;
+        }
+
+        static string CurrentText()
+        {
+            return File.Exists(SettingsPath) ? File.ReadAllText(SettingsPath) : null;
         }
 
         static bool TryRead(out Dictionary<string, object> root)
         {
+            string raw;
+            return TryRead(out root, out raw);
+        }
+
+        static bool TryRead(out Dictionary<string, object> root, out string raw)
+        {
             root = null;
+            raw = null;
             try
             {
-                if (!File.Exists(SettingsPath)) { root = new Dictionary<string, object>(); return true; }
-                string text = File.ReadAllText(SettingsPath);
-                if (text.Trim().Length == 0) { root = new Dictionary<string, object>(); return true; }
-                root = Json.ParseObject(text);
+                raw = CurrentText();
+                if (raw == null || raw.Trim().Length == 0) { root = new Dictionary<string, object>(); return true; }
+                root = Json.ParseObject(raw);
                 return root != null;
             }
             catch { return false; }

@@ -18,7 +18,7 @@ namespace ClaudeNotch
         static readonly TimeSpan RecentFor = TimeSpan.FromMinutes(30); // how long a finished session stays on the notch
         public TimeSpan JustFinishedFor = TimeSpan.FromSeconds(12);
 
-        class Item { public string Content, Status; }
+        class Item { public string Content, Status, Id; } // Id: set for TaskCreate tasks
 
         class Session
         {
@@ -68,7 +68,8 @@ namespace ClaudeNotch
                 case "UserPromptSubmit":
                     s.Busy = true;
                     s.TurnStart = now;
-                    s.Items.Clear();
+                    // A turn's plan starts over, but TaskCreate tasks belong to the session: keep the open ones.
+                    s.Items.RemoveAll(i => i.Id == null || i.Status == "completed");
                     break;
 
                 case "Stop":
@@ -78,7 +79,8 @@ namespace ClaudeNotch
                 case "PostToolUse":
                     // The notch may have started mid-turn; treat the first sign of life as the start.
                     if (isNew) { s.Busy = true; s.TurnStart = now; }
-                    ApplyTool(s, Str(d, "tool_name"), d.ContainsKey("tool_input") ? d["tool_input"] as Dictionary<string, object> : null);
+                    ApplyTool(s, Str(d, "tool_name"), d.ContainsKey("tool_input") ? d["tool_input"] as Dictionary<string, object> : null,
+                        d.ContainsKey("tool_response") ? d["tool_response"] : null);
                     break;
 
                 case "PermissionRequest":
@@ -161,7 +163,7 @@ namespace ClaudeNotch
             s.Busy = false;
         }
 
-        static void ApplyTool(Session s, string tool, Dictionary<string, object> input)
+        static void ApplyTool(Session s, string tool, Dictionary<string, object> input, object response)
         {
             if (tool == "mcp__ccd_turn__wrap_up")
             {
@@ -171,6 +173,8 @@ namespace ClaudeNotch
             if (input == null) return;
 
             if (tool == "TodoWrite") { ReplaceItems(s, input, "todos"); return; }
+            if (tool == "TaskCreate") { AddTask(s, input, response); return; }
+            if (tool == "TaskUpdate") { UpdateTask(s, input); return; }
             if (tool != "mcp__ccd_turn__update_plan") return;
 
             if (input.ContainsKey("items")) ReplaceItems(s, input, "items");
@@ -213,6 +217,52 @@ namespace ClaudeNotch
                 items.Add(new Item { Content = Str(d, "content"), Status = Str(d, "status") });
             }
             s.Items = items;
+        }
+
+        // Newer Claude Code CLIs track tasks one at a time instead of with TodoWrite. The new
+        // task's id comes back in the tool's response; ids count up from 1, so if it can't be
+        // read, the next number is a safe guess.
+        static void AddTask(Session s, Dictionary<string, object> input, object response)
+        {
+            string id = TaskId(response);
+            if (id == null)
+            {
+                int max = 0;
+                foreach (var i in s.Items) max = Math.Max(max, ToInt(i.Id));
+                id = (max + 1).ToString(CultureInfo.InvariantCulture);
+            }
+            s.Items.RemoveAll(i => i.Id == id);
+            s.Items.Add(new Item { Id = id, Content = Str(input, "subject"), Status = "pending" });
+        }
+
+        static void UpdateTask(Session s, Dictionary<string, object> input)
+        {
+            string id = Str(input, "taskId");
+            var item = s.Items.Find(i => i.Id == id);
+            if (item == null) return;
+            string status = Str(input, "status");
+            if (status == "deleted") s.Items.Remove(item);
+            else if (status == "pending" || status == "in_progress" || status == "completed") item.Status = status;
+            if (input.ContainsKey("subject")) item.Content = Str(input, "subject");
+        }
+
+        static string TaskId(object response)
+        {
+            var d = response as Dictionary<string, object>;
+            if (d != null)
+            {
+                var task = d.ContainsKey("task") ? d["task"] as Dictionary<string, object> : null;
+                foreach (var source in new[] { task, d })
+                    foreach (var key in new[] { "id", "taskId" })
+                        if (source != null && source.ContainsKey(key) && source[key] != null) return source[key].ToString();
+            }
+            var text = response as string;
+            if (text != null)
+            {
+                var m = System.Text.RegularExpressions.Regex.Match(text, @"#(\d+)");
+                if (m.Success) return m.Groups[1].Value;
+            }
+            return null;
         }
 
         static int ToInt(object o)

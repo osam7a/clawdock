@@ -8,6 +8,9 @@ namespace ClaudeNotch
     static class Log
     {
         static readonly object gate = new object();
+
+        // Set CLAUDE_NOTCH_DEBUG=1 to also record details that can include your session names.
+        public static readonly bool Verbose = Environment.GetEnvironmentVariable("CLAUDE_NOTCH_DEBUG") == "1";
         public static readonly string FilePath = Path.Combine(Settings.DataDir, "ClaudeNotch.log");
 
         public static void Write(string message)
