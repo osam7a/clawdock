@@ -69,6 +69,8 @@ namespace ClaudeNotch
             timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
             timer.Tick += (s, e) => Step();
             timer.Start();
+            Loaded += (s, e) => timer.Start();
+            Unloaded += (s, e) => timer.Stop(); // e.g. the settings window closed
         }
 
         Rectangle AddRect(Brush fill, double x, double y, double w, double h)
