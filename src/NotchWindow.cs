@@ -20,13 +20,18 @@ namespace ClaudeNotch
     class NotchState
     {
         public bool Visible;
-        public string Kind = "idle";        // idle | session | voice | alert
+        public string Kind = "idle";        // idle | session | voice | alert | question
         public string Title = "Claude", Detail = "", Short = ""; // Short: "4:12 · 3/5", for the compact style
         public bool Busy, JustFinished, Muted;
         public int Done, Total;
         public DateTime VoiceStarted;
         public HookServer.Pending Pending;  // a request waiting for Allow / Deny
         public int MorePending;
+        // Buttons under the text: Deny / Allow for a permission request, or the choices of a
+        // question Claude asked. Owner is what they answer; Primary is drawn in clay.
+        public object Owner;
+        public List<string> Choices = new List<string>();
+        public int Primary = -1;
         public List<SessionInfo> Sessions = new List<SessionInfo>();
     }
 
@@ -48,7 +53,7 @@ namespace ClaudeNotch
 
         public event Action OpenPrimary, ToggleMute, EndVoice, OpenSettings, Quit, Dismiss;
         public event Action<SessionInfo> OpenSession;
-        public event Action<HookServer.Pending, bool> Answer; // pending, allow
+        public event Action<object, int> Choose; // owner, index into Choices
 
         readonly Settings settings;
         readonly Grid holder;
@@ -67,7 +72,7 @@ namespace ClaudeNotch
         Mascot mascot;
 
         NotchState state = new NotchState();
-        HookServer.Pending actionsFor; // the request the Allow / Deny buttons are showing
+        object actionsFor; // what the buttons are answering right now
         DateTime actionsSince;
         bool shown, hover;
         string layoutKey = "", listKey = "", miniKey = "";
@@ -144,8 +149,6 @@ namespace ClaudeNotch
             moreText.Margin = new Thickness(4, 0, 0, 0);
             actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(12, 2, 12, 10) };
             actions.Children.Add(moreText);
-            actions.Children.Add(PillButton("Deny", Theme.Chip, () => AnswerPending(false)));
-            actions.Children.Add(PillButton("Allow", Theme.Clay, () => AnswerPending(true)));
 
             list = new StackPanel { Margin = new Thickness(8, 0, 8, 8) };
 
@@ -284,19 +287,20 @@ namespace ClaudeNotch
         {
             var s = state;
             bool alert = s.Kind == "alert";
+            bool asking = alert || s.Kind == "question";
             bool hoverExpand = hover && settings.ExpandOnHover;
-            bool expanded = !Mini || hoverExpand || (hover && alert);
-            bool showList = hoverExpand && s.Sessions.Count > 0 && !alert;
-            bool showActions = alert && s.Pending != null && expanded;
+            bool expanded = !Mini || hoverExpand || (hover && asking);
+            bool showList = hoverExpand && s.Sessions.Count > 0 && !asking;
+            bool showActions = s.Owner != null && s.Choices.Count > 0 && expanded;
             if (!showActions) actionsFor = null;
-            else if (actionsFor != s.Pending) { actionsFor = s.Pending; actionsSince = DateTime.Now; }
+            else if (actionsFor != s.Owner) { actionsFor = s.Owner; actionsSince = DateTime.Now; BuildChoices(s); }
 
             mascot.Talking = (s.Kind == "voice" && !s.Muted) || (s.Kind == "session" && s.Busy);
-            mascot.Alert = alert;
+            mascot.Alert = asking;
 
             title.Inlines.Clear();
             title.Inlines.Add(new Run(s.Title));
-            bool showSub = (s.Kind == "session" || alert) && !string.IsNullOrEmpty(s.Detail);
+            bool showSub = (s.Kind == "session" || asking) && !string.IsNullOrEmpty(s.Detail);
             if (Compact && s.Kind == "session")
             {
                 string brief = !string.IsNullOrEmpty(s.Short) ? s.Short : s.Detail;
@@ -304,6 +308,9 @@ namespace ClaudeNotch
                 showSub = false;
             }
             subtitle.Text = s.Detail;
+            // A question can be a full sentence: let it wrap onto a second line.
+            subtitle.TextWrapping = s.Kind == "question" ? TextWrapping.Wrap : TextWrapping.NoWrap;
+            subtitle.MaxHeight = s.Kind == "question" ? 34 : double.PositiveInfinity;
             // The line is cut to fit; hover shows the whole command before you allow it.
             card.ToolTip = alert && s.Pending != null && !string.IsNullOrEmpty(s.Pending.FullDetail) ? s.Pending.FullDetail : null;
             if (s.Kind == "voice") title.Inlines.Clear();
@@ -332,7 +339,8 @@ namespace ClaudeNotch
             mini.Visibility = expanded ? Visibility.Collapsed : Visibility.Visible;
             subtitle.Visibility = showSub ? Visibility.Visible : Visibility.Collapsed;
             voicePanel.Visibility = s.Kind == "voice" ? Visibility.Visible : Visibility.Collapsed;
-            alertDot.Visibility = alert ? Visibility.Visible : Visibility.Collapsed;
+            alertDot.Visibility = asking ? Visibility.Visible : Visibility.Collapsed;
+            alertDot.Fill = alert ? Theme.Amber : Theme.Blue;
             closeButton.Visibility = hover ? Visibility.Visible : Visibility.Collapsed;
             progressTrack.Visibility = hasTasks ? Visibility.Visible : Visibility.Collapsed;
             actions.Visibility = showActions ? Visibility.Visible : Visibility.Collapsed;
@@ -341,7 +349,9 @@ namespace ClaudeNotch
             double w = CardWidth(s.Kind) + (hover && !Mini ? 26 : 0);
             if (showList || showActions) w = Math.Max(w, Compact ? 330 : 360);
             Animate(card, WidthProperty, w, 220);
-            if (!Compact) header.Height = s.Kind == "session" || alert ? (hasTasks ? 54 : 56) : 38;
+            if (s.Kind == "question") header.Height = double.NaN; // the question may wrap: fit it
+            else header.Height = Compact ? 30 : s.Kind == "session" || alert ? (hasTasks ? 54 : 56) : 38;
+            header.Margin = s.Kind == "question" ? (Compact ? new Thickness(0, 7, 0, 4) : new Thickness(0, 10, 0, 6)) : new Thickness(0);
             double r = Compact ? 14 : 18;
             switch (settings.Edge)
             {
@@ -379,19 +389,20 @@ namespace ClaudeNotch
 
         double CardWidth(string kind)
         {
-            if (Compact) return kind == "alert" ? 330 : kind == "session" ? 280 : kind == "voice" ? 230 : 110;
-            return kind == "alert" ? 360 : kind == "session" ? 340 : kind == "voice" ? 280 : 150;
+            if (Compact) return kind == "alert" || kind == "question" ? 330 : kind == "session" ? 280 : kind == "voice" ? 230 : 110;
+            return kind == "question" ? 380 : kind == "alert" ? 360 : kind == "session" ? 340 : kind == "voice" ? 280 : 150;
         }
 
         void UpdateMini(NotchState s)
         {
             bool dot = settings.Style == "dot";
             Brush color = s.Kind == "alert" ? Theme.Amber
+                : s.Kind == "question" ? Theme.Blue
                 : s.Kind == "voice" ? (s.Muted ? Theme.Dim : Theme.Green)
                 : s.Busy ? Theme.Clay
                 : s.JustFinished ? Theme.Green
                 : Theme.Idle;
-            bool pulse = s.Kind == "alert" || s.Busy;
+            bool pulse = s.Kind == "alert" || s.Kind == "question" || s.Busy;
             string key = settings.Style + "|" + settings.Edge + "|" + color.GetHashCode() + "|" + pulse;
             if (key == miniKey) return;
             miniKey = key;
@@ -479,15 +490,28 @@ namespace ClaudeNotch
             return t;
         }
 
-        // Answers only the request the buttons were showing, only while they're visible, and
-        // not in the first moments after it appeared, so a request that pops up under the
-        // cursor (or a click meant for the previous one) can't be approved by accident.
-        void AnswerPending(bool allow)
+        // The buttons for the current request or question, the primary one in clay.
+        void BuildChoices(NotchState s)
         {
-            var p = actionsFor;
-            if (p == null || p != state.Pending || p.Settled || actions.Visibility != Visibility.Visible) return;
+            while (actions.Children.Count > 1) actions.Children.RemoveAt(1); // keep the "+N more" text
+            var owner = s.Owner;
+            for (int i = 0; i < s.Choices.Count; i++)
+            {
+                int index = i;
+                actions.Children.Add(PillButton(s.Choices[i], i == s.Primary ? Theme.Clay : Theme.Chip, () => Pick(owner, index)));
+            }
+        }
+
+        // Answers only what the buttons were showing, only while they're visible, and not in
+        // the first moments after it appeared, so something that pops up under the cursor
+        // (or a click meant for the previous one) can't be answered by accident.
+        void Pick(object owner, int index)
+        {
+            if (owner == null || owner != actionsFor || owner != state.Owner || actions.Visibility != Visibility.Visible) return;
+            var p = owner as HookServer.Pending;
+            if (p != null && p.Settled) return;
             if ((DateTime.Now - actionsSince).TotalMilliseconds < 700) return;
-            if (Answer != null) Answer(p, allow);
+            if (Choose != null) Choose(owner, index);
         }
 
         void TickVoice()

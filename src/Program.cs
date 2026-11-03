@@ -70,6 +70,8 @@ namespace ClaudeNotch
             var idle = new SessionInfo { Id = "c", Name = "docs", Cwd = @"C:\code\docs" };
             var all = new List<SessionInfo> { working, cli, idle };
 
+            var demoPending = new HookServer.Pending();
+            var demoQuestion = new Question();
             int step = 0;
             var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
             timer.Tick += (s, e) =>
@@ -81,7 +83,8 @@ namespace ClaudeNotch
                 NotchState st = null;
                 if (step < 140) st = new NotchState { Visible = step > 5, Kind = "session", Title = working.Name, Busy = true, Done = working.Done, Total = 5, Detail = "Working " + SessionTracker.Clock(t) + " · " + working.Done + " done · " + (5 - working.Done) + " left", Sessions = all };
                 else if (step < 220) st = new NotchState { Visible = true, Kind = "voice", Muted = step > 175 && step < 195, VoiceStarted = now.AddSeconds(14), Sessions = all };
-                else if (step < 300) st = new NotchState { Visible = true, Kind = "alert", Title = "Allow Bash? · Claude-Notch", Detail = "Bash: git push origin main", Pending = new HookServer.Pending(), Sessions = all };
+                else if (step < 260) st = new NotchState { Visible = true, Kind = "alert", Title = "Allow Bash? · Claude-Notch", Detail = "Bash: git push origin main", Pending = demoPending, Owner = demoPending, Choices = new List<string> { "Deny", "Allow" }, Primary = 1, Sessions = all };
+                else if (step < 300) st = new NotchState { Visible = true, Kind = "question", Title = "Claude asks · " + working.Name, Detail = "Should I test approve-from-notch with a real Claude Code CLI session?", Owner = demoQuestion, Choices = new List<string> { "Not now", "Yes, test it" }, Primary = 1, Sessions = all };
                 else if (step < 360) st = new NotchState { Visible = true, Kind = "session", Title = working.Name, JustFinished = true, Done = 5, Total = 5, Detail = "Done in 4:12 · 5 done", Sessions = all };
                 else if (step < 400) st = new NotchState { Visible = true, Kind = "idle", Sessions = all };
                 else if (step < 410) st = new NotchState { Visible = false };
@@ -90,7 +93,7 @@ namespace ClaudeNotch
             };
             notch.OpenPrimary += app.Shutdown;
             notch.Quit += app.Shutdown;
-            notch.Answer += (p, allow) => { };
+            notch.Choose += (owner, index) => { };
             notch.Show();
             timer.Start();
             app.Run();

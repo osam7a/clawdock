@@ -38,6 +38,8 @@ namespace ClaudeNotch
             body.Children.Add(Check("Start Claude Notch when I sign in to Windows", s.StartWithWindows, v => s.StartWithWindows = v));
             body.Children.Add(Check("Answer permission requests from the notch (Allow / Deny)", s.ApproveFromNotch, v => s.ApproveFromNotch = v));
             body.Children.Add(Help("Only while you're away from Claude. If you go back to Claude, it asks in its own window as usual."));
+            body.Children.Add(Check("Show Claude's questions on the notch, with the same choices", s.ShowQuestions, v => s.ShowQuestions = v));
+            body.Children.Add(Help("When a session in the Claude app ends with a question like \"Should I test it?\", pick an answer from the notch. It presses the same button in Claude."));
             body.Children.Add(Check("Keep Claude Code hooks installed", s.KeepHooksInstalled, v => s.KeepHooksInstalled = v));
             hookStatus = Help("");
             var repair = new Button { Content = "Repair hooks", Padding = new Thickness(10, 2, 10, 2), Margin = new Thickness(0, 0, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
@@ -114,7 +116,7 @@ namespace ClaudeNotch
             {
                 "smart", "When something's going on, or Claude is minimized",
                 "away", "Whenever I'm not looking at Claude",
-                "alerts", "Only for permission requests and voice",
+                "alerts", "Only when Claude needs me (permissions, questions) and voice",
             }, s.ShowWhen, v => s.ShowWhen = v)));
             body.Children.Add(Row("Hiding it with × lasts", Combo(new[]
             {

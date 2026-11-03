@@ -40,6 +40,7 @@ namespace ClaudeNotch
         // System
         public bool StartWithWindows { get; set; }
         public bool ApproveFromNotch { get; set; }
+        public bool ShowQuestions { get; set; }       // Claude's end-of-turn questions, with their buttons
         public bool KeepHooksInstalled { get; set; }
 
         public Settings()
@@ -62,6 +63,7 @@ namespace ClaudeNotch
             ShowOverFullscreen = false;
             StartWithWindows = true;
             ApproveFromNotch = true;
+            ShowQuestions = true;
             KeepHooksInstalled = true;
         }
 

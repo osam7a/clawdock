@@ -14,6 +14,11 @@ permission requests, and lets you talk or type to Claude from anywhere.
 - **Permission requests.** When a session needs permission while you're away from it, the notch
   shows what it wants to run (`Bash: git push`) with **Allow** and **Deny**. If you go back to the
   session instead, Claude asks in its own window as usual.
+- **Claude's questions.** When a Claude app session ends its turn with a question ("Should I test
+  …?") and buttons, the notch shows the same question with the same buttons, the recommended one
+  in clay. Clicking one presses that button in Claude. If it can't be found, a reply button's text
+  is sent to the session as your answer, and an app action (Commit, Create PR, …) opens Claude so
+  you can press it there. It goes away once you answer, in the notch or in Claude.
 - **Voice.** The shortcut (the Copilot key by default) starts a Claude voice conversation in the
   open chat (or a new one) and minimizes Claude, so you talk through the notch. The notch shows a
   timer, a mute button, and live bars. Its **×** ends the conversation.
@@ -73,7 +78,7 @@ from `~/.claude/settings.json`; everything else in that file stays as it is.
 
 | Section | Options |
 | --- | --- |
-| General | Start with Windows. Answer permission requests from the notch. Keep the hooks installed (repaired automatically every 5 minutes if something removes them). |
+| General | Start with Windows. Answer permission requests from the notch. Show Claude's questions with their choices. Keep the hooks installed (repaired automatically every 5 minutes if something removes them). |
 | Shortcut | Copilot key, your own key combination, or none. |
 | Voice and typed prompts | Voice with typing as a fallback, always type, or always voice. Send typed prompts to the app or a new terminal session. Which folder terminal sessions start in. |
 | Notch | Style, screen edge, display, position along the edge, whether to list sessions on hover. |

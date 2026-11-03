@@ -27,6 +27,7 @@ namespace ClaudeNotch
         readonly TrayIcon tray;
         readonly DispatcherTimer refreshTimer, hookTimer;
         readonly List<HookServer.Pending> pending = new List<HookServer.Pending>();
+        readonly List<Question> questions = new List<Question>();
 
         SettingsWindow settingsWindow;
         Alert alert;
@@ -44,7 +45,8 @@ namespace ClaudeNotch
 
             notch.OpenPrimary += OpenPrimary;
             notch.OpenSession += OpenSession;
-            notch.Answer += (p, allow) => Answer(p, allow);
+            notch.Choose += OnChoose;
+            ChoiceSender.Failed += msg => tray.Balloon(msg);
             notch.ToggleMute += watcher.ToggleMute;
             notch.EndVoice += watcher.EndVoice;
             notch.Dismiss += Dismiss;
@@ -108,6 +110,9 @@ namespace ClaudeNotch
                 ReleasePending(sid);
                 if (alert != null && alert.SessionId == sid) alert = null;
             }
+            // A new prompt (typed in Claude, or a button pressed there) answers its question.
+            if (ev == "UserPromptSubmit" || ev == "SessionEnd") questions.RemoveAll(q => q.SessionId == sid);
+            if (ev == "PostToolUse" && Json.Str(d, "tool_name") == "mcp__ccd_turn__wrap_up") OnWrapUp(sid, d);
 
             if (ev == "PermissionRequest")
             {
@@ -150,6 +155,48 @@ namespace ClaudeNotch
             };
         }
 
+        // The end of a turn in the desktop app: a recap and, sometimes, a question with one or
+        // two buttons. Keep the question (one per session) so the notch can ask it too.
+        void OnWrapUp(string sid, Dictionary<string, object> d)
+        {
+            questions.RemoveAll(old => old.SessionId == sid);
+            var input = Json.Obj(d, "tool_input");
+            string ask = Json.Str(input, "ask").Trim();
+            var actions = input != null && input.ContainsKey("actions") ? input["actions"] as System.Collections.IEnumerable : null;
+            if (!settings.ShowQuestions || ask == "" || actions == null || actions is string) return;
+
+            var q = new Question { SessionId = sid, Ask = ask, Cwd = Json.Str(d, "cwd"), At = DateTime.Now };
+            foreach (object o in actions)
+            {
+                var a = o as Dictionary<string, object>;
+                if (a == null) continue;
+                string action = Json.Str(a, "action");
+                q.Labels.Add(ChoiceSender.LabelFor(Json.Str(a, "label"), action));
+                q.Actions.Add(action == "" ? null : action);
+                if (q.Labels.Count == 3) break;
+            }
+            if (q.Labels.Count > 0) questions.Add(q);
+        }
+
+        void OnChoose(object owner, int index)
+        {
+            var p = owner as HookServer.Pending;
+            if (p != null) { Answer(p, index == 1); return; } // Deny, Allow
+
+            var q = owner as Question;
+            if (q == null || !questions.Contains(q)) return;
+            // The notch lists the recommended choice last (on the right, like Allow).
+            int choice = q.Labels.Count - 1 - index;
+            if (choice < 0 || choice >= q.Labels.Count) return;
+            var s = sessions.Find(x => x.Id == q.SessionId);
+            string name = s != null ? s.Name : null;
+            questions.Remove(q);
+            ChoiceSender.Answer(q, choice, settings.NewChatLink,
+                () => { if (s != null) OpenSession(s); else watcher.RestoreClaude(); },
+                string.IsNullOrEmpty(name) || name == watcher.SessionTitle ? (Action)null : () => SelectInSidebar(name));
+            Refresh();
+        }
+
         void ReleasePending(string sid)
         {
             foreach (var p in pending.ToArray())
@@ -181,6 +228,8 @@ namespace ClaudeNotch
                 if (p.Settled) { pending.Remove(p); continue; }
                 if (now - p.At > HoldPermissionFor || LookingAt(p.SessionId)) { p.Respond(HookServer.NoDecision); pending.Remove(p); }
             }
+            questions.RemoveAll(q => now - q.At > TimeSpan.FromHours(12) || !SessionAlive(q.SessionId));
+            var question = questions.Count > 0 ? questions[questions.Count - 1] : null;
             if (alert != null)
             {
                 if (LookingAt(alert.SessionId)) { if (alert.SeenAt == DateTime.MinValue) alert.SeenAt = now; }
@@ -204,6 +253,9 @@ namespace ClaudeNotch
                 string project = ProjectName(p.Cwd);
                 st.Title = "Allow " + (p.Tool == "" ? "this" : p.Tool) + "?" + (project == "" ? "" : " · " + project);
                 st.Detail = string.IsNullOrEmpty(p.Detail) ? "Claude Code wants to continue" : p.Detail;
+                st.Owner = p;
+                st.Choices = new List<string> { "Deny", "Allow" };
+                st.Primary = 1;
             }
             else if (alert != null)
             {
@@ -212,6 +264,18 @@ namespace ClaudeNotch
                 st.Detail = alert.Detail;
             }
             else if (voice) st.Kind = "voice";
+            else if (question != null)
+            {
+                var qs = sessions.Find(x => x.Id == question.SessionId);
+                st.Kind = "question";
+                st.Title = "Claude asks · " + (qs != null ? qs.DisplayName : ProjectName(question.Cwd));
+                st.Detail = question.Ask;
+                st.Owner = question;
+                st.Choices = new List<string>(question.Labels);
+                st.Choices.Reverse();
+                st.Primary = st.Choices.Count - 1;
+                st.MorePending = questions.Count - 1;
+            }
             else if (primary != null)
             {
                 st.Kind = "session";
@@ -237,13 +301,13 @@ namespace ClaudeNotch
             bool fullscreenBlock = watcher.FullscreenApp && !settings.ShowOverFullscreen;
             if (alertOn) st.Visible = true; // permission requests show even when hidden or over fullscreen
             else if (now < dismissedUntil || fullscreenBlock || looking) st.Visible = false;
-            else if (voice) st.Visible = true;
+            else if (voice || st.Kind == "question") st.Visible = true;
             else if (settings.ShowWhen == "alerts") st.Visible = false;
             else if (settings.ShowWhen == "away") st.Visible = watcher.ClaudeOpen || sessions.Count > 0;
             else st.Visible = ongoing || (watcher.ClaudeOpen && watcher.ClaudeMinimized);
 
             notch.Render(st);
-            tray.SetStatus(st.Kind == "alert" ? "Needs permission" : voice ? "Voice conversation" : primary != null && primary.Busy ? "Working: " + primary.DisplayName : "Idle");
+            tray.SetStatus(st.Kind == "alert" ? "Needs permission" : st.Kind == "question" ? "Claude asked you something" : voice ? "Voice conversation" : primary != null && primary.Busy ? "Working: " + primary.DisplayName : "Idle");
         }
 
         // The session the notch talks about: the one asking for permission, else the app
@@ -254,6 +318,11 @@ namespace ClaudeNotch
             {
                 var p = sessions.Find(x => x.Id == pending[0].SessionId);
                 if (p != null) return p;
+            }
+            if (questions.Count > 0)
+            {
+                var q = sessions.Find(x => x.Id == questions[questions.Count - 1].SessionId);
+                if (q != null) return q;
             }
             string title = watcher.SessionTitle;
             SessionInfo s = null;
@@ -285,6 +354,11 @@ namespace ClaudeNotch
             if (s == null) return watcher.ClaudeInFront || ForegroundIsTerminalOf(null);
             if (s.Desktop) return watcher.ClaudeInFront;
             return ForegroundIsTerminalOf(s);
+        }
+
+        bool SessionAlive(string sid)
+        {
+            return scanner.Latest.Count == 0 || sessions.Exists(x => x.Id == sid);
         }
 
         bool ForegroundIsTerminalOf(SessionInfo only)
@@ -358,6 +432,7 @@ namespace ClaudeNotch
             if (watcher.InVoice) watcher.EndVoice();
             ReleasePending(null);
             alert = null;
+            questions.Clear(); // they're still in Claude; the notch just stops asking
             var d = settings.DismissDuration;
             dismissedUntil = d == TimeSpan.Zero ? DateTime.MaxValue : DateTime.Now + d;
             Refresh();
