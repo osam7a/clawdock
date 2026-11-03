@@ -35,6 +35,7 @@ namespace ClaudeNotch
         int tick, blinkAt, blinkLeft, glanceAt, glance;
 
         public bool Talking { get; set; }
+        public bool Alert { get; set; }
 
         public Mascot(double pixelSize)
         {
@@ -89,6 +90,9 @@ namespace ClaudeNotch
                 : Math.Round(Math.Sin(tick * 0.09)) * px * 0.5;
             SetTop(sprite, y);
 
+            // Alert: a quick side-to-side wiggle in bursts, like it's waving you over.
+            SetLeft(sprite, Alert && tick % 12 < 4 ? (tick % 2 == 0 ? -px * 0.5 : px * 0.5) : 0);
+
             // Legs: alternate pairs while talking, all down when idle.
             for (int i = 0; i < 4; i++)
             {
@@ -106,8 +110,9 @@ namespace ClaudeNotch
                 glance = glance == 0 ? (rnd.Next(2) == 0 ? -1 : 1) : 0;
                 glanceAt = glance == 0 ? rnd.Next(40, 100) : rnd.Next(12, 25);
             }
-            int dx = Talking ? 0 : glance;
-            double eyeTop = Talking && tick % 6 < 3 ? 1.5 : 2;
+            int dx = Talking || Alert ? 0 : glance;
+            double eyeTop = Alert ? 1.5 : Talking && tick % 6 < 3 ? 1.5 : 2;
+            if (Alert) closed = false; // wide awake
 
             foreach (var eye in new[] { eyeL, eyeR })
             {

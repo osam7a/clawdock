@@ -13,7 +13,8 @@ $refs = @(
     "$wpf\WindowsBase.dll",
     "$wpf\UIAutomationClient.dll",
     "$wpf\UIAutomationTypes.dll",
-    "$fw\System.Xaml.dll"
+    "$fw\System.Xaml.dll",
+    "$fw\System.Web.Extensions.dll"
 ) | ForEach-Object { "/r:$_" }
 
 $sources = Get-ChildItem (Join-Path $PSScriptRoot 'src') -Filter *.cs | ForEach-Object FullName
