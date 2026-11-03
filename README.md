@@ -3,9 +3,9 @@
 A small Windows companion for the Claude desktop app.
 
 - **Notch:** while Claude is open but not the window in front (minimized or Alt+Tabbed away), a black pill shows with an animated pixel mascot. It stays hidden while a fullscreen app is in front.
-- **Voice indicator:** while Claude is using your microphone, the notch widens and shows "Listening", a timer, and live bars. The mascot hops around.
+- **Voice indicator:** during a Claude voice conversation, the notch widens and shows "Listening", a timer, live bars, and a mute button. The mute button presses Claude's own mic toggle. The mascot hops around.
 - **Permission alerts:** when Claude Code asks for permission, the notch shows the project and what it wants to run (e.g. `Bash: git push`). The mascot wiggles and an amber dot pulses. The alert goes away a few seconds after you switch back to Claude.
-- **Copilot key:** pressing the Copilot key opens a new Claude chat and starts voice mode.
+- **Copilot key:** pressing the Copilot key opens a new Claude chat and starts voice mode. Once voice is up, it minimizes Claude so you talk through the notch.
 
 ## Using the notch
 
@@ -60,10 +60,10 @@ Remove the hooks from `~/.claude/settings.json` too.
 | File | What it does |
 | --- | --- |
 | `src/Program.cs` | Entry point; single instance; `--hook` relay and the named pipe it talks to; `--demo`. |
-| `src/ClaudeWatcher.cs` | Polls whether Claude is open, in front, or covered by a fullscreen app. It detects voice through the Windows microphone-usage record (`CapabilityAccessManager\ConsentStore\microphone`). |
+| `src/ClaudeWatcher.cs` | Polls whether Claude is open, in front, or covered by a fullscreen app. It detects voice and mute by looking for Claude's "Turn off/on microphone" button through UI Automation. |
 | `src/NotchWindow.cs` | The notch: idle, voice, and alert layouts; drag/snap; menu; animations. |
 | `src/Mascot.cs` | The pixel mascot and its idle, talking, and alert animations. |
-| `src/CopilotKey.cs` | Low-level keyboard hook for the Copilot key (Win + Shift + F23). It opens `claude://claude.ai/new` and presses the voice mode button through UI Automation. |
+| `src/CopilotKey.cs` | Low-level keyboard hook for the Copilot key (Win + Shift + F23). It opens `claude://claude.ai/new`, presses "Use voice mode" through UI Automation, and minimizes Claude once voice is up. |
 
 ## Config
 

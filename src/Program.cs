@@ -26,8 +26,9 @@ namespace ClaudeNotch
                 var notch = new NotchWindow();
                 var watcher = new ClaudeWatcher();
 
-                watcher.Changed += () => notch.Update(watcher.ClaudeOpen, watcher.ClaudeInFront, watcher.FullscreenApp, watcher.InVoice);
+                watcher.Changed += () => notch.Update(watcher.ClaudeOpen, watcher.ClaudeInFront, watcher.FullscreenApp, watcher.InVoice, watcher.MicMuted);
                 notch.OpenClaude += watcher.RestoreClaude;
+                notch.ToggleMute += watcher.ToggleMute;
                 notch.Quit += app.Shutdown;
 
                 new Thread(() => ListenForHooks(notch)) { IsBackground = true }.Start();
@@ -88,6 +89,8 @@ namespace ClaudeNotch
                 step++;
                 if (step == 1) notch.Update(true, false, false, false);
                 if (step == 50) notch.Update(true, false, false, true);
+                if (step == 90) notch.Update(true, false, false, true, true);   // muted
+                if (step == 110) notch.Update(true, false, false, true, false);
                 if (step == 120) notch.Notify("{\"hook_event_name\":\"PermissionRequest\",\"cwd\":\"C:\\\\Users\\\\you\\\\Claude-Notch\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push origin main\"}}");
                 if (step == 200) notch.Update(true, true, false, false);  // "switch back to Claude": alert fades after 6s
                 if (step == 270) notch.Update(true, false, false, false);

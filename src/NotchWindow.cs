@@ -24,7 +24,7 @@ namespace ClaudeNotch
     // Claude, the hover x hides it for now, right-click has more options.
     class NotchWindow : Window
     {
-        const double IdleWidth = 150, VoiceWidth = 250, AlertWidth = 360;
+        const double IdleWidth = 150, VoiceWidth = 280, AlertWidth = 360;
         const double LineHeight = 38, AlertHeight = 56, HoverGrow = 26, SnapDistance = 24;
 
         static readonly string SettingsDir = System.IO.Path.Combine(
@@ -36,11 +36,12 @@ namespace ClaudeNotch
         static readonly Brush Dim = Frozen(Color.FromRgb(0x9A, 0x9A, 0x9A));
 
         public event Action OpenClaude;
+        public event Action ToggleMute;
         public event Action Quit;
 
-        readonly Border shell, closeButton;
+        readonly Border shell, closeButton, micButton;
         readonly Mascot mascot;
-        readonly TextBlock title, subtitle, timerText;
+        readonly TextBlock title, subtitle, timerText, micGlyph;
         readonly StackPanel voicePanel;
         readonly Ellipse alertDot;
         readonly Rectangle[] bars = new Rectangle[5];
@@ -49,7 +50,7 @@ namespace ClaudeNotch
         readonly Random rnd = new Random();
 
         // Latest state from the watcher.
-        bool claudeOpen, claudeInFront, fullscreenApp, voice;
+        bool claudeOpen, claudeInFront, fullscreenApp, voice, muted;
 
         bool shown, hover, dismissed, docked = true;
         bool alert;
@@ -117,6 +118,28 @@ namespace ClaudeNotch
                 };
                 voicePanel.Children.Add(bars[i]);
             }
+
+            micGlyph = new TextBlock
+            {
+                FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
+                FontSize = 11,
+                Foreground = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            micButton = new Border
+            {
+                Width = 22, Height = 22,
+                CornerRadius = new CornerRadius(11),
+                Background = Frozen(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                Margin = new Thickness(10, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = "Mute / unmute",
+                Child = micGlyph,
+            };
+            micButton.MouseLeftButtonDown += (s, e) => e.Handled = true; // don't start a drag
+            micButton.MouseLeftButtonUp += (s, e) => { e.Handled = true; if (ToggleMute != null) ToggleMute(); };
+            voicePanel.Children.Add(micButton);
 
             alertDot = new Ellipse
             {
@@ -193,8 +216,9 @@ namespace ClaudeNotch
 
         // ---- state ---------------------------------------------------------
 
-        public void Update(bool isOpen, bool isInFront, bool isFullscreenApp, bool inVoice)
+        public void Update(bool isOpen, bool isInFront, bool isFullscreenApp, bool inVoice, bool micMuted = false)
         {
+            muted = micMuted;
             if (isInFront && !claudeInFront)
             {
                 dismissed = false;                 // coming back to Claude resets "hide for now"
@@ -267,10 +291,12 @@ namespace ClaudeNotch
         void Relayout()
         {
             bool showVoice = voice && !alert;
-            mascot.Talking = showVoice;
+            mascot.Talking = showVoice && !muted;
             mascot.Alert = alert;
 
-            if (!alert) { title.Text = showVoice ? "Listening" : "Claude"; }
+            if (!alert) { title.Text = showVoice ? (muted ? "Muted" : "Listening") : "Claude"; }
+            micGlyph.Text = muted ? "" : "";   // MicOff / Microphone
+            micButton.Background = muted ? Clay : Frozen(Color.FromRgb(0x2A, 0x2A, 0x2A));
             subtitle.Visibility = alert ? Visibility.Visible : Visibility.Collapsed;
             voicePanel.Visibility = showVoice ? Visibility.Visible : Visibility.Collapsed;
             alertDot.Visibility = alert ? Visibility.Visible : Visibility.Collapsed;
@@ -316,7 +342,8 @@ namespace ClaudeNotch
             for (int i = 0; i < bars.Length; i++)
             {
                 double center = 1 - Math.Abs(i - 2) / 3.0; // middle bars run taller
-                bars[i].Height = 4 + rnd.NextDouble() * 14 * center + rnd.NextDouble() * 3;
+                bars[i].Height = muted ? 3 : 4 + rnd.NextDouble() * 14 * center + rnd.NextDouble() * 3;
+                bars[i].Opacity = muted ? 0.4 : 1;
             }
         }
 

@@ -40,6 +40,10 @@ namespace ClaudeNotch
         [DllImport("user32.dll")] static extern short GetAsyncKeyState(int vk);
         [DllImport("user32.dll")] static extern uint SendInput(uint n, INPUT[] inputs, int size);
         [DllImport("kernel32.dll")] static extern IntPtr GetModuleHandle(string name);
+        // ShowWindow(SW_MINIMIZE) is ignored by the Claude window; the system command works.
+        [DllImport("user32.dll")] static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+        const uint WM_SYSCOMMAND = 0x0112;
+        const int SC_MINIMIZE = 0xF020;
 
         static readonly HookProc hookProc = HookCallback; // kept alive so the GC can't collect it
         static IntPtr hook;
@@ -112,6 +116,30 @@ namespace ClaudeNotch
             }
         }
 
+        // Once Claude's voice screen is up (its mic toggle exists), minimize Claude so
+        // the conversation carries on from the notch. If voice never comes up, Claude
+        // stays in front so you can see what happened.
+        static void TuckAwayOnceVoiceStarts(AutomationElement win, IntPtr hwnd)
+        {
+            var micToggle = new OrCondition(
+                new PropertyCondition(AutomationElement.NameProperty, ClaudeWatcher.MicOnButton),
+                new PropertyCondition(AutomationElement.NameProperty, ClaudeWatcher.MicOffButton));
+            for (int i = 0; i < 20; i++)
+            {
+                Thread.Sleep(300);
+                try
+                {
+                    if (win.FindFirst(TreeScope.Descendants, micToggle) != null)
+                    {
+                        Thread.Sleep(400); // let voice finish connecting before hiding the window
+                        PostMessage(hwnd, WM_SYSCOMMAND, (IntPtr)SC_MINIMIZE, IntPtr.Zero);
+                        return;
+                    }
+                }
+                catch { }
+            }
+        }
+
         // Waits for the new chat to load in the Claude window, then presses its
         // voice mode button through UI Automation. If no voice button turns up,
         // the button names it saw go to ClaudeNotch.log for troubleshooting.
@@ -136,7 +164,7 @@ namespace ClaudeNotch
                         {
                             string n = (b.Current.Name ?? "").ToLowerInvariant();
                             names.AppendLine(b.Current.Name);
-                            if (n.Contains("voice mode")) { best = b; break; }
+                            if (n == "use voice mode" || n.Contains("voice mode")) { best = b; break; }
                             if (best == null && n.Contains("voice") && !n.Contains("dictat")) best = b;
                         }
                         seen = names.ToString();
@@ -145,6 +173,7 @@ namespace ClaudeNotch
                         if (best != null && best.TryGetCurrentPattern(InvokePattern.Pattern, out pattern))
                         {
                             ((InvokePattern)pattern).Invoke();
+                            TuckAwayOnceVoiceStarts(win, p.MainWindowHandle);
                             return;
                         }
                     }

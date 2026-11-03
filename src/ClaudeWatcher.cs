@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
+using System.Windows.Automation;
 using Microsoft.Win32;
 using System.Windows.Threading;
 
@@ -11,27 +13,87 @@ namespace ClaudeNotch
 {
     // Polls the state of the Claude desktop app: whether it has a window open,
     // whether that window is the one in front, whether some other app is
-    // fullscreen, and whether Claude is using the microphone (voice conversation).
+    // fullscreen, and whether a voice conversation is running (and muted).
     class ClaudeWatcher
     {
         const string MicStore = @"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone";
+
+        // Claude's voice screen has a mic toggle with one of these names; the
+        // chat screen doesn't, so finding it means a voice conversation is on.
+        internal const string MicOnButton = "Turn off microphone", MicOffButton = "Turn on microphone";
 
         public event Action Changed;
         public bool ClaudeOpen { get; private set; }
         public bool ClaudeInFront { get; private set; }
         public bool FullscreenApp { get; private set; }
         public bool InVoice { get; private set; }
+        public bool MicMuted { get; private set; }
 
         readonly DispatcherTimer timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         HashSet<uint> claudePids = new HashSet<uint>();
         DateTime pidsRefreshed = DateTime.MinValue;
         IntPtr claudeWindow;
 
+        // Written by the UI Automation thread, read by Poll.
+        volatile bool probeVoice, probeMuted;
+        volatile IntPtr probeWindow;
+
         public void Start()
         {
             timer.Tick += (s, e) => Poll();
             timer.Start();
+            new Thread(ProbeVoiceLoop) { IsBackground = true }.Start();
             Poll();
+        }
+
+        // UI Automation lookups can take tens of milliseconds, so they run on their
+        // own thread instead of the UI timer.
+        void ProbeVoiceLoop()
+        {
+            var cond = new OrCondition(
+                new PropertyCondition(AutomationElement.NameProperty, MicOnButton),
+                new PropertyCondition(AutomationElement.NameProperty, MicOffButton));
+            while (true)
+            {
+                bool voice = false, muted = false;
+                try
+                {
+                    IntPtr h = probeWindow;
+                    if (h != IntPtr.Zero)
+                    {
+                        var el = AutomationElement.FromHandle(h).FindFirst(TreeScope.Descendants, cond);
+                        if (el != null) { voice = true; muted = el.Current.Name == MicOffButton; }
+                    }
+                }
+                catch { }
+                probeVoice = voice;
+                probeMuted = muted;
+                Thread.Sleep(700);
+            }
+        }
+
+        // Presses Claude's own mic toggle, so mute state stays in sync with the app.
+        public void ToggleMute()
+        {
+            IntPtr h = claudeWindow;
+            if (h == IntPtr.Zero) return;
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    var cond = new OrCondition(
+                        new PropertyCondition(AutomationElement.NameProperty, MicOnButton),
+                        new PropertyCondition(AutomationElement.NameProperty, MicOffButton));
+                    var el = AutomationElement.FromHandle(h).FindFirst(TreeScope.Descendants, cond);
+                    object pattern;
+                    if (el != null && el.TryGetCurrentPattern(InvokePattern.Pattern, out pattern))
+                    {
+                        ((InvokePattern)pattern).Invoke();
+                        probeMuted = !probeMuted;
+                    }
+                }
+                catch { }
+            });
         }
 
         void Poll()
@@ -61,15 +123,18 @@ namespace ClaudeNotch
             bool claudeOpen = open != IntPtr.Zero || minimized != IntPtr.Zero;
             bool inFront = claudeOpen && claudePids.Contains(fgPid) && !IsIconic(fg);
             bool fullscreen = !inFront && IsFullscreen(fg);
-            bool voice = MicInUse();
             if (claudeOpen) claudeWindow = open != IntPtr.Zero ? open : minimized;
+            probeWindow = claudeOpen ? claudeWindow : IntPtr.Zero;
+            bool voice = claudeOpen && (probeVoice || MicInUse());
+            bool muted = voice && probeMuted;
 
-            if (claudeOpen != ClaudeOpen || inFront != ClaudeInFront || fullscreen != FullscreenApp || voice != InVoice)
+            if (claudeOpen != ClaudeOpen || inFront != ClaudeInFront || fullscreen != FullscreenApp || voice != InVoice || muted != MicMuted)
             {
                 ClaudeOpen = claudeOpen;
                 ClaudeInFront = inFront;
                 FullscreenApp = fullscreen;
                 InVoice = voice;
+                MicMuted = muted;
                 if (Changed != null) Changed();
             }
         }
@@ -101,6 +166,8 @@ namespace ClaudeNotch
 
         // Windows records, per app, when it last started and stopped using the mic.
         // A non-zero start with a zero stop means it is using the mic right now.
+        // The Claude app doesn't always show up here, so this only backs up the
+        // UI Automation check above.
         static bool MicInUse()
         {
             try
