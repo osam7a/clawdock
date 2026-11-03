@@ -41,8 +41,8 @@ namespace ClaudeNotch
     // Styles
     //   classic  mascot, title and a status line (the original look)
     //   compact  one slim line: mascot and title
-    //   line     a thin colored bar on the edge; hover to see the card
-    //   dot      a small colored dot; hover to see the card
+    //   line     a thin colored bar on the edge; hover to see the card (it opens by itself when Claude needs you)
+    //   dot      a small colored dot; hover to see the card (likewise)
     // Bar and dot colors: gray idle, clay pulsing while working, green in voice (or just
     // finished), amber pulsing when Claude needs permission.
     //
@@ -289,7 +289,9 @@ namespace ClaudeNotch
             bool quick = s.Kind == "quick";
             bool listening = quick && s.Listening;
             bool hoverExpand = hover && settings.ExpandOnHover;
-            bool expanded = !Mini || hoverExpand || (hover && asking) || quick;
+            // The bar and dot open into the card by themselves when something needs you: a permission
+            // request, a question, or quick voice.
+            bool expanded = !Mini || hoverExpand || asking || quick;
             bool showList = hoverExpand && s.Sessions.Count > 0 && !asking && !quick;
             bool showActions = s.Owner != null && s.Choices.Count > 0 && expanded;
             if (!showActions) actionsFor = null;

@@ -44,7 +44,8 @@ permission requests, and lets you talk or type to Claude from anywhere.
   the Claude app's own quick entry (it presses Ctrl+Alt+Space). If Claude isn't running, it
   starts on a new chat.
 - **Styles.** *Classic* shows the mascot and a status line. *Compact* is one slim line. *Line* is a
-  thin colored bar, and *Dot* is a small colored dot; hover either one for details. It can sit on
+  thin colored bar, and *Dot* is a small colored dot; hover either one for details. Both open by
+  themselves when Claude needs you (a permission request or a question). It can sit on
   any edge of any display. Drag it and it snaps to the nearest edge.
 - **Stays out of the way.** It hides while you're looking at Claude (the app, or the terminal
   running the session) and over fullscreen apps. **×** hides it until you go back to Claude, or for
