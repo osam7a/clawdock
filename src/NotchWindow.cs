@@ -20,7 +20,8 @@ namespace ClaudeNotch
     class NotchState
     {
         public bool Visible;
-        public string Kind = "idle";        // idle | session | voice | alert | question
+        public string Kind = "idle";        // idle | session | voice | alert | question | quick
+        public bool Listening, Answering;   // quick voice: hearing you / reading out the answer
         public string Title = "Claude", Detail = "", Short = ""; // Short: "4:12 · 3/5", for the compact style
         public bool Busy, JustFinished, Muted;
         public int Done, Total;
@@ -291,10 +292,10 @@ namespace ClaudeNotch
 
         public void Render(NotchState s)
         {
-            bool voiceWas = state.Kind == "voice";
             state = s;
-            if (s.Kind == "voice" && !voiceWas) voiceTimer.Start();
-            if (s.Kind != "voice") voiceTimer.Stop();
+            bool bars = s.Kind == "voice" || (s.Kind == "quick" && s.Listening);
+            if (bars && !voiceTimer.IsEnabled) voiceTimer.Start();
+            if (!bars) voiceTimer.Stop();
             Refresh();
         }
 
@@ -303,19 +304,21 @@ namespace ClaudeNotch
             var s = state;
             bool alert = s.Kind == "alert";
             bool asking = alert || s.Kind == "question";
+            bool quick = s.Kind == "quick";
+            bool listening = quick && s.Listening;
             bool hoverExpand = hover && settings.ExpandOnHover;
-            bool expanded = !Mini || hoverExpand || (hover && asking);
-            bool showList = hoverExpand && s.Sessions.Count > 0 && !asking;
+            bool expanded = !Mini || hoverExpand || (hover && asking) || quick;
+            bool showList = hoverExpand && s.Sessions.Count > 0 && !asking && !quick;
             bool showActions = s.Owner != null && s.Choices.Count > 0 && expanded;
             if (!showActions) actionsFor = null;
             else if (actionsFor != s.Owner) { actionsFor = s.Owner; actionsSince = DateTime.Now; BuildChoices(s); }
 
-            mascot.Talking = (s.Kind == "voice" && !s.Muted) || (s.Kind == "session" && s.Busy);
+            mascot.Talking = (s.Kind == "voice" && !s.Muted) || (s.Kind == "session" && s.Busy) || listening || (quick && s.Busy);
             mascot.Alert = asking;
 
             title.Inlines.Clear();
             title.Inlines.Add(new Run(s.Title));
-            bool showSub = (s.Kind == "session" || asking) && !string.IsNullOrEmpty(s.Detail);
+            bool showSub = (s.Kind == "session" || asking || quick) && !string.IsNullOrEmpty(s.Detail);
             if (Compact && s.Kind == "session")
             {
                 string brief = !string.IsNullOrEmpty(s.Short) ? s.Short : s.Detail;
@@ -325,8 +328,9 @@ namespace ClaudeNotch
             }
             subtitle.Text = s.Detail;
             // A question can be a full sentence: let it wrap onto a second line.
-            subtitle.TextWrapping = s.Kind == "question" ? TextWrapping.Wrap : TextWrapping.NoWrap;
-            subtitle.MaxHeight = s.Kind == "question" ? 34 : double.PositiveInfinity;
+            subtitle.TextWrapping = s.Kind == "question" || quick ? TextWrapping.Wrap : TextWrapping.NoWrap;
+            subtitle.MaxHeight = s.Kind == "question" ? 34 : quick ? (Compact ? 64 : 80) : double.PositiveInfinity;
+            subtitle.Foreground = quick && s.Answering ? Brushes.White : Theme.Dim;
             // The line is cut to fit; hover shows the whole command before you allow it.
             card.ToolTip = alert && s.Pending != null && !string.IsNullOrEmpty(s.Pending.FullDetail) ? s.Pending.FullDetail : null;
             if (s.Kind == "voice") title.Inlines.Clear();
@@ -347,22 +351,23 @@ namespace ClaudeNotch
             }
             micGlyph.Text = s.Muted ? "" : ""; // MicOff / Microphone
             micButton.Background = s.Muted ? Theme.Clay : Theme.Chip;
-            closeButton.ToolTip = s.Kind == "voice" ? "End voice and hide" : "Hide for now";
+            closeButton.ToolTip = s.Kind == "voice" ? "End voice and hide" : quick ? "Stop and hide" : "Hide for now";
             endVoiceItem.Visibility = s.Kind == "voice" ? Visibility.Visible : Visibility.Collapsed;
             moreText.Text = s.MorePending > 0 ? "+" + s.MorePending + " more" : "";
-            if (s.Kind == "voice") TickVoice();
+            if (s.Kind == "voice" || listening) TickVoice();
             if (showList) BuildList(s.Sessions);
             UpdateMini(s);
 
-            string key = s.Kind + "|" + hover + "|" + s.Visible + "|" + hasTasks + "|" + compactHasTasks + "|" + showList + "|" + showActions + "|" + showSub + "|" + settings.Style + "|" + settings.Edge;
+            string key = s.Kind + "|" + listening + "|" + hover + "|" + s.Visible + "|" + hasTasks + "|" + compactHasTasks + "|" + showList + "|" + showActions + "|" + showSub + "|" + settings.Style + "|" + settings.Edge;
             if (key == layoutKey) return;
             layoutKey = key;
 
             card.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
             mini.Visibility = expanded ? Visibility.Collapsed : Visibility.Visible;
             subtitle.Visibility = showSub ? Visibility.Visible : Visibility.Collapsed;
-            voicePanel.Visibility = s.Kind == "voice" ? Visibility.Visible : Visibility.Collapsed;
-            alertDot.Visibility = asking ? Visibility.Visible : Visibility.Collapsed;
+            voicePanel.Visibility = s.Kind == "voice" || listening ? Visibility.Visible : Visibility.Collapsed;
+            micButton.Visibility = quick ? Visibility.Collapsed : Visibility.Visible;
+            alertDot.Visibility = asking || (quick && !listening) ? Visibility.Visible : Visibility.Collapsed;
             alertDot.Fill = alert ? Theme.Amber : Theme.Blue;
             closeButton.Visibility = hover ? Visibility.Visible : Visibility.Collapsed;
             progressTrack.Visibility = hasTasks ? Visibility.Visible : Visibility.Collapsed;
@@ -376,9 +381,9 @@ namespace ClaudeNotch
             if (compactHasTasks) w += 56;
             if (showList || (showActions && !notice)) w = Math.Max(w, Compact ? 330 : 360);
             Animate(card, WidthProperty, w, 220);
-            if (s.Kind == "question") header.Height = double.NaN; // the question may wrap: fit it
+            if (s.Kind == "question" || quick) header.Height = double.NaN; // the text may wrap: fit it
             else header.Height = Compact ? 30 : s.Kind == "session" || alert ? (hasTasks ? 54 : 56) : 38;
-            header.Margin = s.Kind == "question" ? (Compact ? new Thickness(0, 7, 0, 4) : new Thickness(0, 10, 0, 6)) : new Thickness(0);
+            header.Margin = s.Kind == "question" || quick ? (Compact ? new Thickness(0, 7, 0, 4) : new Thickness(0, 10, 0, 6)) : new Thickness(0);
             double r = Compact ? 14 : 18;
             switch (settings.Edge)
             {
@@ -416,8 +421,8 @@ namespace ClaudeNotch
 
         double CardWidth(string kind)
         {
-            if (Compact) return kind == "alert" || kind == "question" ? 330 : kind == "session" ? 280 : kind == "voice" ? 230 : 110;
-            return kind == "question" ? 380 : kind == "alert" ? 360 : kind == "session" ? 340 : kind == "voice" ? 280 : 150;
+            if (Compact) return kind == "quick" ? 380 : kind == "alert" || kind == "question" ? 330 : kind == "session" ? 280 : kind == "voice" ? 230 : 110;
+            return kind == "quick" ? 420 : kind == "question" ? 380 : kind == "alert" ? 360 : kind == "session" ? 340 : kind == "voice" ? 280 : 150;
         }
 
         void UpdateMini(NotchState s)
@@ -426,10 +431,11 @@ namespace ClaudeNotch
             Brush color = s.Kind == "alert" ? Theme.Amber
                 : s.Kind == "question" ? Theme.Blue
                 : s.Kind == "voice" ? (s.Muted ? Theme.Dim : Theme.Green)
+                : s.Kind == "quick" ? (s.Listening ? Theme.Green : Theme.Blue)
                 : s.Busy ? Theme.Clay
                 : s.JustFinished ? Theme.Green
                 : Theme.Idle;
-            bool pulse = s.Kind == "alert" || s.Kind == "question" || s.Busy;
+            bool pulse = s.Kind == "alert" || s.Kind == "question" || s.Kind == "quick" || s.Busy;
             string key = settings.Style + "|" + settings.Edge + "|" + color.GetHashCode() + "|" + pulse;
             if (key == miniKey) return;
             miniKey = key;
@@ -487,16 +493,26 @@ namespace ClaudeNotch
 
         FrameworkElement Row(SessionInfo s)
         {
-            var dot = new Ellipse
+            // A laptop for an app session, a terminal for a CLI one, colored by what it's doing.
+            var dot = new TextBlock
             {
-                Width = 7, Height = 7, Margin = new Thickness(6, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center,
-                Fill = s.Busy ? Theme.Clay : s.JustFinished ? Theme.Green : Theme.Idle,
+                FontFamily = Theme.Icons, FontSize = 13, Width = 16, TextAlignment = TextAlignment.Center,
+                Margin = new Thickness(3, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center,
+                Text = s.Desktop ? "" : "", // Laptop / CommandPrompt
+                Foreground = s.Busy ? Theme.Clay : s.JustFinished ? Theme.Green : Theme.Idle,
             };
             var name = Text(12, Brushes.White, FontWeights.Normal);
             name.Text = s.DisplayName;
-            var where = Text(10, Theme.Dim, FontWeights.Normal);
-            where.Text = s.Desktop ? "APP" : "CLI";
-            where.Margin = new Thickness(8, 1, 0, 0);
+            name.TextTrimming = TextTrimming.CharacterEllipsis;
+            name.MaxWidth = 190;
+            // The project it runs in, unless the name already says it.
+            string project = string.Equals((s.Cwd ?? "").TrimEnd('\\', '/'), Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), StringComparison.OrdinalIgnoreCase) ? "~" : s.Project;
+            var where = Text(11, Theme.Dim, FontWeights.Normal);
+            where.Text = project != "" && !string.Equals(project, s.DisplayName, StringComparison.OrdinalIgnoreCase) ? project : "";
+            where.TextTrimming = TextTrimming.CharacterEllipsis;
+            where.MaxWidth = 120;
+            where.Margin = new Thickness(8, 0, 0, 0);
+            where.VerticalAlignment = VerticalAlignment.Center;
             var status = Text(11, Theme.Dim, FontWeights.Normal);
             status.Text = RowStatus(s);
             status.Margin = new Thickness(8, 0, 6, 0);

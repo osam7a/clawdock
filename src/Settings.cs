@@ -19,10 +19,16 @@ namespace ClaudeNotch
         public int CustomKey { get; set; }            // virtual-key code
 
         // Voice and typed prompts
-        public string VoiceMode { get; set; }         // "voice-or-type" | "type" | "voice"
+        public string VoiceMode { get; set; }         // "voice-or-type" | "type" | "voice" | "quick"
         public string PromptTarget { get; set; }      // "desktop" | "cli"
         public string CliFolder { get; set; }
         public string NewChatLink { get; set; }
+
+        // Quick voice: push to talk, answered by a Claude Code session on the notch
+        public string QuickModel { get; set; }        // "haiku" | "sonnet" | "opus"
+        public bool QuickSpeak { get; set; }          // read answers aloud
+        public string QuickVoiceName { get; set; }    // a Windows voice; empty = default
+        public int QuickRate { get; set; }            // -5 (slow) .. 5 (fast)
 
         // Look and placement
         public string Style { get; set; }             // "classic" | "compact" | "line" | "dot"
@@ -52,6 +58,10 @@ namespace ClaudeNotch
             PromptTarget = "desktop";
             CliFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             NewChatLink = "claude://claude.ai/new";
+            QuickModel = "haiku";
+            QuickSpeak = true;
+            QuickVoiceName = "";
+            QuickRate = 1;
             Style = "classic";
             Edge = "top";
             EdgeOffset = 0.5;
@@ -118,7 +128,10 @@ namespace ClaudeNotch
         void Normalize()
         {
             Shortcut = OneOf(Shortcut, "copilot", "custom", "off");
-            VoiceMode = OneOf(VoiceMode, "voice-or-type", "type", "voice");
+            VoiceMode = OneOf(VoiceMode, "voice-or-type", "type", "voice", "quick");
+            QuickModel = OneOf(QuickModel, "haiku", "sonnet", "opus");
+            if (QuickVoiceName == null) QuickVoiceName = "";
+            if (QuickRate < -5 || QuickRate > 5) QuickRate = 1;
             PromptTarget = OneOf(PromptTarget, "desktop", "cli");
             Style = OneOf(Style, "classic", "compact", "line", "dot");
             Edge = OneOf(Edge, "top", "bottom", "left", "right");

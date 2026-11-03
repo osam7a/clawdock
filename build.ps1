@@ -17,7 +17,8 @@ $refs = @(
     "$fw\System.Core.dll",
     "$fw\System.Drawing.dll",
     "$fw\System.Windows.Forms.dll",
-    "$fw\System.Web.Extensions.dll"
+    "$fw\System.Web.Extensions.dll",
+    "$wpf\System.Speech.dll"
 ) | ForEach-Object { "/r:$_" }
 
 $sources = Get-ChildItem (Join-Path $PSScriptRoot 'src') -Filter *.cs | ForEach-Object FullName

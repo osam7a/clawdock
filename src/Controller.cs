@@ -24,6 +24,7 @@ namespace ClaudeNotch
         readonly HookServer server = new HookServer();
         readonly NotchWindow notch;
         readonly PromptWindow prompt = new PromptWindow();
+        readonly QuickVoice quick;
         readonly TrayIcon tray;
         readonly DispatcherTimer refreshTimer, hookTimer;
         readonly List<HookServer.Pending> pending = new List<HookServer.Pending>();
@@ -42,6 +43,8 @@ namespace ClaudeNotch
             hub.FinishedFor = TimeSpan.FromSeconds(settings.FinishedSeconds);
             notch = new NotchWindow(settings);
             tray = new TrayIcon();
+            quick = new QuickVoice(settings);
+            quick.Changed += Refresh;
 
             notch.OpenPrimary += OpenPrimary;
             notch.OpenSession += OpenSession;
@@ -90,6 +93,7 @@ namespace ClaudeNotch
             watcher.Start();
             ShortcutError = Hotkeys.Apply(settings);
             if (ShortcutError != null) tray.Balloon(ShortcutError);
+            if (settings.VoiceMode == "quick") QuickVoice.EnsureSkill();
             KeepHooks();
             refreshTimer.Start();
             hookTimer.Start();
@@ -276,6 +280,7 @@ namespace ClaudeNotch
                 st.Choices = new List<string> { "Deny", "Allow" };
                 st.Primary = 1;
             }
+            else if (quick.Active) ShowQuick(st);
             else if (alert != null)
             {
                 st.Kind = "alert";
@@ -324,6 +329,7 @@ namespace ClaudeNotch
             // Permission requests show even when the notch is hidden. Over a fullscreen app they
             // wait (still held) and appear when you leave it, unless you allowed fullscreen.
             if (alertOn) st.Visible = !fullscreenBlock;
+            else if (st.Kind == "quick") st.Visible = true; // you just asked for it
             else if (now < dismissedUntil || fullscreenBlock || looking) st.Visible = false;
             else if (voice || st.Kind == "question") st.Visible = true;
             else if (settings.ShowWhen == "alerts") st.Visible = false;
@@ -331,7 +337,43 @@ namespace ClaudeNotch
             else st.Visible = ongoing || (watcher.ClaudeOpen && watcher.ClaudeMinimized);
 
             notch.Render(st);
-            tray.SetStatus(st.Kind == "alert" ? "Needs permission" : st.Kind == "question" ? "Claude asked you something" : voice ? "Voice conversation" : primary != null && primary.Busy ? "Working: " + primary.DisplayName : "Idle");
+            tray.SetStatus(st.Kind == "alert" ? "Needs permission" : st.Kind == "quick" ? "Quick voice" : st.Kind == "question" ? "Claude asked you something" : voice ? "Voice conversation" : primary != null && primary.Busy ? "Working: " + primary.DisplayName : "Idle");
+        }
+
+        void ShowQuick(NotchState st)
+        {
+            st.Kind = "quick";
+            switch (quick.State)
+            {
+                case QuickVoice.Phase.Listening:
+                    st.Listening = true;
+                    st.VoiceStarted = quick.ListenStarted;
+                    st.Title = "Listening";
+                    string said = (quick.Heard + " " + quick.Partial).Trim();
+                    st.Detail = said != "" ? Tail(said, 160) : Hotkeys.Held ? "Let go when you're done" : "Go ahead, I'm listening";
+                    break;
+                case QuickVoice.Phase.Error:
+                    st.Title = "Quick voice";
+                    st.Detail = quick.Status;
+                    break;
+                default:
+                    st.Title = "“" + Tail(quick.Heard, 70) + "”";
+                    st.Answering = quick.Answer != "";
+                    st.Busy = quick.Speaking || quick.State == QuickVoice.Phase.Thinking;
+                    string answer = QuickVoice.WithoutSources(quick.Answer);
+                    st.Detail = answer != "" ? Tail(answer, 260) : quick.Status;
+                    break;
+            }
+        }
+
+        // The end of a long text, from a word boundary.
+        static string Tail(string s, int max)
+        {
+            s = s.Trim();
+            if (s.Length <= max) return s;
+            s = s.Substring(s.Length - max);
+            int sp = s.IndexOf(' ');
+            return "…" +(sp > 0 && sp < 20 ? s.Substring(sp + 1) : s);
         }
 
         // The session the notch talks about: the one asking for permission, else the app
@@ -453,6 +495,7 @@ namespace ClaudeNotch
 
         void Dismiss()
         {
+            if (quick.Active) { quick.Dismiss(); return; }
             if (watcher.InVoice) watcher.EndVoice();
             ReleasePending(null);
             alert = null;
@@ -464,6 +507,7 @@ namespace ClaudeNotch
 
         void OnShortcut()
         {
+            if (settings.VoiceMode == "quick") { quick.Press(); return; }
             if (watcher.InVoice) return; // already talking
             string mode = settings.VoiceMode;
             if (mode == "type") ShowPrompt(null);
@@ -500,6 +544,7 @@ namespace ClaudeNotch
             if (settings.KeepHooksInstalled) KeepHooks();
             else if (hooksWere) HookInstaller.Uninstall();
             if (!settings.ApproveFromNotch) ReleasePending(null);
+            if (settings.VoiceMode == "quick") QuickVoice.EnsureSkill();
             Refresh();
         }
 
@@ -527,6 +572,7 @@ namespace ClaudeNotch
 
         public void Quit()
         {
+            quick.Quit();
             ReleasePending(null);
             Hotkeys.Remove();
             tray.Dispose();

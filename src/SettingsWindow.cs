@@ -86,10 +86,27 @@ namespace ClaudeNotch
                 using (var dlg = new System.Windows.Forms.FolderBrowserDialog { SelectedPath = folderBox.Text, Description = "Folder for new terminal sessions" })
                     if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK) folderBox.Text = dlg.SelectedPath;
             };
+            var editVoice = new Button { Content = "Edit…" };
+            editVoice.Click += (a, b) =>
+            {
+                QuickVoice.EnsureSkill();
+                try { System.Diagnostics.Process.Start("notepad.exe", "\"" + QuickVoice.SkillFile + "\""); }
+                catch (Exception ex) { Log.Write("Couldn't open " + QuickVoice.SkillFile + ": " + ex.Message); }
+            };
             Page("voice", "Voice and prompts",
                 Card(
                     Row("When I press the shortcut", VoiceLauncher.HasMicrophone() ? "A microphone is available." : "No microphone found right now, so the shortcut opens a prompt box.",
-                        Combo(new[] { "voice-or-type", "Voice, or type without a mic", "type", "Always type a prompt", "voice", "Always voice" }, s.VoiceMode, v => s.VoiceMode = v))),
+                        Combo(new[] { "voice-or-type", "Voice, or type without a mic", "type", "Always type a prompt", "voice", "Always voice", "quick", "Quick voice: answer on the notch" }, s.VoiceMode, v => s.VoiceMode = v))),
+                Hint("Quick voice is push to talk: hold the shortcut while you speak (or press it and talk), and Claude's answer appears on the notch and is read aloud. Press again to cut it off. It runs Claude Code in the background, so you don't need the app open."),
+                Section("Quick voice"),
+                Card(
+                    Row("Model", "Haiku answers fastest.",
+                        Combo(new[] { "haiku", "Haiku", "sonnet", "Sonnet", "opus", "Opus" }, s.QuickModel, v => s.QuickModel = v)),
+                    Toggle("Read answers aloud", "Otherwise answers only appear on the notch.", s.QuickSpeak, v => s.QuickSpeak = v),
+                    Row("Voice", null, Combo(VoicePairs(), s.QuickVoiceName, v => s.QuickVoiceName = v)),
+                    Row("Speaking speed", null,
+                        Combo(new[] { "-2", "Slower", "0", "Normal", "1", "A little faster", "3", "Fast" }, RateKey(s.QuickRate), v => s.QuickRate = int.Parse(v))),
+                    Row("How Claude answers", "Short, spoken-style answers. The rules are a skill in your Claude folder: edit them to change the style.", editVoice)),
                 Section("Typed prompts"),
                 Card(
                     Row("Send typed prompts to", null,
@@ -440,6 +457,18 @@ namespace ClaudeNotch
             row.MouseLeftButtonUp += (a, b) => { if (!c.IsMouseOver) c.IsChecked = c.IsChecked != true; };
             ((Grid)row).Background = Brushes.Transparent;
             return row;
+        }
+
+        static string[] VoicePairs()
+        {
+            var pairs = new List<string> { "", "Windows default" };
+            foreach (string v in QuickVoice.InstalledVoices()) { pairs.Add(v); pairs.Add(v.Replace("Microsoft ", "").Replace(" Desktop", "")); }
+            return pairs.ToArray();
+        }
+
+        static string RateKey(int rate)
+        {
+            return rate <= -2 ? "-2" : rate <= 0 ? "0" : rate <= 2 ? "1" : "3";
         }
 
         // pairs: value, label, value, label, ...

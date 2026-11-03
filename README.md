@@ -9,7 +9,7 @@ permission requests, and lets you talk or type to Claude from anywhere.
 - **Live sessions.** Every running Claude Code session, desktop or terminal, is read from
   `~/.claude/sessions`. The notch shows the one you just left (or the one working) with its
   name, working time, and tasks done and left: `Working 4:12 · 3 done · 2 left`. Hover over it
-  to see all sessions, and click one to jump to it. A terminal session brings its terminal
+  to see all sessions (a laptop for app sessions, a terminal for CLI ones, with their project), and click one to jump to it. A terminal session brings its terminal
   window forward. An app session opens Claude and selects it in the sidebar.
 - **Permission requests.** When a Claude app session needs permission while you're away from it,
   the notch shows what it wants to run (`Bash: git push`) with **Allow** and **Deny**. If you go
@@ -23,6 +23,14 @@ permission requests, and lets you talk or type to Claude from anywhere.
 - **Voice.** The shortcut (the Copilot key by default) starts a Claude voice conversation in the
   open chat (or a new one) and minimizes Claude, so you talk through the notch. The notch shows a
   timer, a mute button, and live bars. Its **×** ends the conversation.
+- **Quick voice.** Push to talk, without opening Claude. Hold the shortcut while you speak (or
+  press it once and talk); let go and the question goes to a Claude Code session running in the
+  background. The answer streams onto the notch and is read aloud with a Windows voice, sentence
+  by sentence. Press the shortcut again to cut it off and ask something else. Follow-ups keep the
+  conversation's context for 15 minutes. It can search the web, nothing else. Answers follow the
+  `voice-replies` skill (`~/.claude/skills/voice-replies/SKILL.md`, written on first use and
+  yours to edit): short, plain spoken sentences, no markdown or links. Needs Claude Code signed
+  in (`claude auth login`).
 - **Typed prompts.** If there's no microphone, or you prefer typing, the shortcut opens a small
   prompt box under the notch. Enter sends it to the Claude app (the open chat or session) or
   starts a new Claude Code session in a terminal. You choose the default in settings and can
@@ -81,7 +89,7 @@ from `~/.claude/settings.json`; everything else in that file stays as it is.
 | --- | --- |
 | General | Start with Windows. Answer permission requests from the notch. Show Claude's questions with their choices. Keep the hooks installed (repaired automatically every 5 minutes if something removes them). |
 | Shortcut | Copilot key, your own key combination, or none. |
-| Voice and typed prompts | Voice with typing as a fallback, always type, or always voice. Send typed prompts to the app or a new terminal session. Which folder terminal sessions start in. |
+| Voice and typed prompts | Voice with typing as a fallback, always type, always voice, or quick voice. Quick voice: model, reading answers aloud, the voice and its speed, and editing the answer style. Send typed prompts to the app or a new terminal session. Which folder terminal sessions start in. |
 | Notch | Style, screen edge, display, position along the edge, whether to list sessions on hover. |
 | When it shows | Only when something's going on (or Claude is minimized), whenever you're away from Claude, or only for permission requests and voice. How long × hides it. How long "Done" stays. Whether to show over fullscreen apps. |
 
@@ -117,6 +125,7 @@ Claude window ──UI Automation──> voice, mute, current session title, pro
 | `src/SessionHub.cs` | Merges both into one session list. |
 | `src/ClaudeWatcher.cs` | Claude's window: open, minimized, in front, voice, mute, current session, fullscreen apps. |
 | `src/VoiceLauncher.cs` | Starts voice mode; microphone detection. |
+| `src/QuickVoice.cs` | Quick voice: speech recognition, the background Claude Code session, reading answers aloud, the voice-replies skill. |
 | `src/PromptWindow.cs`, `src/PromptSender.cs` | The typed prompt box, and sending to the app or a terminal. |
 | `src/TerminalFocus.cs` | Finds the terminal window a CLI session runs in. |
 | `src/Hotkeys.cs` | The Copilot key hook and custom shortcuts. |

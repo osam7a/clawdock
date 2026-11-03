@@ -31,12 +31,22 @@ namespace ClaudeNotch
         static bool registered;
         static DateTime lastPress = DateTime.MinValue;
         static Dispatcher ui;
+        static volatile bool f23Down; // the Copilot key is held (its F23 is swallowed, so Windows doesn't track it)
+        static DateTime lastF23Event = DateTime.MinValue;
+        static int customKey;
+
+        // Is the shortcut still held down? Push-to-talk listens until it's let go.
+        public static bool Held
+        {
+            get { return hook != IntPtr.Zero ? f23Down : registered && customKey != 0 && (GetAsyncKeyState(customKey) & 0x8000) != 0; }
+        }
 
         // Applies the shortcut from settings. Returns an error to show, or null.
         public static string Apply(Settings s)
         {
             ui = Dispatcher.CurrentDispatcher;
             Remove();
+            customKey = s.CustomKey;
             if (s.Shortcut == "copilot")
             {
                 hook = SetWindowsHookEx(WH_KEYBOARD_LL, hookProc, GetModuleHandle(null), 0);
@@ -99,10 +109,16 @@ namespace ClaudeNotch
                 {
                     if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)
                     {
+                        // Held keys repeat every ~30 ms. A gap means a new press, in case a key-up was missed.
+                        bool repeat = f23Down && (DateTime.UtcNow - lastF23Event).TotalMilliseconds < 1000;
+                        lastF23Event = DateTime.UtcNow;
+                        f23Down = true;
+                        if (repeat) return (IntPtr)1;
                         bool winDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
                         if (winDown) Native.PressKeys(VK_MASK); // Win then counts as a modifier: no Start menu on release
                         Fire();
                     }
+                    else f23Down = false;
                     return (IntPtr)1; // swallow F23 down and up
                 }
             }
