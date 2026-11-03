@@ -9,14 +9,60 @@ using System.Windows.Automation;
 
 namespace ClaudeNotch
 {
-    // Sends a typed prompt to Claude, either:
-    //   desktop  into the Claude app's prompt box: the chat or Code session that is open, or a
-    //            new chat if the open view has no prompt box
-    //   cli      as the first prompt of a new `claude` session in a terminal, in the chosen folder
+    // Puts text into the Claude app's prompt box (the chat or Code session that is open, or a new
+    // chat if the open view has no prompt box) and sends it, and opens Claude's quick entry.
     static class PromptSender
     {
         // Reports a problem on the UI thread (shown under the notch).
         public static event Action<string> Failed;
+
+        // Claude's own quick entry box: the app's Ctrl+Alt+Space. If Claude isn't running, it's
+        // started on a new chat instead (its shortcut only works while it runs).
+        public static void OpenQuickEntry(string newChatLink)
+        {
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    if (!DesktopAppRunning())
+                    {
+                        VoiceLauncher.OpenLink(newChatLink);
+                        return;
+                    }
+                    // The shortcut that got us here may still be held (the Copilot key holds Win and
+                    // Shift); with them down this would be a different combination.
+                    var clock = Stopwatch.StartNew();
+                    while (clock.ElapsedMilliseconds < 1500 && ModifiersDown()) Thread.Sleep(20);
+                    Native.PressKeys(Native.VK_CONTROL, Native.VK_MENU, Native.VK_SPACE);
+                }
+                catch (Exception e) { Log.Write("Quick entry: " + e.Message); }
+            });
+        }
+
+        // The Claude app is running, even with its window closed to the tray (its shortcut still
+        // works then). Claude Code's CLI is a claude.exe too, so tell them apart by where they live.
+        static bool DesktopAppRunning()
+        {
+            if (Native.FindClaudeWindow() != IntPtr.Zero) return true;
+            foreach (var p in Process.GetProcessesByName("claude"))
+            {
+                try
+                {
+                    string path = p.MainModule.FileName;
+                    if (path.IndexOf("claude-code", StringComparison.OrdinalIgnoreCase) < 0 && path.IndexOf(@"\.local\bin", StringComparison.OrdinalIgnoreCase) < 0) return true;
+                }
+                catch { }
+                finally { p.Dispose(); }
+            }
+            return false;
+        }
+
+        static bool ModifiersDown()
+        {
+            foreach (int vk in new[] { 0x10, 0x11, 0x12, 0x5B, 0x5C }) // Shift, Ctrl, Alt, left and right Win
+                if ((Native.GetAsyncKeyState(vk) & 0x8000) != 0) return true;
+            return false;
+        }
 
         public static void ToDesktop(string text, string newChatLink)
         {
@@ -137,73 +183,6 @@ namespace ClaudeNotch
             {
                 try { Clipboard.SetDataObject(data, true); return; } catch { Thread.Sleep(50); } // another app may hold it briefly
             }
-        }
-
-        // ---- terminal ------------------------------------------------------
-
-        // Opens a terminal in the folder and starts `claude` with the prompt. The prompt goes
-        // through a temp file and an encoded PowerShell command, so no quoting can break out
-        // of it or run it as a command.
-        public static void ToTerminal(string text, string folder)
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
-                    folder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                if (FindOnPath("claude") == null)
-                {
-                    Fail("Claude Code (the claude command) isn't installed or isn't on PATH.");
-                    return;
-                }
-
-                string tmp = Path.Combine(Path.GetTempPath(), "claude-notch-" + Guid.NewGuid().ToString("N") + ".txt");
-                File.WriteAllText(tmp, text, new UTF8Encoding(false));
-
-                // Windows PowerShell 5.1 passes arguments to native programs without escaping
-                // embedded quotes, so escape them (and backslashes in front of them) ourselves.
-                string script =
-                    "$f = '" + tmp.Replace("'", "''") + "'\n" +
-                    "$p = [IO.File]::ReadAllText($f)\n" +
-                    "Remove-Item -LiteralPath $f -ErrorAction SilentlyContinue\n" +
-                    "$p = $p -replace '(\\\\*)\"', '$1$1\\\"' -replace '(\\\\+)$', '$1$1'\n" +
-                    // "--" so a prompt starting with "-" can't be read as a flag (e.g. --dangerously-skip-permissions).
-                    "claude -- $p\n";
-                string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
-                string ps = "powershell.exe -NoLogo -NoExit -ExecutionPolicy Bypass -EncodedCommand " + encoded;
-
-                string wt = FindOnPath("wt");
-                if (wt != null)
-                    Process.Start(new ProcessStartInfo(wt, "-d \"" + folder.TrimEnd('\\') + "\" " + ps) { UseShellExecute = false });
-                else
-                    Process.Start(new ProcessStartInfo("powershell.exe", ps.Substring("powershell.exe ".Length))
-                    { UseShellExecute = true, WorkingDirectory = folder });
-            }
-            catch (Exception e)
-            {
-                Log.Write("Terminal prompt: " + e.Message);
-                Fail("Couldn't open a terminal.");
-            }
-        }
-
-        static string FindOnPath(string name)
-        {
-            var dirs = new List<string>((Environment.GetEnvironmentVariable("PATH") ?? "").Split(';'));
-            dirs.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WindowsApps"));
-            dirs.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "bin"));
-            foreach (string dir in dirs)
-            {
-                if (dir.Trim().Length == 0) continue;
-                foreach (string ext in new[] { ".exe", ".cmd", ".bat" })
-                {
-                    try
-                    {
-                        string p = Path.Combine(Environment.ExpandEnvironmentVariables(dir.Trim().Trim('"')), name + ext);
-                        if (File.Exists(p)) return p;
-                    }
-                    catch { }
-                }
-            }
-            return null;
         }
 
         static void Fail(string message)

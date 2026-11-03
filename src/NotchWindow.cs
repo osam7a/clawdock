@@ -270,24 +270,6 @@ namespace ClaudeNotch
             return new Rect(r.Left / scale, r.Top / scale, r.Width / scale, r.Height / scale);
         }
 
-        // Where the prompt box goes: just inside the notch, toward the middle of the screen.
-        public Point PromptPosition(double w, double h)
-        {
-            Rect wa = WorkArea();
-            double off = settings.EdgeOffset, gap = 54;
-            double x, y;
-            switch (settings.Edge)
-            {
-                case "bottom": x = wa.Left + off * wa.Width - w / 2; y = wa.Bottom - gap - h; break;
-                case "left": x = wa.Left + gap; y = wa.Top + off * wa.Height - h / 2; break;
-                case "right": x = wa.Right - gap - w; y = wa.Top + off * wa.Height - h / 2; break;
-                default: x = wa.Left + off * wa.Width - w / 2; y = wa.Top + gap; break;
-            }
-            x = Math.Max(wa.Left, Math.Min(x, wa.Right - w));
-            y = Math.Max(wa.Top, Math.Min(y, wa.Bottom - h));
-            return new Point(x, y);
-        }
-
         // ---- state ---------------------------------------------------------
 
         public void Render(NotchState s)

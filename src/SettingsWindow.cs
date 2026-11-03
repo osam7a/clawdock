@@ -22,7 +22,7 @@ namespace ClaudeNotch
         readonly Palette p = Palette.Current();
         readonly TextBlock hookStatus, shortcutNote, pageTitle, unsaved;
         readonly Ellipse hookDot;
-        readonly TextBox recorder, folderBox;
+        readonly TextBox recorder;
         readonly ScrollViewer scroller;
         readonly Dictionary<string, FrameworkElement> pages = new Dictionary<string, FrameworkElement>();
         readonly Canvas preview = new Canvas { Width = 224, Height = 126 };
@@ -79,14 +79,6 @@ namespace ClaudeNotch
                 shortcutNote);
 
             // ---- Voice and prompts
-            folderBox = new TextBox { Text = s.CliFolder, Width = 196 };
-            folderBox.TextChanged += (a, b) => { s.CliFolder = folderBox.Text; Changed(); };
-            var browse = new Button { Content = "Browse…", Margin = new Thickness(6, 0, 0, 0) };
-            browse.Click += (a, b) =>
-            {
-                using (var dlg = new System.Windows.Forms.FolderBrowserDialog { SelectedPath = folderBox.Text, Description = "Folder for new terminal sessions" })
-                    if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK) folderBox.Text = dlg.SelectedPath;
-            };
             var editVoice = new Button { Content = "Edit…" };
             editVoice.Click += (a, b) =>
             {
@@ -145,8 +137,8 @@ namespace ClaudeNotch
 
             Page("voice", "Voice and prompts",
                 Card(
-                    Row("When I press the shortcut", VoiceLauncher.HasMicrophone() ? "A microphone is available." : "No microphone found right now, so the shortcut opens a prompt box.",
-                        Combo(new[] { "voice-or-type", "Voice, or type without a mic", "type", "Always type a prompt", "voice", "Always voice", "quick", "Quick voice: answer on the notch" }, s.VoiceMode, v => s.VoiceMode = v))),
+                    Row("When I press the shortcut", VoiceLauncher.HasMicrophone() ? "A microphone is available." : "No microphone found right now, so voice choices open Claude's quick entry instead.",
+                        Combo(new[] { "quick", "Quick voice: answer on the notch", "voice-or-type", "Claude voice, or type without a mic", "voice", "Claude voice", "type", "Claude quick entry (Ctrl+Alt+Space)" }, s.VoiceMode, v => s.VoiceMode = v))),
                 Hint("Quick voice is push to talk: hold the shortcut while you speak (or press it and talk), and Claude's answer appears on the notch and is read aloud. Press again to cut it off. It runs Claude Code in the background, so you don't need the app open."),
                 Section("Quick voice"),
                 Card(
@@ -167,13 +159,7 @@ namespace ClaudeNotch
                     Row("Voice", null, Combo(VoicePairs(), s.QuickVoiceName, v => s.QuickVoiceName = v)),
                     Row("Speaking speed", null,
                         Combo(new[] { "-2", "Slower", "0", "Normal", "1", "A little faster", "3", "Fast" }, RateKey(s.QuickRate), v => s.QuickRate = int.Parse(v))),
-                    Row("How Claude answers", "Short, spoken-style answers. The rules are a skill in your Claude folder: edit them to change the style.", editVoice)),
-                Section("Typed prompts"),
-                Card(
-                    Row("Send typed prompts to", null,
-                        Combo(new[] { "desktop", "The Claude app", "cli", "A new terminal session" }, s.PromptTarget, v => s.PromptTarget = v)),
-                    Row("Terminal sessions start in", "Used when prompts go to a new Claude Code session.",
-                        new StackPanel { Orientation = Orientation.Horizontal, Children = { folderBox, browse } })));
+                    Row("How Claude answers", "Short, spoken-style answers. The rules are a skill in your Claude folder: edit them to change the style.", editVoice)));
 
             // ---- Notch
             var monitors = new List<string> { "", "Main display" };

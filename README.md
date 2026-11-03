@@ -40,17 +40,16 @@ permission requests, and lets you talk or type to Claude from anywhere.
     for **Allow** on the notch.
   - *History:* private (nothing saved; follow-ups keep context for 15 minutes), or **one chat,
     VOICE_CHATS**, in your Claude Code history, picked up again each time.
-- **Typed prompts.** If there's no microphone, or you prefer typing, the shortcut opens a small
-  prompt box under the notch. Enter sends it to the Claude app (the open chat or session) or
-  starts a new Claude Code session in a terminal. You choose the default in settings and can
-  switch per prompt.
+- **Typing.** If you prefer typing, or there's no microphone for Claude voice, the shortcut opens
+  the Claude app's own quick entry (it presses Ctrl+Alt+Space). If Claude isn't running, it
+  starts on a new chat.
 - **Styles.** *Classic* shows the mascot and a status line. *Compact* is one slim line. *Line* is a
   thin colored bar, and *Dot* is a small colored dot; hover either one for details. It can sit on
   any edge of any display. Drag it and it snaps to the nearest edge.
 - **Stays out of the way.** It hides while you're looking at Claude (the app, or the terminal
   running the session) and over fullscreen apps. **×** hides it until you go back to Claude, or for
   15 minutes or an hour.
-- **Tray icon.** Settings, *Type a prompt*, *Repair hooks*, and *Quit*.
+- **Tray icon.** Settings, *Type to Claude*, *Repair hooks*, and *Quit*.
 
 ## Install
 
@@ -98,7 +97,7 @@ from `~/.claude/settings.json`; everything else in that file stays as it is.
 | --- | --- |
 | General | Start with Windows. Answer permission requests from the notch. Show Claude's questions with their choices. Keep the hooks installed (repaired automatically every 5 minutes if something removes them). |
 | Shortcut | Copilot key, your own key combination, or none. |
-| Voice and typed prompts | Voice with typing as a fallback, always type, always voice, or quick voice. Quick voice: speech recognition (built in or Windows), what it can use, history, model, reading answers aloud, the voice and its speed, and editing the answer style. Send typed prompts to the app or a new terminal session. Which folder terminal sessions start in. |
+| Voice and prompts | Quick voice, Claude voice (with Claude's quick entry as the fallback without a mic), or always Claude's quick entry. Quick voice: speech recognition (built in or Windows), what it can use, history, model, reading answers aloud, the voice and its speed, and editing the answer style. |
 | Notch | Style, screen edge, display, position along the edge, whether to list sessions on hover. |
 | When it shows | Only when something's going on (or Claude is minimized), whenever you're away from Claude, or only for permission requests and voice. How long × hides it. How long "Done" stays. Whether to show over fullscreen apps. |
 
@@ -137,7 +136,7 @@ Claude window ──UI Automation──> voice, mute, current session title, pro
 | `src/QuickVoice.cs` | Quick voice: speech recognition, the background Claude Code session, reading answers aloud, the voice-replies skill. |
 | `src/ModernDictation.cs` | Windows' modern (online) dictation, used by quick voice when allowed. |
 | `src/LocalSpeech.cs`, `src/MicRecorder.cs` | The built-in speech recognition (whisper.cpp): download, checks, transcribing; recording the microphone. |
-| `src/PromptWindow.cs`, `src/PromptSender.cs` | The typed prompt box, and sending to the app or a terminal. |
+| `src/PromptSender.cs` | Sending text to the Claude app's prompt box; opening its quick entry. |
 | `src/TerminalFocus.cs` | Finds the terminal window a CLI session runs in. |
 | `src/Hotkeys.cs` | The Copilot key hook and custom shortcuts. |
 | `src/NotchWindow.cs`, `src/Mascot.cs` | The notch and its pixel mascot. |

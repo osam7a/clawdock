@@ -19,7 +19,7 @@ namespace ClaudeNotch
             image = DrawMascot();
             var menu = new ContextMenuStrip();
             menu.Items.Add("Settings…", null, (s, e) => Raise(OpenSettings));
-            menu.Items.Add("Type a prompt to Claude…", null, (s, e) => Raise(AskClaude));
+            menu.Items.Add("Type to Claude (Ctrl+Alt+Space)", null, (s, e) => Raise(AskClaude));
             menu.Items.Add("Repair Claude Code hooks", null, (s, e) => Raise(RepairHooks));
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Quit Claude Notch", null, (s, e) => Raise(Quit));

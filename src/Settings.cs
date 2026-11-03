@@ -19,9 +19,7 @@ namespace ClaudeNotch
         public int CustomKey { get; set; }            // virtual-key code
 
         // Voice and typed prompts
-        public string VoiceMode { get; set; }         // "voice-or-type" | "type" | "voice" | "quick"
-        public string PromptTarget { get; set; }      // "desktop" | "cli"
-        public string CliFolder { get; set; }
+        public string VoiceMode { get; set; }         // "voice-or-type" | "type" | "voice" | "quick" ("type": Claude's quick entry)
         public string NewChatLink { get; set; }
 
         // Quick voice: push to talk, answered by a Claude Code session on the notch
@@ -56,11 +54,9 @@ namespace ClaudeNotch
         public Settings()
         {
             Shortcut = "copilot";
-            CustomModifiers = 2 | 1;   // Ctrl+Alt
+            CustomModifiers = 2 | 4;   // Ctrl+Shift (Ctrl+Alt+Space is Claude's own quick entry)
             CustomKey = 0x20;          // Space
             VoiceMode = "voice-or-type";
-            PromptTarget = "desktop";
-            CliFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             NewChatLink = "claude://claude.ai/new";
             QuickModel = "haiku";
             QuickSpeak = true;
@@ -144,14 +140,12 @@ namespace ClaudeNotch
             QuickLocalModel = OneOf(QuickLocalModel, "small", "base");
             QuickAccess = OneOf(QuickAccess, "web", "full");
             QuickHistory = OneOf(QuickHistory, "private", "history");
-            PromptTarget = OneOf(PromptTarget, "desktop", "cli");
             Style = OneOf(Style, "classic", "compact", "line", "dot");
             Edge = OneOf(Edge, "top", "bottom", "left", "right");
             ShowWhen = OneOf(ShowWhen, "smart", "away", "alerts");
             DismissFor = OneOf(DismissFor, "return", "15m", "1h");
             if (double.IsNaN(EdgeOffset) || EdgeOffset < 0 || EdgeOffset > 1) EdgeOffset = 0.5;
             if (FinishedSeconds < 0 || FinishedSeconds > 3600) FinishedSeconds = 12;
-            if (string.IsNullOrEmpty(CliFolder)) CliFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             if (string.IsNullOrEmpty(NewChatLink) || !NewChatLink.StartsWith("claude://", StringComparison.OrdinalIgnoreCase))
                 NewChatLink = "claude://claude.ai/new";
             if (Monitor == null) Monitor = "";

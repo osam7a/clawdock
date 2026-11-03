@@ -6,7 +6,7 @@ using System.Windows.Threading;
 
 namespace ClaudeNotch
 {
-    // The shortcut that starts talking (or typing) to Claude. Either:
+    // The shortcut that starts talking to Claude (or opens its quick entry). Either:
     //   copilot  the Copilot key, which sends Left Win + Left Shift + F23. A low-level keyboard
     //            hook swallows that F23 so Windows' own Copilot never sees it.
     //   custom   any key combination, through RegisterHotKey
@@ -55,6 +55,7 @@ namespace ClaudeNotch
             if (s.Shortcut == "custom")
             {
                 if (s.CustomKey == 0) return "No shortcut set.";
+                if ((s.CustomModifiers & 0xF) == (1 | 2) && s.CustomKey == 0x20) return "Ctrl+Alt+Space is Claude's own quick entry shortcut. Pick another.";
                 if (hotkeyWindow == null)
                 {
                     hotkeyWindow = new HwndSource(new HwndSourceParameters("ClaudeNotchHotkey") { ParentWindow = new IntPtr(-3), WindowStyle = 0 });

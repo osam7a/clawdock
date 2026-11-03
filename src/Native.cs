@@ -89,7 +89,7 @@ namespace ClaudeNotch
             return found;
         }
 
-        public const ushort VK_RETURN = 0x0D, VK_CONTROL = 0x11, VK_SHIFT = 0x10, VK_MENU = 0x12, VK_V = 0x56;
+        public const ushort VK_RETURN = 0x0D, VK_CONTROL = 0x11, VK_SHIFT = 0x10, VK_MENU = 0x12, VK_SPACE = 0x20, VK_V = 0x56;
         public const uint WM_SYSCOMMAND = 0x0112;
         public const int SC_MINIMIZE = 0xF020, SW_RESTORE = 9;
         const uint KEYEVENTF_KEYUP = 2, GW_OWNER = 4, TH32CS_SNAPPROCESS = 2;
@@ -121,6 +121,7 @@ namespace ClaudeNotch
         [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
         [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr pid);
         [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vk);
         [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
         [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
         [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);

@@ -23,7 +23,6 @@ namespace ClaudeNotch
         readonly SessionHub hub = new SessionHub();
         readonly HookServer server = new HookServer();
         readonly NotchWindow notch;
-        readonly PromptWindow prompt = new PromptWindow();
         readonly QuickVoice quick;
         readonly TrayIcon tray;
         readonly DispatcherTimer refreshTimer, hookTimer;
@@ -57,15 +56,10 @@ namespace ClaudeNotch
             notch.Quit += Quit;
 
             tray.OpenSettings += OpenSettings;
-            tray.AskClaude += () => ShowPrompt(null);
+            tray.AskClaude += () => PromptSender.OpenQuickEntry(settings.NewChatLink);
             tray.RepairHooks += () => { tray.Balloon(RepairHooks() ? "Claude Code hooks are installed." : "Couldn't update ~/.claude/settings.json. See the log."); };
             tray.Quit += Quit;
 
-            prompt.Send += (text, target) =>
-            {
-                if (target == "cli") PromptSender.ToTerminal(text, settings.CliFolder);
-                else PromptSender.ToDesktop(text, settings.NewChatLink);
-            };
             PromptSender.Failed += msg => tray.Balloon(msg);
 
             server.HookReceived += OnHook;
@@ -535,14 +529,9 @@ namespace ClaudeNotch
             if (settings.VoiceMode == "quick") { quick.Press(); return; }
             if (watcher.InVoice) return; // already talking
             string mode = settings.VoiceMode;
-            if (mode == "type") ShowPrompt(null);
-            else if (mode == "voice-or-type" && !VoiceLauncher.HasMicrophone()) ShowPrompt("No microphone found, so type to Claude instead.");
+            // Typing goes to Claude's own quick entry (Ctrl+Alt+Space).
+            if (mode == "type" || (mode == "voice-or-type" && !VoiceLauncher.HasMicrophone())) PromptSender.OpenQuickEntry(settings.NewChatLink);
             else VoiceLauncher.StartAsync(settings.NewChatLink);
-        }
-
-        void ShowPrompt(string message)
-        {
-            prompt.Open(notch.PromptPosition(444, 150), settings.PromptTarget, message);
         }
 
         // ---- settings ------------------------------------------------------
