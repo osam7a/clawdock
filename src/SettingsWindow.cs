@@ -282,15 +282,21 @@ namespace ClaudeNotch
             };
             showEleven();
             if (s.QuickTts == "elevenlabs" && elevenKey.Password != "") loadVoices();
-            var elevenPanel = new StackPanel
+            var elevenKeyPanel = new StackPanel { Children = { elevenKey, elevenStatus } };
+            var elevenVoicePanel = new StackPanel { Orientation = Orientation.Horizontal, Children = { elevenVoices, elevenLoad, elevenPlay } };
+
+            // Only the rows for the reading voice you picked are shown.
+            var naturalRow = Row("Natural voice", "Downloaded once from the sherpa-onnx project, then checked. Until it's ready, the Windows voice reads.", naturalPanel);
+            var elevenKeyRow = Row("ElevenLabs API key", "Answers are sent to ElevenLabs to be read and use your account's credits. The key is stored encrypted for your Windows user.", elevenKeyPanel);
+            var elevenVoiceRow = Row("ElevenLabs voice", "The voices on your account. If ElevenLabs can't be reached, the natural or Windows voice reads instead.", elevenVoicePanel);
+            var windowsVoiceRow = Row("Windows voice", null, Combo(VoicePairs(), s.QuickVoiceName, v => s.QuickVoiceName = v));
+            Action showVoiceRows = () =>
             {
-                Children =
-                {
-                    elevenKey,
-                    new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0), Children = { elevenVoices, elevenLoad, elevenPlay } },
-                    elevenStatus,
-                },
+                naturalRow.Visibility = s.QuickTts == "natural" ? Visibility.Visible : Visibility.Collapsed;
+                elevenKeyRow.Visibility = elevenVoiceRow.Visibility = s.QuickTts == "elevenlabs" ? Visibility.Visible : Visibility.Collapsed;
+                windowsVoiceRow.Visibility = s.QuickTts == "windows" ? Visibility.Visible : Visibility.Collapsed;
             };
+            showVoiceRows();
 
             Page("voice", "Voice and prompts",
                 Card(
@@ -313,11 +319,17 @@ namespace ClaudeNotch
                     Row("Model", "Haiku answers fastest.",
                         Combo(new[] { "haiku", "Haiku", "sonnet", "Sonnet", "opus", "Opus" }, s.QuickModel, v => s.QuickModel = v)),
                     Toggle("Read answers aloud", "Otherwise answers only appear on the notch.", s.QuickSpeak, v => s.QuickSpeak = v),
-                    Row("Reading voice", "Natural runs KittenTTS on this PC: it sounds far more human than the Windows voices, and nothing leaves your computer. ElevenLabs sounds the most human, in the cloud with your own account.",
-                        Combo(new[] { "natural", "Natural (KittenTTS)", "elevenlabs", "ElevenLabs", "windows", "Windows voice" }, s.QuickTts, v => s.QuickTts = v)),
-                    Row("Natural voice", "Downloaded once from the sherpa-onnx project, then checked. Until it's ready, the Windows voice reads.", naturalPanel),
-                    Row("ElevenLabs", "Answers are sent to ElevenLabs to be read and use your account's credits. The key is stored encrypted for your Windows user. If ElevenLabs can't be reached, the natural or Windows voice reads instead.", elevenPanel),
-                    Row("Windows voice", null, Combo(VoicePairs(), s.QuickVoiceName, v => s.QuickVoiceName = v)),
+                    Row("Reading voice", "Natural runs on this PC, so nothing leaves it. ElevenLabs sounds the most human, in the cloud with your own account.",
+                        Combo(new[] { "natural", "Natural (KittenTTS)", "elevenlabs", "ElevenLabs", "windows", "Windows voice" }, s.QuickTts, v =>
+                        {
+                            s.QuickTts = v;
+                            showVoiceRows();
+                            if (v == "elevenlabs" && elevenKey.Password != "" && elevenVoices.Items.Count <= 1) loadVoices();
+                        })),
+                    naturalRow,
+                    elevenKeyRow,
+                    elevenVoiceRow,
+                    windowsVoiceRow,
                     Row("Speaking speed", null,
                         Combo(new[] { "-2", "Slower", "0", "Normal", "1", "A little faster", "3", "Fast" }, RateKey(s.QuickRate), v => s.QuickRate = int.Parse(v))),
                     Row("How Claude answers", "Short, spoken-style answers. The rules are a skill in your Claude folder: edit them to change the style.", editVoice)));
@@ -597,6 +609,7 @@ namespace ClaudeNotch
                 GroupName = "nav",
                 Content = new StackPanel { Orientation = Orientation.Horizontal, Children = { icon, new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center } } },
             };
+            System.Windows.Automation.AutomationProperties.SetName(item, label); // for screen readers (the icon has no name)
             item.Checked += (a, b) => { icon.Foreground = p.Clay; Show(key); };
             item.Unchecked += (a, b) => icon.Foreground = p.Sub;
             navItems[key] = item;
@@ -631,7 +644,13 @@ namespace ClaudeNotch
             var stack = new StackPanel();
             for (int i = 0; i < rows.Length; i++)
             {
-                if (i > 0) stack.Children.Add(new Border { Height = 1, Background = p.Line, Margin = new Thickness(18, 0, 0, 0) });
+                if (i > 0)
+                {
+                    // The line above a row comes and goes with it.
+                    var line = new Border { Height = 1, Background = p.Line, Margin = new Thickness(18, 0, 0, 0) };
+                    line.SetBinding(VisibilityProperty, new System.Windows.Data.Binding("Visibility") { Source = rows[i] });
+                    stack.Children.Add(line);
+                }
                 stack.Children.Add(rows[i]);
             }
             return new Border { Background = p.Card, BorderBrush = p.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Child = stack };

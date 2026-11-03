@@ -457,10 +457,17 @@ namespace ClaudeNotch
                     // for it. (If the interrupt came after that answer had finished, nothing more arrives.)
                     for (int waited = 0; ignoreTurns > 0 && waited < 3000; waited += 50) Thread.Sleep(50);
                     ignoreTurns = 0;
+                    // The card rules are in the system prompt, but with all your skills and
+                    // connectors loaded they get lost in it, so each question carries a reminder.
+                    var content = new List<object>
+                    {
+                        new Dictionary<string, object> { { "type", "text" }, { "text", text } },
+                        new Dictionary<string, object> { { "type", "text" }, { "text", CardReminder } },
+                    };
                     var msg = new Dictionary<string, object>
                     {
                         { "type", "user" },
-                        { "message", new Dictionary<string, object> { { "role", "user" }, { "content", text } } },
+                        { "message", new Dictionary<string, object> { { "role", "user" }, { "content", content } } },
                     };
                     Send(msg);
                 }
@@ -1090,6 +1097,12 @@ namespace ClaudeNotch
             return "You are answering by voice, through Claude Notch. Your reply is read aloud and shown on a panel at the edge of the screen. Today is "
                 + DateTime.Now.ToString("dddd d MMMM yyyy", CultureInfo.InvariantCulture) + ".\n\n" + CardFormat + "\n\n" + text.Trim();
         }
+
+        const string CardReminder =
+            "<system-reminder>Claude Notch: if this answer has a key fact to see at a glance (a figure, the weather, steps, "
+            + "a comparison, a short list), your reply must start with one <card>{json}</card> as described under Cards in your "
+            + "instructions, then the spoken answer. The voice-replies rule against markup doesn't apply to the card. "
+            + "No card for chat or explanations without one.</system-reminder>";
 
         // How to put the key fact on screen. Part of the app, not the skill, so it can't be edited away.
         const string CardFormat =
