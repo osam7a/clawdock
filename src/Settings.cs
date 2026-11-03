@@ -31,6 +31,9 @@ namespace ClaudeNotch
         public string QuickLocalModel { get; set; }   // "small" | "base"
         public string QuickAccess { get; set; }       // "web": web search only | "full": your skills and connectors
         public string QuickHistory { get; set; }      // "private": not saved | "history": one VOICE_CHATS session
+        public string QuickTts { get; set; }          // the voice that reads answers: "windows" | "natural" (KittenTTS on this PC)
+        public int QuickNaturalVoice { get; set; }    // which natural voice, 0..7
+        public bool QuickMinimized { get; set; }      // quick voice shows as a small bar
 
         // Look and placement
         public string Style { get; set; }             // "classic" | "compact" | "line" | "dot"
@@ -66,6 +69,8 @@ namespace ClaudeNotch
             QuickLocalModel = "small";
             QuickAccess = "web";
             QuickHistory = "private";
+            QuickTts = "windows";
+            QuickNaturalVoice = 1;
             Style = "classic";
             Edge = "top";
             EdgeOffset = 0.5;
@@ -140,6 +145,8 @@ namespace ClaudeNotch
             QuickLocalModel = OneOf(QuickLocalModel, "small", "base");
             QuickAccess = OneOf(QuickAccess, "web", "full");
             QuickHistory = OneOf(QuickHistory, "private", "history");
+            QuickTts = OneOf(QuickTts, "windows", "natural");
+            if (QuickNaturalVoice < 0 || QuickNaturalVoice > 7) QuickNaturalVoice = 1;
             Style = OneOf(Style, "classic", "compact", "line", "dot");
             Edge = OneOf(Edge, "top", "bottom", "left", "right");
             ShowWhen = OneOf(ShowWhen, "smart", "away", "alerts");

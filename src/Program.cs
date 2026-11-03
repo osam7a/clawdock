@@ -86,12 +86,12 @@ namespace ClaudeNotch
                 else if (step < 220) st = new NotchState { Visible = true, Kind = "voice", Muted = step > 175 && step < 195, VoiceStarted = now.AddSeconds(14), Sessions = all };
                 else if (step < 260) st = new NotchState { Visible = true, Kind = "alert", Title = "Allow Bash? · Claude-Notch", Detail = "Bash: git push origin main", Pending = demoPending, Owner = demoPending, Choices = new List<string> { "Deny", "Allow" }, Primary = 1, Sessions = all };
                 else if (step < 300) st = new NotchState { Visible = true, Kind = "question", Title = "Claude asks · " + working.Name, Detail = "Should I test approve-from-notch with a real Claude Code CLI session?", Owner = demoQuestion, Choices = new List<string> { "Not now", "Yes, test it" }, Primary = 1, Sessions = all };
-                else if (step < 500) st = DemoQuick(step - 300);
-                else if (step < 510 && quickOnly) st = new NotchState { Visible = false };
+                else if (step < 580) st = DemoQuick(step - 300);
+                else if (step < 590 && quickOnly) st = new NotchState { Visible = false };
                 else if (quickOnly) { app.Shutdown(); return; }
-                else if (step < 560) st = new NotchState { Visible = true, Kind = "session", Title = working.Name, JustFinished = true, Done = 5, Total = 5, Detail = "Done in 4:12 · 5 done", Sessions = all };
-                else if (step < 600) st = new NotchState { Visible = true, Kind = "idle", Sessions = all };
-                else if (step < 610) st = new NotchState { Visible = false };
+                else if (step < 640) st = new NotchState { Visible = true, Kind = "session", Title = working.Name, JustFinished = true, Done = 5, Total = 5, Detail = "Done in 4:12 · 5 done", Sessions = all };
+                else if (step < 680) st = new NotchState { Visible = true, Kind = "idle", Sessions = all };
+                else if (step < 690) st = new NotchState { Visible = false };
                 else { app.Shutdown(); return; }
                 notch.Render(st);
             };
@@ -104,9 +104,26 @@ namespace ClaudeNotch
         }
 
         // Quick voice in the demo: a question answered with a value card, then a follow-up
-        // answered with a list (the answers stream in, card first, like Claude sends them).
+        // answered with a list (the answers stream in, card first, like Claude sends them), then
+        // another question with the conversation minimized to the small bar.
         static NotchState DemoQuick(int i)
         {
+            if (i >= 200)
+            {
+                const string q3 = "And the Surface?";
+                const string a3 = "<card>{\"value\": \"$1,099\", \"label\": \"Surface Laptop 7\"}</card>It's ten ninety-nine, the cheapest of the four.";
+                int k = i - 200;
+                var bar = new NotchState { Visible = true, Kind = "quick", QuickMinimized = true };
+                if (k < 22) { bar.Listening = true; bar.Title = "Listening"; bar.QuickNow = new QuickTurn { Heard = q3.Substring(0, Math.Min(q3.Length, k)) }; }
+                else if (k < 32) { bar.Busy = true; bar.Title = "Thinking…"; bar.QuickNow = new QuickTurn { Heard = q3 }; }
+                else
+                {
+                    bar.Answering = bar.Busy = bar.Speaking = k < 70;
+                    bar.Title = k < 70 ? "Speaking" : "Ready";
+                    bar.QuickNow = new QuickTurn { Heard = q3, Text = QuickVoice.Display(a3), Card = QuickVoice.ParseCard(a3) };
+                }
+                return bar;
+            }
             const string q1 = "How much is the MacBook Air M4 on my price list?";
             const string a1 = "<card>{\"value\": \"$1,249\", \"label\": \"MacBook Air 13-inch, M4, 16 GB\", \"note\": \"Your price list, updated March 2026\"}</card>"
                 + "It's twelve hundred and forty-nine dollars for the sixteen gig model. The twenty-four gig one is fourteen forty-nine.";
@@ -136,7 +153,7 @@ namespace ClaudeNotch
             else
             {
                 string sofar = a.Substring(0, Math.Min(a.Length, (j - 34) * 20));
-                st.Answering = st.Busy = true;
+                st.Answering = st.Busy = st.Speaking = true;
                 st.Title = sofar.Length < a.Length ? "Speaking" : "Claude";
                 st.QuickNow = new QuickTurn { Heard = q, Text = QuickVoice.Display(sofar), Card = QuickVoice.ParseCard(sofar) };
             }

@@ -42,8 +42,10 @@ namespace ClaudeNotch
             hub.FinishedFor = TimeSpan.FromSeconds(settings.FinishedSeconds);
             notch = new NotchWindow(settings);
             tray = new TrayIcon();
-            quick = new QuickVoice(settings) { HookExe = HookExe, KeepOpen = () => notch.Hovering };
+            quick = new QuickVoice(settings) { HookExe = HookExe, KeepOpen = () => notch.Hovering, Persist = () => settings.QuickMinimized };
             quick.Changed += Refresh;
+            notch.ToggleMinimize += ToggleQuickMinimized;
+            notch.QuickLevel = () => quick.State == QuickVoice.Phase.Listening ? quick.InputLevel : quick.OutputLevel;
 
             notch.OpenPrimary += OpenPrimary;
             notch.OpenSession += OpenSession;
@@ -352,12 +354,22 @@ namespace ClaudeNotch
             tray.SetStatus(st.Kind == "alert" ? "Needs permission" : st.Kind == "quick" ? "Quick voice" : st.Kind == "question" ? "Claude asked you something" : voice ? "Voice conversation" : primary != null && primary.Busy ? "Working: " + primary.DisplayName : "Idle");
         }
 
+        // Quick voice as a small bar (remembered for next time), or the whole conversation.
+        void ToggleQuickMinimized()
+        {
+            settings.QuickMinimized = !settings.QuickMinimized;
+            settings.Save();
+            Refresh();
+        }
+
         // Quick voice is a small chat: earlier turns, then what you just said and the answer.
         void ShowQuick(NotchState st)
         {
             st.Kind = "quick";
             st.QuickNow = quick.Current;
             st.QuickHistory = quick.History;
+            st.QuickMinimized = settings.QuickMinimized;
+            st.Speaking = quick.Speaking;
             switch (quick.State)
             {
                 case QuickVoice.Phase.Listening:
@@ -373,7 +385,7 @@ namespace ClaudeNotch
                 default:
                     st.Answering = quick.Answer != "";
                     st.Busy = quick.Speaking || quick.State == QuickVoice.Phase.Thinking;
-                    st.Title = quick.State == QuickVoice.Phase.Thinking ? (quick.Status != "" ? quick.Status : "Thinking…") : quick.Speaking ? "Speaking" : "Claude";
+                    st.Title = quick.State == QuickVoice.Phase.Thinking ? (quick.Status != "" ? quick.Status : "Thinking…") : quick.Speaking ? "Speaking" : settings.QuickMinimized ? "Ready" : "Claude";
                     st.QuickStatus = quick.State == QuickVoice.Phase.Thinking ? quick.Status : "";
                     break;
             }
@@ -443,6 +455,12 @@ namespace ClaudeNotch
 
         void OpenPrimary()
         {
+            // During quick voice a click is about the conversation: the small bar opens up again.
+            if (quick.Active && pending.Count == 0)
+            {
+                if (settings.QuickMinimized) ToggleQuickMinimized();
+                return;
+            }
             var s = Primary();
             if (s != null) OpenSession(s);
             else watcher.RestoreClaude();

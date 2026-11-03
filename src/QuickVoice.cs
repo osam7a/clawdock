@@ -96,9 +96,12 @@ namespace ClaudeNotch
 
         public bool Active { get { return State != Phase.Idle; } }
         public double Level { get; private set; }   // microphone loudness, 0..1 (built-in engine)
+        // How loud you are while it listens, 0..1; -1 when it can't be measured (Windows recognition).
+        public double InputLevel { get { return State != Phase.Listening ? 0 : listeningLocal ? Level : -1; } }
         public bool MicReady { get; private set; }  // audio is coming in (the microphone takes a moment to start)
         public string HookExe { get; set; }         // ClaudeNotch.exe, for approving tools from the notch
         public Func<bool> KeepOpen { get; set; }    // the answer stays while this is true (you're reading it)
+        public Func<bool> Persist { get; set; }     // and doesn't time out at all while this is true (minimized)
 
         public List<QuickTurn> History { get { return new List<QuickTurn>(history); } }
 
@@ -202,6 +205,7 @@ namespace ClaudeNotch
             ListenStarted = lastSpeech = DateTime.Now;
             State = Phase.Listening;
             ThreadPool.QueueUserWorkItem(_ => { try { EnsureClaude(); } catch (Exception e) { Log.Write("Quick voice: " + e.Message); } }); // warm up while you talk
+            PrepareVoice();
             tick.Start();
             Raise();
 
@@ -352,7 +356,19 @@ namespace ClaudeNotch
                 else if (!any && now - ListenStarted > NothingHeard && !Hotkeys.Held) FinishListening();
                 else if (now - ListenStarted > MaxListen) FinishListening();
             }
+            if (player != null && settings.QuickTts == "natural" && (Speaking || player.Playing))
+            {
+                bool talking = NaturalSpeaking;
+                if (talking != Speaking)
+                {
+                    Speaking = talking;
+                    if (!talking && State == Phase.Done) FinishedAt = now; // linger from the last word
+                    Raise();
+                }
+            }
             if (State == Phase.Done && KeepOpen != null && KeepOpen()) FinishedAt = now;
+            // Minimized, the bar stays until you close it (or the conversation times out).
+            if (State == Phase.Done && Persist != null && Persist() && now - lastUsed < IdleExit) FinishedAt = now;
             if (State == Phase.Done && !Speaking && now - FinishedAt > Linger) { SaveTurn(false); State = Phase.Idle; Raise(); }
             if (State == Phase.Error && now - FinishedAt > TimeSpan.FromSeconds(8)) { State = Phase.Idle; Raise(); }
             if (State == Phase.Idle) tick.Stop();
@@ -776,6 +792,7 @@ namespace ClaudeNotch
             }
             chunk = Speakable(chunk);
             if (chunk == "") return;
+            if (UseNatural) { SayNatural(chunk); return; }
             try
             {
                 if (voice == null)
@@ -804,7 +821,78 @@ namespace ClaudeNotch
         {
             lock (unspoken) unspoken.Length = 0;
             try { if (voice != null) voice.SpeakAsyncCancelAll(); } catch { }
+            lock (toSay) toSay.Clear();
+            if (player != null) player.Stop();
             Speaking = false;
+        }
+
+        // ---- the natural voice (KittenTTS) ---------------------------------
+
+        AudioPlayer player;
+        Thread sayThread;
+        readonly Queue<string> toSay = new Queue<string>();
+        readonly AutoResetEvent sayWake = new AutoResetEvent(false);
+        volatile bool synthesizing, naturalBroken;
+
+        bool UseNatural { get { return settings.QuickTts == "natural" && !naturalBroken && NaturalVoice.Supported && NaturalVoice.Installed; } }
+
+        // Sentences are made into audio one at a time on their own thread, and each plays as soon
+        // as it's ready (the next one is made while it plays).
+        void SayNatural(string text)
+        {
+            if (player == null) player = new AudioPlayer();
+            if (sayThread == null) { sayThread = new Thread(SayLoop) { IsBackground = true, Name = "Natural voice" }; sayThread.Start(); }
+            lock (toSay) toSay.Enqueue(text);
+            sayWake.Set();
+            if (!Speaking) { Speaking = true; Raise(); }
+        }
+
+        void SayLoop()
+        {
+            while (true)
+            {
+                string text = null;
+                int generation;
+                lock (toSay)
+                {
+                    if (toSay.Count > 0) { text = toSay.Dequeue(); synthesizing = true; }
+                    generation = player.Generation;
+                }
+                if (text == null) { sayWake.WaitOne(); continue; }
+                try
+                {
+                    int rate;
+                    float speed = (float)Math.Max(0.6, Math.Min(1.6, 1 + settings.QuickRate * 0.08)); // the same -5..5 setting as the Windows voice
+                    var samples = NaturalVoice.Generate(text, settings.QuickNaturalVoice, speed, out rate);
+                    player.Enqueue(samples, rate, generation); // dropped if you cut it off meanwhile
+                }
+                catch (Exception e)
+                {
+                    // Something's wrong with the download or this PC: use the Windows voice from now on.
+                    Log.Write("Natural voice: " + e.Message);
+                    naturalBroken = true;
+                    string rest = text;
+                    ui.BeginInvoke(new Action(() => { lock (unspoken) unspoken.Insert(0, rest + " "); SpeakFinishedSentences(false); }));
+                }
+                finally { synthesizing = false; }
+            }
+        }
+
+        bool NaturalSpeaking
+        {
+            get { lock (toSay) { if (toSay.Count > 0) return true; } return synthesizing || (player != null && player.Playing); }
+        }
+
+        // How loud the answer being read is right now, 0..1; -1 when it can't be measured (the Windows voice).
+        public double OutputLevel
+        {
+            get { return player != null && (player.Playing || UseNatural) ? player.Level : Speaking ? -1 : 0; }
+        }
+
+        // Loads the natural voice ahead of the first answer.
+        public void PrepareVoice()
+        {
+            if (settings.QuickSpeak && UseNatural) NaturalVoice.Preload();
         }
 
         // Markdown and links read badly aloud, even though the instructions ask for none.

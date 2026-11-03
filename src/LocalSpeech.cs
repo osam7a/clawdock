@@ -77,7 +77,7 @@ namespace ClaudeNotch
             progress(1);
         }
 
-        static void Download(string url, string path, string sha256, Action<long> progress, Func<bool> cancelled)
+        internal static void Download(string url, string path, string sha256, Action<long> progress, Func<bool> cancelled)
         {
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
             string part = path + ".part";

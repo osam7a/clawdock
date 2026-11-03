@@ -30,6 +30,7 @@ namespace ClaudeNotch
         readonly Button save;
         bool built, dirty;
         volatile bool closing;
+        static AudioPlayer voiceSample; // plays natural voice samples
 
         public SettingsWindow(Settings settings, Controller controller)
         {
@@ -135,6 +136,67 @@ namespace ClaudeNotch
             showLocal();
             var localPanel = new StackPanel { Children = { new StackPanel { Orientation = Orientation.Horizontal, Children = { modelCombo, download } }, localStatus } };
 
+            // The natural voice: pick one of its voices, download it if it's missing, hear it.
+            var naturalStatus = new TextBlock { FontSize = 11.5, Foreground = p.Sub, Margin = new Thickness(2, 6, 0, 0), TextWrapping = TextWrapping.Wrap, MaxWidth = 230 };
+            var naturalDownload = new Button { Content = "Download", Margin = new Thickness(8, 0, 0, 0) };
+            var naturalPlay = new Button { Content = "▶ Play", Margin = new Thickness(8, 0, 0, 0), ToolTip = "Hear this voice" };
+            var naturalPairs = new List<string>();
+            for (int i = 0; i < NaturalVoice.Voices.Length; i++) { naturalPairs.Add(i.ToString()); naturalPairs.Add(NaturalVoice.VoiceLabel(i)); }
+            int naturalSid = s.QuickNaturalVoice;
+            var naturalCombo = Combo(naturalPairs.ToArray(), s.QuickNaturalVoice.ToString(), v => { s.QuickNaturalVoice = int.Parse(v); naturalSid = s.QuickNaturalVoice; });
+            naturalCombo.Width = 150;
+            bool naturalBusy = false;
+            Action showNatural = () =>
+            {
+                if (naturalBusy) return;
+                bool have = NaturalVoice.Installed;
+                naturalStatus.Text = !NaturalVoice.Supported ? "Not available on this PC: it needs 64-bit Windows 10 (1803 or later) on an Intel or AMD processor."
+                    : have ? "✓  Ready" : "Needs a " + (NaturalVoice.DownloadBytes / 1048576) + " MB download.";
+                naturalDownload.Visibility = have || !NaturalVoice.Supported ? Visibility.Collapsed : Visibility.Visible;
+                naturalPlay.Visibility = have ? Visibility.Visible : Visibility.Collapsed;
+            };
+            naturalDownload.Click += (a, b) =>
+            {
+                naturalBusy = true;
+                naturalDownload.IsEnabled = false;
+                var ui = Dispatcher;
+                new System.Threading.Thread(() =>
+                {
+                    string error = null;
+                    try { NaturalVoice.Install(f => ui.BeginInvoke(new Action(() => naturalStatus.Text = "Downloading… " + (int)(f * 100) + "%")), () => closing); }
+                    catch (OperationCanceledException) { return; }
+                    catch (Exception ex) { error = ex.Message; Log.Write("Natural voice download: " + ex.Message); }
+                    ui.BeginInvoke(new Action(() =>
+                    {
+                        naturalBusy = false;
+                        naturalDownload.IsEnabled = true;
+                        showNatural();
+                        if (error != null) naturalStatus.Text = "Download failed: " + error;
+                    }));
+                }) { IsBackground = true }.Start();
+            };
+            naturalPlay.Click += (a, b) =>
+            {
+                int sid = naturalSid, rate = s.QuickRate;
+                naturalPlay.IsEnabled = false;
+                var ui = Dispatcher;
+                System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    try
+                    {
+                        int sampleRate;
+                        var samples = NaturalVoice.Generate("Hi, I'm " + NaturalVoice.Voices[sid] + ". This is how I'll read your answers.", sid, (float)Math.Max(0.6, Math.Min(1.6, 1 + rate * 0.08)), out sampleRate);
+                        if (voiceSample == null) voiceSample = new AudioPlayer();
+                        voiceSample.Stop();
+                        voiceSample.Enqueue(samples, sampleRate);
+                    }
+                    catch (Exception ex) { Log.Write("Natural voice preview: " + ex.Message); ui.BeginInvoke(new Action(() => naturalStatus.Text = "Couldn't play it: " + ex.Message)); }
+                    ui.BeginInvoke(new Action(() => naturalPlay.IsEnabled = true));
+                });
+            };
+            showNatural();
+            var naturalPanel = new StackPanel { Children = { new StackPanel { Orientation = Orientation.Horizontal, Children = { naturalCombo, naturalDownload, naturalPlay } }, naturalStatus } };
+
             Page("voice", "Voice and prompts",
                 Card(
                     Row("When I press the shortcut", VoiceLauncher.HasMicrophone() ? "A microphone is available." : "No microphone found right now, so voice choices open Claude's quick entry instead.",
@@ -156,7 +218,10 @@ namespace ClaudeNotch
                     Row("Model", "Haiku answers fastest.",
                         Combo(new[] { "haiku", "Haiku", "sonnet", "Sonnet", "opus", "Opus" }, s.QuickModel, v => s.QuickModel = v)),
                     Toggle("Read answers aloud", "Otherwise answers only appear on the notch.", s.QuickSpeak, v => s.QuickSpeak = v),
-                    Row("Voice", null, Combo(VoicePairs(), s.QuickVoiceName, v => s.QuickVoiceName = v)),
+                    Row("Reading voice", "Natural runs KittenTTS on this PC: it sounds far more human than the Windows voices, and nothing leaves your computer.",
+                        Combo(new[] { "natural", "Natural (KittenTTS)", "windows", "Windows voice" }, s.QuickTts, v => s.QuickTts = v)),
+                    Row("Natural voice", "Downloaded once from the sherpa-onnx project, then checked. Until it's ready, the Windows voice reads.", naturalPanel),
+                    Row("Windows voice", null, Combo(VoicePairs(), s.QuickVoiceName, v => s.QuickVoiceName = v)),
                     Row("Speaking speed", null,
                         Combo(new[] { "-2", "Slower", "0", "Normal", "1", "A little faster", "3", "Fast" }, RateKey(s.QuickRate), v => s.QuickRate = int.Parse(v))),
                     Row("How Claude answers", "Short, spoken-style answers. The rules are a skill in your Claude folder: edit them to change the style.", editVoice)));

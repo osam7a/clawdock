@@ -25,6 +25,7 @@ namespace ClaudeNotch
         public QuickTurn QuickNow;          // quick voice: the turn in progress, and the ones before it
         public List<QuickTurn> QuickHistory = new List<QuickTurn>();
         public string QuickStatus = "";     // "Thinking…", "Searching the web…", an error
+        public bool QuickMinimized, Speaking; // quick voice as a small bar; the answer is being read out
         public string Title = "Claude", Detail = "", Short = ""; // Short: "4:12 · 3/5", for the compact style
         public bool Busy, JustFinished, Muted;
         public int Done, Total;
@@ -55,14 +56,16 @@ namespace ClaudeNotch
     {
         const double WinW = 560, WinH = 640; // room for the biggest card; the rest is transparent and clicks pass through
 
-        public event Action OpenPrimary, ToggleMute, EndVoice, OpenSettings, Quit, Dismiss;
+        public event Action OpenPrimary, ToggleMute, EndVoice, OpenSettings, Quit, Dismiss, ToggleMinimize;
+        public Func<double> QuickLevel; // quick voice: how loud you are, or the answer being read (0..1; -1 unknown)
         public event Action<SessionInfo> OpenSession;
         public event Action<object, int> Choose; // owner, index into Choices
 
         readonly Settings settings;
         readonly Grid holder;
         readonly Border card, mini, progressTrack;
-        readonly Button closeButton, micButton;
+        readonly Button closeButton, micButton, minButton;
+        readonly TextBlock minGlyph;
         readonly DockPanel header;
         readonly TextBlock title, subtitle, timerText, micGlyph, moreText;
         readonly StackPanel voicePanel, actions, list;
@@ -141,6 +144,9 @@ namespace ClaudeNotch
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
             }, "Hide", () => { if (Dismiss != null) Dismiss(); });
             closeButton.Margin = new Thickness(8, 0, 0, 0);
+            minGlyph = new TextBlock { FontFamily = Theme.Icons, FontSize = 9, Foreground = Theme.Dim, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            minButton = RoundButton(18, minGlyph, "Minimize", () => { if (ToggleMinimize != null) ToggleMinimize(); });
+            minButton.Margin = new Thickness(8, 0, 0, 0);
 
             var miniGrid = new Grid();
             miniGrid.ColumnDefinitions.Add(miniDone);
@@ -152,7 +158,7 @@ namespace ClaudeNotch
             compactCount.VerticalAlignment = VerticalAlignment.Center;
             compactTasks = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0), Visibility = Visibility.Collapsed, Children = { miniBar, compactCount } };
 
-            var right = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 0), Children = { compactTasks, voicePanel, alertDot, closeButton } };
+            var right = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 0), Children = { compactTasks, voicePanel, alertDot, minButton, closeButton } };
             header = new DockPanel { LastChildFill = true };
             DockPanel.SetDock(right, Dock.Right);
             header.Children.Add(right);
@@ -307,7 +313,7 @@ namespace ClaudeNotch
         public void Render(NotchState s)
         {
             state = s;
-            bool bars = s.Kind == "voice" || (s.Kind == "quick" && s.Listening);
+            bool bars = s.Kind == "voice" || (s.Kind == "quick" && (s.Listening || s.Speaking));
             if (bars && !voiceTimer.IsEnabled) voiceTimer.Start();
             if (!bars) voiceTimer.Stop();
             Refresh();
@@ -350,6 +356,24 @@ namespace ClaudeNotch
             card.ToolTip = alert && s.Pending != null && !string.IsNullOrEmpty(s.Pending.FullDetail) ? s.Pending.FullDetail : null;
             if (s.Kind == "voice") title.Inlines.Clear();
             if (s.Kind == "voice") title.Inlines.Add(new Run(s.Muted ? "Muted" : "Listening"));
+            // Minimized, the bar shows the answer's key figure (a price, a time) next to what it's doing.
+            bool minimized = quick && s.QuickMinimized;
+            var barCard = minimized && !listening && s.QuickNow != null ? s.QuickNow.Card : null;
+            if (barCard != null)
+            {
+                title.Inlines.Clear();
+                if (barCard.Value != "")
+                {
+                    title.Inlines.Add(new Run(barCard.Value) { FontSize = Compact ? 14 : 16, FontWeight = FontWeights.Bold });
+                    if (barCard.Label != "") title.Inlines.Add(new Run("  " + barCard.Label) { Foreground = Theme.Dim, FontWeight = FontWeights.Normal, FontSize = 12 });
+                }
+                else title.Inlines.Add(new Run(barCard.Title != "" ? barCard.Title : barCard.Items[0].Key + "  " + barCard.Items[0].Value));
+            }
+            bool speakingBars = quick && s.Speaking && !listening;
+            foreach (var b in bars) b.Fill = speakingBars ? Theme.Clay : quick ? Theme.Green : Theme.Clay;
+            minGlyph.Text = minimized ? "" : ""; // FullScreen / ChromeMinimize
+            minButton.ToolTip = minimized ? "Show the whole conversation" : "Minimize to a small bar (keeps listening for the shortcut)";
+            AutomationProperties.SetName(minButton, minimized ? "Expand" : "Minimize");
 
             bool hasTasks = s.Kind == "session" && s.Total > 0 && !Compact;
             bool compactHasTasks = s.Kind == "session" && s.Total > 0 && Compact;
@@ -369,22 +393,24 @@ namespace ClaudeNotch
             closeButton.ToolTip = s.Kind == "voice" ? "End voice and hide" : quick ? "Stop and hide" : "Hide for now";
             endVoiceItem.Visibility = s.Kind == "voice" ? Visibility.Visible : Visibility.Collapsed;
             moreText.Text = s.MorePending > 0 ? "+" + s.MorePending + " more" : "";
-            if (s.Kind == "voice" || listening) TickVoice();
+            if (s.Kind == "voice" || listening || speakingBars) TickVoice();
             if (showList) BuildList(s.Sessions);
-            if (quick) UpdateQuick(s);
+            if (quick && !minimized) UpdateQuick(s);
             UpdateMini(s);
 
-            string key = s.Kind + "|" + listening + "|" + hover + "|" + s.Visible + "|" + hasTasks + "|" + compactHasTasks + "|" + showList + "|" + showActions + "|" + showSub + "|" + settings.Style + "|" + settings.Edge;
+            string key = s.Kind + "|" + listening + "|" + minimized + "|" + speakingBars + "|" + (barCard != null) + "|" + hover + "|" + s.Visible + "|" + hasTasks + "|" + compactHasTasks + "|" + showList + "|" + showActions + "|" + showSub + "|" + settings.Style + "|" + settings.Edge;
             if (key == layoutKey) return;
             layoutKey = key;
 
             card.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
             mini.Visibility = expanded ? Visibility.Collapsed : Visibility.Visible;
             subtitle.Visibility = showSub ? Visibility.Visible : Visibility.Collapsed;
-            voicePanel.Visibility = s.Kind == "voice" || listening ? Visibility.Visible : Visibility.Collapsed;
+            voicePanel.Visibility = s.Kind == "voice" || listening || speakingBars ? Visibility.Visible : Visibility.Collapsed;
+            timerText.Visibility = s.Kind == "voice" || (listening && !minimized) ? Visibility.Visible : Visibility.Collapsed;
+            minButton.Visibility = quick && hover ? Visibility.Visible : Visibility.Collapsed;
             micButton.Visibility = quick ? Visibility.Collapsed : Visibility.Visible;
             alertDot.Visibility = asking ? Visibility.Visible : Visibility.Collapsed;
-            quickScroll.Visibility = quick ? Visibility.Visible : Visibility.Collapsed;
+            quickScroll.Visibility = quick && !minimized ? Visibility.Visible : Visibility.Collapsed;
             quickScroll.MaxHeight = Compact ? 380 : 460;
             alertDot.Fill = alert ? Theme.Amber : Theme.Blue;
             closeButton.Visibility = hover ? Visibility.Visible : Visibility.Collapsed;
@@ -397,11 +423,12 @@ namespace ClaudeNotch
             bool notice = alert && s.Pending == null;
             double w = (notice ? (Compact ? 270 : 300) : CardWidth(s.Kind)) + (hover && !Mini && !quick ? 26 : 0); // quick: don't reflow what you're reading
             if (compactHasTasks) w += 56;
+            if (minimized) w = (Compact ? 290 : 320) + (barCard != null ? 90 : 0);
             if (showList || (showActions && !notice)) w = Math.Max(w, Compact ? 330 : 360);
             Animate(card, WidthProperty, w, 220);
             if (s.Kind == "question" || quick) header.Height = double.NaN; // the text may wrap: fit it
             else header.Height = Compact ? 30 : s.Kind == "session" || alert ? (hasTasks ? 54 : 56) : 38;
-            header.Margin = s.Kind == "question" || quick ? (Compact ? new Thickness(0, 7, 0, 4) : new Thickness(0, 10, 0, 6)) : new Thickness(0);
+            header.Margin = s.Kind == "question" || quick ? (Compact || minimized ? new Thickness(0, 7, 0, 7) : new Thickness(0, 10, 0, 6)) : new Thickness(0);
             double r = Compact ? 14 : 18;
             switch (settings.Edge)
             {
@@ -703,10 +730,13 @@ namespace ClaudeNotch
         {
             var t = DateTime.Now - state.VoiceStarted;
             timerText.Text = string.Format("{0}:{1:00}", (int)t.TotalMinutes, t.Seconds);
+            // Quick voice follows how loud you (or the answer) really are, when that's known.
+            double level = state.Kind == "quick" && QuickLevel != null ? QuickLevel() : -1;
             for (int i = 0; i < bars.Length; i++)
             {
                 double center = 1 - Math.Abs(i - 2) / 3.0; // middle bars run taller
-                bars[i].Height = state.Muted ? 3 : 4 + rnd.NextDouble() * 14 * center + rnd.NextDouble() * 3;
+                if (level >= 0) bars[i].Height = 3 + Math.Min(1, level * 1.6) * 15 * (0.45 + 0.55 * center) * (0.7 + rnd.NextDouble() * 0.6);
+                else bars[i].Height = state.Muted ? 3 : 4 + rnd.NextDouble() * 14 * center + rnd.NextDouble() * 3;
                 bars[i].Opacity = state.Muted ? 0.4 : 1;
             }
         }

@@ -25,8 +25,8 @@ permission requests, and lets you talk or type to Claude from anywhere.
   timer, a mute button, and live bars. Its **×** ends the conversation.
 - **Quick voice.** Push to talk, without opening Claude. Hold the shortcut while you speak (or
   press it once and talk); let go and the question goes to a Claude Code session running in the
-  background. The answer streams onto the notch and is read aloud with a Windows voice, sentence
-  by sentence. Press the shortcut again to cut it off and ask something else. Answers follow the
+  background. The answer streams onto the notch and is read aloud sentence by sentence, in a natural voice
+  or a Windows one. Press the shortcut again to cut it off and ask something else. Answers follow the
   `voice-replies` skill (`~/.claude/skills/voice-replies/SKILL.md`, written on first use and
   yours to edit; an unedited one is updated with new versions): short, plain spoken sentences,
   no markdown or links. Needs Claude Code signed in (`claude auth login`).
@@ -36,6 +36,16 @@ permission requests, and lets you talk or type to Claude from anywhere.
     it's shown as a **card** first: the figure big and bold with what it is and a short note, or a
     few name and value rows. Claude sends the card as `<card>{json}</card>` before the spoken
     answer; it's never read aloud. Try it with `ClaudeNotch.exe --demo quick`.
+  - *Minimized:* the − button (hover the panel) shrinks quick voice to a small bar that stays
+    up: bars for your voice while it listens and for the answer while it's read, and the answer's
+    key figure (like **$1,249** MacBook Air). The shortcut works as usual; click the bar to see
+    the whole conversation again. It's remembered, and the bar goes away with its × or after 15
+    minutes unused.
+  - *Reading voice:* **natural** runs [KittenTTS](https://github.com/KittenML/KittenTTS) (Apache
+    2.0, the Nano model, eight voices) with [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)
+    (Apache 2.0) on your PC, about six times faster than real time on a laptop CPU. It's an 85 MB
+    download from settings, checked against its SHA-256, and needs 64-bit Windows 10 1803 or later
+    on an Intel or AMD processor (nothing else to install). Or a **Windows** voice.
   - *Speech recognition:* **built in** runs [whisper.cpp](https://github.com/ggml-org/whisper.cpp)
     (MIT) with an English Whisper model on your PC, downloaded once from settings (Accurate,
     190 MB, or Fast, 60 MB) and checked against its SHA-256; nothing leaves the computer. Or
@@ -104,7 +114,7 @@ from `~/.claude/settings.json`; everything else in that file stays as it is.
 | --- | --- |
 | General | Start with Windows. Answer permission requests from the notch. Show Claude's questions with their choices. Keep the hooks installed (repaired automatically every 5 minutes if something removes them). |
 | Shortcut | Copilot key, your own key combination, or none. |
-| Voice and prompts | Quick voice, Claude voice (with Claude's quick entry as the fallback without a mic), or always Claude's quick entry. Quick voice: speech recognition (built in or Windows), what it can use, history, model, reading answers aloud, the voice and its speed, and editing the answer style. |
+| Voice and prompts | Quick voice, Claude voice (with Claude's quick entry as the fallback without a mic), or always Claude's quick entry. Quick voice: speech recognition (built in or Windows), what it can use, history, model, reading answers aloud, the reading voice (natural or Windows, with a preview) and its speed, and editing the answer style. |
 | Notch | Style, screen edge, display, position along the edge, whether to list sessions on hover. |
 | When it shows | Only when something's going on (or Claude is minimized), whenever you're away from Claude, or only for permission requests and voice. How long × hides it. How long "Done" stays. Whether to show over fullscreen apps. |
 
@@ -143,6 +153,7 @@ Claude window ──UI Automation──> voice, mute, current session title, pro
 | `src/QuickVoice.cs` | Quick voice: speech recognition, the background Claude Code session, reading answers aloud, the voice-replies skill. |
 | `src/ModernDictation.cs` | Windows' modern (online) dictation, used by quick voice when allowed. |
 | `src/LocalSpeech.cs`, `src/MicRecorder.cs` | The built-in speech recognition (whisper.cpp): download, checks, transcribing; recording the microphone. |
+| `src/NaturalVoice.cs`, `src/AudioPlayer.cs` | The natural voice (KittenTTS through sherpa-onnx's C API): download, checks, speaking; playing it with its loudness for the bars. |
 | `src/PromptSender.cs` | Sending text to the Claude app's prompt box; opening its quick entry. |
 | `src/TerminalFocus.cs` | Finds the terminal window a CLI session runs in. |
 | `src/Hotkeys.cs` | The Copilot key hook and custom shortcuts. |
