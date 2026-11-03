@@ -238,9 +238,12 @@ namespace ClaudeNotch
 
         public void RestoreClaude()
         {
-            if (claudeWindow == IntPtr.Zero) return;
-            if (IsIconic(claudeWindow)) ShowWindow(claudeWindow, SW_RESTORE);
-            SetForegroundWindow(claudeWindow);
+            if (claudeWindow == IntPtr.Zero)
+            {
+                VoiceLauncher.OpenLink("claude://claude.ai/new"); // not running: start it
+                return;
+            }
+            Native.ForceForeground(claudeWindow);
         }
 
         // A window that covers its whole monitor (games, videos, presentations),

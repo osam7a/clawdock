@@ -16,13 +16,13 @@ namespace ClaudeNotch
     {
         static readonly TimeSpan BusyExpiry = TimeSpan.FromHours(2);   // a turn with no news for this long is assumed over
         static readonly TimeSpan RecentFor = TimeSpan.FromMinutes(30); // how long a finished session stays on the notch
-        static readonly TimeSpan JustFinishedFor = TimeSpan.FromSeconds(12);
+        public TimeSpan JustFinishedFor = TimeSpan.FromSeconds(12);
 
         class Item { public string Content, Status; }
 
         class Session
         {
-            public string Id, Project;
+            public string Id, Project, Cwd;
             public bool Busy;
             public DateTime TurnStart, LastEvent, FinishedAt;
             public TimeSpan LastDuration;
@@ -31,9 +31,10 @@ namespace ClaudeNotch
 
         public class Snapshot
         {
-            public string Project;
+            public string Id, Project, Cwd;
             public bool Busy, JustFinished;
             public TimeSpan Elapsed;
+            public DateTime TurnStart, LastEvent;
             public int Done, Total;
         }
 
@@ -57,6 +58,7 @@ namespace ClaudeNotch
             string cwd = Str(d, "cwd");
             if (cwd != "")
             {
+                s.Cwd = cwd;
                 try { s.Project = Path.GetFileName(cwd.TrimEnd('\\', '/')); } catch { }
             }
             s.LastEvent = now;
@@ -100,18 +102,46 @@ namespace ClaudeNotch
                 }
                 else if (now - s.LastEvent < RecentFor && (pick == null || (!pick.Busy && s.LastEvent > pick.LastEvent))) pick = s;
             }
-            if (pick == null) return null;
+            return pick == null ? null : Snap(pick, now);
+        }
 
+        // What the hooks know about one session, or null if they never reported it.
+        public Snapshot For(string id, DateTime now)
+        {
+            Session s;
+            if (id == null || !sessions.TryGetValue(id, out s)) return null;
+            if (s.Busy && now - s.LastEvent > BusyExpiry) Finish(s, s.LastEvent);
+            return Snap(s, now);
+        }
+
+        // Sessions the hooks reported recently, for those without a live session file.
+        public List<Snapshot> Recent(DateTime now)
+        {
+            var list = new List<Snapshot>();
+            foreach (var s in sessions.Values)
+            {
+                if (s.Busy && now - s.LastEvent > BusyExpiry) Finish(s, s.LastEvent);
+                if (s.Busy || now - s.FinishedAt < JustFinishedFor) list.Add(Snap(s, now));
+            }
+            return list;
+        }
+
+        Snapshot Snap(Session s, DateTime now)
+        {
             int done = 0;
-            foreach (var i in pick.Items) if (i.Status == "completed") done++;
+            foreach (var i in s.Items) if (i.Status == "completed") done++;
             return new Snapshot
             {
-                Project = pick.Project,
-                Busy = pick.Busy,
-                JustFinished = !pick.Busy && now - pick.FinishedAt < JustFinishedFor,
-                Elapsed = pick.Busy ? now - pick.TurnStart : pick.LastDuration,
+                Id = s.Id,
+                Project = s.Project,
+                Cwd = s.Cwd,
+                Busy = s.Busy,
+                JustFinished = !s.Busy && now - s.FinishedAt < JustFinishedFor,
+                Elapsed = s.Busy ? now - s.TurnStart : s.LastDuration,
+                TurnStart = s.TurnStart,
+                LastEvent = s.LastEvent,
                 Done = done,
-                Total = pick.Items.Count,
+                Total = s.Items.Count,
             };
         }
 

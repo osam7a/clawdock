@@ -1,6 +1,6 @@
-# Stops Claude Notch and removes it from startup and %LOCALAPPDATA%.
-Stop-Process -Name ClaudeNotch -Force -ErrorAction SilentlyContinue
-Start-Sleep -Milliseconds 500
-Remove-Item "$([Environment]::GetFolderPath('Startup'))\ClaudeNotch.lnk" -ErrorAction SilentlyContinue
-Remove-Item "$env:LOCALAPPDATA\ClaudeNotch" -Recurse -Force -ErrorAction SilentlyContinue
-Write-Host 'Claude Notch is uninstalled.'
+# Removes Claude Notch: its Claude Code hooks (only its own), its startup entry, and
+# %LOCALAPPDATA%\ClaudeNotch. Same as Settings > Uninstall.
+$exe = "$env:LOCALAPPDATA\ClaudeNotch\ClaudeNotch.exe"
+if (-not (Test-Path $exe)) { $exe = Join-Path $PSScriptRoot 'bin\ClaudeNotch.exe' }
+if (-not (Test-Path $exe)) { Write-Host 'Claude Notch is not installed.'; exit }
+Start-Process $exe -ArgumentList '--uninstall' -Wait

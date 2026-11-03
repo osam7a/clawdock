@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
 using System.Runtime.InteropServices;
-using System.Web.Script.Serialization;
+using System.Text;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -16,68 +16,64 @@ using System.Windows.Threading;
 
 namespace ClaudeNotch
 {
-    // The black pill that shows while Claude isn't the window in front. Its looks:
-    //   Alert   a permission request is waiting in Claude Code
-    //   Voice   a voice conversation is running (timer, live bars, mute button)
-    //   Session what the session you just left is doing: working time and tasks done / left
-    //   Idle    just the mascot and "Claude"
+    // What the notch should show; built by the Controller every refresh.
+    class NotchState
+    {
+        public bool Visible;
+        public string Kind = "idle";        // idle | session | voice | alert
+        public string Title = "Claude", Detail = "", Short = ""; // Short: "4:12 · 3/5", for the compact style
+        public bool Busy, JustFinished, Muted;
+        public int Done, Total;
+        public DateTime VoiceStarted;
+        public HookServer.Pending Pending;  // a request waiting for Allow / Deny
+        public int MorePending;
+        public List<SessionInfo> Sessions = new List<SessionInfo>();
+    }
+
+    // The notch: a black card docked to an edge of the screen.
     //
-    // Minimized, it always shows. When you only Alt+Tab away it shows only while
-    // something is going on (voice, a working session, an alert). Drag it anywhere;
-    // near the top edge it snaps back into a notch. Click opens Claude, the hover x
-    // hides it (and ends a voice conversation), right-click has more options.
+    // Styles
+    //   classic  mascot, title and a status line (the original look)
+    //   compact  one slim line: mascot and title
+    //   line     a thin colored bar on the edge; hover to see the card
+    //   dot      a small colored dot; hover to see the card
+    // Bar and dot colors: gray idle, clay pulsing while working, green in voice (or just
+    // finished), amber pulsing when Claude needs permission.
+    //
+    // Hovering the card lists every running session (click one to jump to it). A permission
+    // request shows Allow / Deny. Drag it anywhere: it snaps to the nearest screen edge.
     class NotchWindow : Window
     {
-        enum Mode { Idle, Voice, Session, Alert }
+        const double WinW = 460, WinH = 440;
 
-        const double IdleWidth = 150, VoiceWidth = 280, SessionWidth = 340, AlertWidth = 360;
-        const double LineHeight = 38, AlertHeight = 56, SessionHeight = 62, HoverGrow = 26, SnapDistance = 24;
+        public event Action OpenPrimary, ToggleMute, EndVoice, OpenSettings, Quit, Dismiss;
+        public event Action<SessionInfo> OpenSession;
+        public event Action<HookServer.Pending, bool> Answer; // pending, allow
 
-        static readonly string SettingsDir = System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClaudeNotch");
-        static readonly string PositionFile = System.IO.Path.Combine(SettingsDir, "position.txt");
-
-        static readonly Brush Clay = Frozen(Color.FromRgb(0xD9, 0x77, 0x57));
-        static readonly Brush Amber = Frozen(Color.FromRgb(0xF5, 0xA5, 0x24));
-        static readonly Brush Dim = Frozen(Color.FromRgb(0x9A, 0x9A, 0x9A));
-        static readonly Brush Chip = Frozen(Color.FromRgb(0x2A, 0x2A, 0x2A));
-
-        public event Action OpenClaude;
-        public event Action ToggleMute;
-        public event Action EndVoice;
-        public event Action Quit;
-
-        readonly SessionTracker tracker = new SessionTracker();
-
-        readonly Border shell, closeButton, micButton, progressTrack;
-        readonly DockPanel dock;
-        readonly Mascot mascot;
-        readonly TextBlock title, subtitle, timerText, micGlyph;
-        readonly StackPanel voicePanel;
+        readonly Settings settings;
+        readonly Grid holder;
+        readonly Border card, mini, progressTrack;
+        readonly Button closeButton, micButton;
+        readonly DockPanel header;
+        readonly TextBlock title, subtitle, timerText, micGlyph, moreText;
+        readonly StackPanel voicePanel, actions, list;
         readonly Ellipse alertDot;
         readonly Rectangle[] bars = new Rectangle[5];
         readonly ColumnDefinition progressDone = new ColumnDefinition(), progressLeft = new ColumnDefinition();
         readonly MenuItem endVoiceItem;
         readonly TranslateTransform slide = new TranslateTransform();
-        readonly DispatcherTimer voiceTimer, alertTimer, refreshTimer;
+        readonly DispatcherTimer voiceTimer, leaveTimer, topTimer;
         readonly Random rnd = new Random();
+        Mascot mascot;
 
-        // Latest state from the watcher.
-        bool claudeOpen, claudeInFront, claudeMinimized, fullscreenApp, voice, muted, working;
-        string sessionTitle;
-        DateTime workingSince;
+        NotchState state = new NotchState();
+        bool shown, hover;
+        string layoutKey = "", listKey = "", miniKey = "";
+        double scale = 1;
 
-        bool shown, hover, dismissed, docked = true;
-        string appliedKey = "";
-        DateTime voiceStarted;
-
-        // Pending permission request.
-        bool alert, alertFromRequest;
-        DateTime alertAt;
-        string alertTitle = "", alertDetail = "";
-
-        public NotchWindow()
+        public NotchWindow(Settings settings)
         {
+            this.settings = settings;
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
             Background = Brushes.Transparent;
@@ -85,402 +81,412 @@ namespace ClaudeNotch
             ShowInTaskbar = false;
             ShowActivated = false;
             ResizeMode = ResizeMode.NoResize;
-            Width = AlertWidth + HoverGrow + 40;
-            Height = SessionHeight + 24;
-            LoadPosition();
+            Width = WinW;
+            Height = WinH;
+            Title = "Claude Notch";
 
-            mascot = new Mascot(2.4) { Margin = new Thickness(16, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
-
-            title = new TextBlock
-            {
-                Text = "Claude",
-                Foreground = Brushes.White,
-                FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
-                FontWeight = FontWeights.SemiBold,
-                FontSize = 13,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-            };
-            subtitle = new TextBlock
-            {
-                Foreground = Dim,
-                FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
-                FontSize = 12,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                Visibility = Visibility.Collapsed,
-            };
+            title = Text(13, Brushes.White, FontWeights.SemiBold);
+            subtitle = Text(12, Theme.Dim, FontWeights.Normal);
             var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { title, subtitle } };
 
-            timerText = new TextBlock
-            {
-                Foreground = Dim,
-                FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
-                FontSize = 12,
-                Margin = new Thickness(0, 0, 10, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            voicePanel = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Margin = new Thickness(8, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                Visibility = Visibility.Collapsed,
-            };
+            timerText = Text(12, Theme.Dim, FontWeights.Normal);
+            timerText.Margin = new Thickness(0, 0, 10, 0);
+            timerText.VerticalAlignment = VerticalAlignment.Center;
+            voicePanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
             voicePanel.Children.Add(timerText);
             for (int i = 0; i < bars.Length; i++)
             {
                 bars[i] = new Rectangle
                 {
-                    Width = 3, Height = 4, RadiusX = 1.5, RadiusY = 1.5,
-                    Fill = Clay,
-                    Margin = new Thickness(1.5, 0, 1.5, 0),
-                    VerticalAlignment = VerticalAlignment.Center,
+                    Width = 3, Height = 4, RadiusX = 1.5, RadiusY = 1.5, Fill = Theme.Clay,
+                    Margin = new Thickness(1.5, 0, 1.5, 0), VerticalAlignment = VerticalAlignment.Center,
                 };
                 voicePanel.Children.Add(bars[i]);
             }
-
-            micGlyph = new TextBlock
-            {
-                FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
-                FontSize = 11,
-                Foreground = Brushes.White,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            micButton = new Border
-            {
-                Width = 22, Height = 22,
-                CornerRadius = new CornerRadius(11),
-                Background = Chip,
-                Margin = new Thickness(10, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                ToolTip = "Mute / unmute",
-                Child = micGlyph,
-            };
-            micButton.MouseLeftButtonDown += (s, e) => e.Handled = true; // don't start a drag
-            micButton.MouseLeftButtonUp += (s, e) => { e.Handled = true; if (ToggleMute != null) ToggleMute(); };
+            micGlyph = new TextBlock { FontFamily = Theme.Icons, FontSize = 11, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            micButton = RoundButton(22, micGlyph, "Mute or unmute", () => { if (ToggleMute != null) ToggleMute(); });
+            micButton.Margin = new Thickness(10, 0, 0, 0);
             voicePanel.Children.Add(micButton);
 
-            alertDot = new Ellipse
-            {
-                Width = 8, Height = 8, Fill = Amber,
-                Margin = new Thickness(8, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                Visibility = Visibility.Collapsed,
-            };
-            alertDot.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.25, TimeSpan.FromMilliseconds(700))
-            {
-                AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever,
-            });
+            alertDot = new Ellipse { Width = 8, Height = 8, Fill = Theme.Amber, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            Pulse(alertDot, true);
 
-            closeButton = new Border
+            closeButton = RoundButton(18, new TextBlock
             {
-                Width = 18, Height = 18,
-                CornerRadius = new CornerRadius(9),
-                Background = Chip,
-                Margin = new Thickness(8, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                Visibility = Visibility.Collapsed,
-                Child = new TextBlock
-                {
-                    Text = "✕", FontSize = 9, Foreground = Dim,
-                    HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-                },
-            };
-            closeButton.MouseLeftButtonDown += (s, e) => e.Handled = true; // don't start a drag
-            closeButton.MouseLeftButtonUp += (s, e) => { e.Handled = true; CloseClicked(); };
+                Text = "✕", FontSize = 9, Foreground = Theme.Dim,
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            }, "Hide", () => { if (Dismiss != null) Dismiss(); });
+            closeButton.Margin = new Thickness(8, 0, 0, 0);
 
-            var right = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Margin = new Thickness(0, 0, 12, 0),
-                Children = { voicePanel, alertDot, closeButton },
-            };
-
-            dock = new DockPanel { LastChildFill = true };
-            DockPanel.SetDock(mascot, Dock.Left);
+            var right = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 0), Children = { voicePanel, alertDot, closeButton } };
+            header = new DockPanel { LastChildFill = true };
             DockPanel.SetDock(right, Dock.Right);
-            dock.Children.Add(mascot);
-            dock.Children.Add(right);
-            dock.Children.Add(text);
+            header.Children.Add(right);
+            header.Children.Add(text);
 
-            // Thin bar under the text: how many of the session's tasks are done.
-            var fill = new Rectangle { Fill = Clay };
+            var fill = new Rectangle { Fill = Theme.Clay };
             var progressGrid = new Grid();
             progressGrid.ColumnDefinitions.Add(progressDone);
             progressGrid.ColumnDefinitions.Add(progressLeft);
             progressGrid.Children.Add(fill);
             progressTrack = new Border
             {
-                Height = 3,
-                CornerRadius = new CornerRadius(1.5),
-                Background = Chip,
-                ClipToBounds = true,
-                Margin = new Thickness(24, 0, 24, 8),
-                VerticalAlignment = VerticalAlignment.Bottom,
-                Visibility = Visibility.Collapsed,
-                Child = progressGrid,
+                Height = 3, CornerRadius = new CornerRadius(1.5), Background = Theme.Chip, ClipToBounds = true,
+                Margin = new Thickness(24, 0, 24, 8), Child = progressGrid,
             };
+
+            moreText = Text(11, Theme.Dim, FontWeights.Normal);
+            moreText.VerticalAlignment = VerticalAlignment.Center;
+            moreText.Margin = new Thickness(4, 0, 0, 0);
+            actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(12, 2, 12, 10) };
+            actions.Children.Add(moreText);
+            actions.Children.Add(PillButton("Deny", Theme.Chip, () => AnswerPending(false)));
+            actions.Children.Add(PillButton("Allow", Theme.Clay, () => AnswerPending(true)));
+
+            list = new StackPanel { Margin = new Thickness(8, 0, 8, 8) };
+
+            card = new Border
+            {
+                Width = 150, // animations need a starting value
+                Background = Theme.Black,
+                Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 2, Opacity = 0.35, Direction = 270 },
+                Cursor = Cursors.Hand,
+                Child = new StackPanel { Children = { header, progressTrack, actions, list } },
+            };
+            mini = new Border { Cursor = Cursors.Hand };
+            AutomationProperties.SetName(mini, "Claude Notch");
 
             endVoiceItem = Item("End voice conversation", () => { if (EndVoice != null) EndVoice(); });
-
-            shell = new Border
-            {
-                Width = IdleWidth,
-                Height = LineHeight,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Top,
-                Background = Frozen(Color.FromRgb(0x0B, 0x0B, 0x0B)),
-                Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 2, Opacity = 0.35, Direction = 270 },
-                RenderTransform = slide,
-                Opacity = 0,
-                Cursor = Cursors.Hand,
-                ContextMenu = BuildMenu(),
-                Child = new Grid { Children = { dock, progressTrack } },
-            };
-            shell.MouseEnter += (s, e) => { hover = true; closeButton.Visibility = Visibility.Visible; Apply(); };
-            shell.MouseLeave += (s, e) => { hover = false; closeButton.Visibility = Visibility.Collapsed; Apply(); };
-            shell.MouseLeftButtonDown += OnMouseDown;
-
-            Content = new Grid { Children = { shell } };
-            UpdateCorners();
+            holder = new Grid { RenderTransform = slide, Opacity = 0, Children = { card, mini }, ContextMenu = BuildMenu() };
+            holder.MouseEnter += (s, e) => { leaveTimer.Stop(); if (!hover) { hover = true; Refresh(); } };
+            holder.MouseLeave += (s, e) => leaveTimer.Start();
+            holder.MouseLeftButtonDown += OnMouseDown;
+            Content = new Grid { Children = { holder } };
 
             voiceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(110) };
             voiceTimer.Tick += (s, e) => TickVoice();
-            alertTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
-            alertTimer.Tick += (s, e) => { alertTimer.Stop(); ClearAlert(); };
-            refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-            refreshTimer.Tick += (s, e) => { Apply(); if (shown) KeepOnTop(); }; // keeps the working time ticking
-            refreshTimer.Start();
+            leaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            leaveTimer.Tick += (s, e) => { leaveTimer.Stop(); if (!holder.IsMouseOver && hover) { hover = false; Refresh(); } };
+            topTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            topTimer.Tick += (s, e) => { if (shown) KeepOnTop(); };
+            topTimer.Start();
 
-            SourceInitialized += (s, e) => MakeToolWindow();
+            SourceInitialized += (s, e) =>
+            {
+                MakeToolWindow();
+                var src = PresentationSource.FromVisual(this);
+                if (src != null) scale = src.CompositionTarget.TransformToDevice.M11;
+                Place();
+            };
+            ApplySettings();
+        }
+
+        // ---- settings ------------------------------------------------------
+
+        bool Mini { get { return settings.Style == "line" || settings.Style == "dot"; } }
+        bool Compact { get { return settings.Style == "compact"; } }
+        bool Vertical { get { return settings.Edge == "left" || settings.Edge == "right"; } }
+
+        public void ApplySettings()
+        {
+            if (mascot != null) header.Children.Remove(mascot);
+            mascot = new Mascot(Compact ? 1.7 : 2.4) { Margin = new Thickness(Compact ? 12 : 16, 0, Compact ? 8 : 10, 0), VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(mascot, Dock.Left);
+            header.Children.Insert(0, mascot);
+            header.Height = Compact ? 30 : double.NaN;
+            title.FontSize = Compact ? 12 : 13;
+
+            string edge = settings.Edge;
+            holder.HorizontalAlignment = edge == "left" ? HorizontalAlignment.Left : edge == "right" ? HorizontalAlignment.Right : HorizontalAlignment.Center;
+            holder.VerticalAlignment = edge == "top" ? VerticalAlignment.Top : edge == "bottom" ? VerticalAlignment.Bottom : VerticalAlignment.Center;
+            var shadow = (DropShadowEffect)card.Effect;
+            shadow.Direction = edge == "bottom" ? 90 : edge == "left" ? 0 : edge == "right" ? 180 : 270;
+
+            layoutKey = listKey = miniKey = "";
+            if (IsLoaded || PresentationSource.FromVisual(this) != null) Place();
+            Refresh();
+        }
+
+        // Puts the window against the chosen edge of the chosen monitor.
+        public void Place()
+        {
+            Rect wa = WorkArea();
+            double off = settings.EdgeOffset;
+            double left, top, shift = 0;
+            if (!Vertical)
+            {
+                double cx = wa.Left + off * wa.Width;
+                left = Math.Max(wa.Left, Math.Min(cx - WinW / 2, wa.Right - WinW));
+                top = settings.Edge == "top" ? wa.Top : wa.Bottom - WinH;
+                shift = cx - (left + WinW / 2);
+            }
+            else
+            {
+                double cy = wa.Top + off * wa.Height;
+                top = Math.Max(wa.Top, Math.Min(cy - WinH / 2, wa.Bottom - WinH));
+                left = settings.Edge == "left" ? wa.Left : wa.Right - WinW;
+                shift = cy - (top + WinH / 2);
+            }
+            shift = Math.Max(-30, Math.Min(30, shift)); // keep room for the widest card
+            Left = left;
+            Top = top;
+            if (!Vertical) holder.Margin = shift > 0 ? new Thickness(2 * shift, 0, 0, 0) : new Thickness(0, 0, -2 * shift, 0);
+            else holder.Margin = shift > 0 ? new Thickness(0, 2 * shift, 0, 0) : new Thickness(0, 0, 0, -2 * shift);
+        }
+
+        System.Windows.Forms.Screen TargetScreen()
+        {
+            foreach (var s in System.Windows.Forms.Screen.AllScreens)
+                if (s.DeviceName == settings.Monitor) return s;
+            return System.Windows.Forms.Screen.PrimaryScreen;
+        }
+
+        Rect WorkArea()
+        {
+            var r = TargetScreen().WorkingArea;
+            return new Rect(r.Left / scale, r.Top / scale, r.Width / scale, r.Height / scale);
+        }
+
+        // Where the prompt box goes: just inside the notch, toward the middle of the screen.
+        public Point PromptPosition(double w, double h)
+        {
+            Rect wa = WorkArea();
+            double off = settings.EdgeOffset, gap = 54;
+            double x, y;
+            switch (settings.Edge)
+            {
+                case "bottom": x = wa.Left + off * wa.Width - w / 2; y = wa.Bottom - gap - h; break;
+                case "left": x = wa.Left + gap; y = wa.Top + off * wa.Height - h / 2; break;
+                case "right": x = wa.Right - gap - w; y = wa.Top + off * wa.Height - h / 2; break;
+                default: x = wa.Left + off * wa.Width - w / 2; y = wa.Top + gap; break;
+            }
+            x = Math.Max(wa.Left, Math.Min(x, wa.Right - w));
+            y = Math.Max(wa.Top, Math.Min(y, wa.Bottom - h));
+            return new Point(x, y);
         }
 
         // ---- state ---------------------------------------------------------
 
-        public void Update(bool isOpen, bool isInFront, bool isFullscreenApp, bool inVoice, bool micMuted, bool isMinimized, string title,
-            bool isWorking = false, DateTime started = default(DateTime))
+        public void Render(NotchState s)
         {
-            working = isWorking;
-            workingSince = started;
-            if (isInFront && !claudeInFront)
-            {
-                dismissed = false;                 // coming back to Claude resets "hide for now"
-                if (alert) alertTimer.Start();     // the user can see the prompt now; fade the alert soon
-            }
-            claudeOpen = isOpen;
-            claudeInFront = isInFront;
-            claudeMinimized = isMinimized;
-            fullscreenApp = isFullscreenApp;
-            muted = micMuted;
-            sessionTitle = title;
-
-            if (inVoice != voice)
-            {
-                voice = inVoice;
-                if (voice) { voiceStarted = DateTime.Now; voiceTimer.Start(); }
-                else voiceTimer.Stop();
-            }
-            Apply();
+            bool voiceWas = state.Kind == "voice";
+            state = s;
+            if (s.Kind == "voice" && !voiceWas) voiceTimer.Start();
+            if (s.Kind != "voice") voiceTimer.Stop();
+            Refresh();
         }
 
-        // Called with the raw JSON a Claude Code hook received (see Program.RunHook).
-        public void Notify(string json)
+        void Refresh()
         {
-            Dictionary<string, object> d;
-            try { d = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(json); }
-            catch { return; }
-            if (d == null) return;
+            var s = state;
+            bool alert = s.Kind == "alert";
+            bool hoverExpand = hover && settings.ExpandOnHover;
+            bool expanded = !Mini || hoverExpand || (hover && alert);
+            bool showList = hoverExpand && s.Sessions.Count > 0 && !alert;
+            bool showActions = alert && s.Pending != null && expanded;
 
-            tracker.Apply(d);
+            mascot.Talking = (s.Kind == "voice" && !s.Muted) || (s.Kind == "session" && s.Busy);
+            mascot.Alert = alert;
 
-            string ev = Str(d, "hook_event_name");
-            if (ev == "PermissionRequest" || ev == "Notification")
+            title.Inlines.Clear();
+            title.Inlines.Add(new Run(s.Title));
+            bool showSub = (s.Kind == "session" || alert) && !string.IsNullOrEmpty(s.Detail);
+            if (Compact && s.Kind == "session")
             {
-                string project = ProjectName(Str(d, "cwd"));
-                string detail;
-                if (ev == "PermissionRequest")
-                {
-                    detail = DescribeTool(Str(d, "tool_name"), d.ContainsKey("tool_input") ? d["tool_input"] as Dictionary<string, object> : null);
-                    alertFromRequest = true;
-                }
-                else
-                {
-                    // PermissionRequest carries more detail; don't overwrite it with the generic message.
-                    if (alert && alertFromRequest && (DateTime.Now - alertAt).TotalSeconds < 5) return;
-                    detail = Str(d, "message");
-                    alertFromRequest = false;
-                }
-
-                alert = true;
-                alertAt = DateTime.Now;
-                dismissed = false;
-                alertTitle = string.IsNullOrEmpty(project) ? "Needs your permission" : "Needs permission · " + project;
-                alertDetail = string.IsNullOrEmpty(detail) ? "Open Claude to respond" : detail;
-                alertTimer.Stop();
-                if (claudeInFront) alertTimer.Start();
+                string brief = !string.IsNullOrEmpty(s.Short) ? s.Short : s.Detail;
+                if (!string.IsNullOrEmpty(brief)) title.Inlines.Add(new Run("  " + brief) { Foreground = Theme.Dim, FontWeight = FontWeights.Normal });
+                showSub = false;
             }
-            else if (alert && (ev == "Stop" || ev == "UserPromptSubmit" || ev == "PostToolUse"))
-            {
-                ClearAlert(); // the session moved on, so the request was answered
-            }
-            Apply();
-        }
+            subtitle.Text = s.Detail;
+            if (s.Kind == "voice") title.Inlines.Clear();
+            if (s.Kind == "voice") title.Inlines.Add(new Run(s.Muted ? "Muted" : "Listening"));
 
-        void ClearAlert()
-        {
-            alert = false;
-            alertTimer.Stop();
-            Apply();
-        }
-
-        void Dismiss()
-        {
-            dismissed = true;
-            alert = false;
-            Apply();
-        }
-
-        // The x: hide the notch, and if a voice conversation is running, end it too.
-        void CloseClicked()
-        {
-            if (voice && EndVoice != null) EndVoice();
-            Dismiss();
-        }
-
-        // ---- layout & animation -------------------------------------------
-
-        void Apply()
-        {
-            var now = DateTime.Now;
-            var s = tracker.Current(now);
-
-            // The hooks only report sessions started after they were added, so Claude's own
-            // Stop button (visible while a turn runs) also counts as "working".
-            if (working && (s == null || !s.Busy))
-                s = new SessionTracker.Snapshot
-                {
-                    Busy = true,
-                    Elapsed = now - workingSince,
-                    Project = s != null ? s.Project : null,
-                    Done = s != null ? s.Done : 0,
-                    Total = s != null ? s.Total : 0,
-                };
-
-            Mode mode = alert ? Mode.Alert : voice ? Mode.Voice : s != null ? Mode.Session : Mode.Idle;
-
-            // Alt+Tab only counts as "leaving a session" if something is going on.
-            bool ongoing = alert || voice || (s != null && (s.Busy || s.JustFinished));
-            bool wantShown = alert || (claudeOpen && !claudeInFront && !fullscreenApp && !dismissed && (claudeMinimized || ongoing));
-
-            mascot.Talking = (mode == Mode.Voice && !muted) || (mode == Mode.Session && s.Busy);
-            mascot.Alert = mode == Mode.Alert;
-
-            switch (mode)
-            {
-                case Mode.Alert:
-                    title.Text = alertTitle;
-                    subtitle.Text = alertDetail;
-                    break;
-                case Mode.Voice:
-                    title.Text = muted ? "Muted" : "Listening";
-                    break;
-                case Mode.Session:
-                    title.Text = !string.IsNullOrEmpty(sessionTitle) ? sessionTitle : string.IsNullOrEmpty(s.Project) ? "Claude Code" : s.Project;
-                    subtitle.Text = StatusLine(s);
-                    break;
-                default:
-                    title.Text = "Claude";
-                    break;
-            }
-
-            bool hasTasks = mode == Mode.Session && s.Total > 0;
+            bool hasTasks = s.Kind == "session" && s.Total > 0 && !Compact;
             if (hasTasks)
             {
                 progressDone.Width = new GridLength(s.Done, GridUnitType.Star);
                 progressLeft.Width = new GridLength(Math.Max(s.Total - s.Done, 0), GridUnitType.Star);
             }
+            micGlyph.Text = s.Muted ? "" : ""; // MicOff / Microphone
+            micButton.Background = s.Muted ? Theme.Clay : Theme.Chip;
+            closeButton.ToolTip = s.Kind == "voice" ? "End voice and hide" : "Hide for now";
+            endVoiceItem.Visibility = s.Kind == "voice" ? Visibility.Visible : Visibility.Collapsed;
+            moreText.Text = s.MorePending > 0 ? "+" + s.MorePending + " more" : "";
+            if (s.Kind == "voice") TickVoice();
+            if (showList) BuildList(s.Sessions);
+            UpdateMini(s);
 
-            micGlyph.Text = muted ? "" : "";   // MicOff / Microphone
-            micButton.Background = muted ? Clay : Chip;
-            closeButton.ToolTip = voice ? "End voice and hide" : "Hide for now";
-            endVoiceItem.Visibility = voice ? Visibility.Visible : Visibility.Collapsed;
-            if (mode == Mode.Voice) TickVoice();
+            string key = s.Kind + "|" + hover + "|" + s.Visible + "|" + hasTasks + "|" + showList + "|" + showActions + "|" + showSub + "|" + settings.Style + "|" + settings.Edge;
+            if (key == layoutKey) return;
+            layoutKey = key;
 
-            // Everything below animates, so only redo it when the layout really changes.
-            string key = mode + "|" + muted + "|" + hover + "|" + wantShown + "|" + hasTasks;
-            if (key == appliedKey) return;
-            appliedKey = key;
-
-            subtitle.Visibility = mode == Mode.Alert || mode == Mode.Session ? Visibility.Visible : Visibility.Collapsed;
-            voicePanel.Visibility = mode == Mode.Voice ? Visibility.Visible : Visibility.Collapsed;
-            alertDot.Visibility = mode == Mode.Alert ? Visibility.Visible : Visibility.Collapsed;
+            card.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+            mini.Visibility = expanded ? Visibility.Collapsed : Visibility.Visible;
+            subtitle.Visibility = showSub ? Visibility.Visible : Visibility.Collapsed;
+            voicePanel.Visibility = s.Kind == "voice" ? Visibility.Visible : Visibility.Collapsed;
+            alertDot.Visibility = alert ? Visibility.Visible : Visibility.Collapsed;
+            closeButton.Visibility = hover ? Visibility.Visible : Visibility.Collapsed;
             progressTrack.Visibility = hasTasks ? Visibility.Visible : Visibility.Collapsed;
-            dock.Margin = new Thickness(0, 0, 0, hasTasks ? 8 : 0);
+            actions.Visibility = showActions ? Visibility.Visible : Visibility.Collapsed;
+            list.Visibility = showList ? Visibility.Visible : Visibility.Collapsed;
 
-            double w = mode == Mode.Alert ? AlertWidth : mode == Mode.Session ? SessionWidth : mode == Mode.Voice ? VoiceWidth : IdleWidth;
-            double h = mode == Mode.Alert ? AlertHeight : mode == Mode.Session ? SessionHeight : LineHeight;
-            Animate(shell, WidthProperty, w + (hover ? HoverGrow : 0), 260);
-            Animate(shell, HeightProperty, h, 260);
-            UpdateCorners(h);
-
-            if (wantShown != shown)
+            double w = CardWidth(s.Kind) + (hover && !Mini ? 26 : 0);
+            if (showList || showActions) w = Math.Max(w, Compact ? 330 : 360);
+            Animate(card, WidthProperty, w, 220);
+            if (!Compact) header.Height = s.Kind == "session" || alert ? (hasTasks ? 54 : 56) : 38;
+            double r = Compact ? 14 : 18;
+            switch (settings.Edge)
             {
-                shown = wantShown;
-                if (shown) Show();
-                double hiddenY = docked ? -(h + 12) : -8;
-                if (shown && slide.Y == 0) slide.Y = hiddenY;
+                case "bottom": card.CornerRadius = new CornerRadius(r, r, 0, 0); break;
+                case "left": card.CornerRadius = new CornerRadius(0, r, r, 0); break;
+                case "right": card.CornerRadius = new CornerRadius(r, 0, 0, r); break;
+                default: card.CornerRadius = new CornerRadius(0, 0, r, r); break;
+            }
 
-                var move = new DoubleAnimation(shown ? 0 : hiddenY, TimeSpan.FromMilliseconds(shown ? 320 : 200))
+            if (s.Visible != shown)
+            {
+                shown = s.Visible;
+                if (shown) Show();
+                double away = 90;
+                bool horizontalSlide = Vertical;
+                double sign = settings.Edge == "top" || settings.Edge == "left" ? -1 : 1;
+                var prop = horizontalSlide ? TranslateTransform.XProperty : TranslateTransform.YProperty;
+                slide.BeginAnimation(TranslateTransform.XProperty, null);
+                slide.BeginAnimation(TranslateTransform.YProperty, null);
+                slide.X = 0; slide.Y = 0;
+                if (shown) { if (horizontalSlide) slide.X = sign * away; else slide.Y = sign * away; }
+
+                var move = new DoubleAnimation(shown ? 0 : sign * away, TimeSpan.FromMilliseconds(shown ? 320 : 200))
                 {
                     EasingFunction = shown
                         ? (IEasingFunction)new BackEase { Amplitude = 0.35, EasingMode = EasingMode.EaseOut }
                         : new CubicEase { EasingMode = EasingMode.EaseIn },
                 };
                 var fade = new DoubleAnimation(shown ? 1 : 0, TimeSpan.FromMilliseconds(shown ? 200 : 180));
-                fade.Completed += (s2, e) => { if (!shown) { Hide(); slide.BeginAnimation(TranslateTransform.YProperty, null); slide.Y = 0; } };
-                slide.BeginAnimation(TranslateTransform.YProperty, move);
-                shell.BeginAnimation(OpacityProperty, fade);
+                fade.Completed += (s2, e) => { if (!shown) { Hide(); hover = false; } };
+                slide.BeginAnimation(prop, move);
+                holder.BeginAnimation(OpacityProperty, fade);
             }
         }
 
-        // "Working 4:12 · 3 done · 2 left" / "Done in 4:12 · 5 done"
-        static string StatusLine(SessionTracker.Snapshot s)
+        double CardWidth(string kind)
         {
-            string line = s.Busy ? "Working " + SessionTracker.Clock(s.Elapsed)
-                : s.Elapsed > TimeSpan.Zero ? "Done in " + SessionTracker.Clock(s.Elapsed)
-                : "Idle";
-            if (s.Total > 0)
+            if (Compact) return kind == "alert" ? 330 : kind == "session" ? 280 : kind == "voice" ? 230 : 110;
+            return kind == "alert" ? 360 : kind == "session" ? 340 : kind == "voice" ? 280 : 150;
+        }
+
+        void UpdateMini(NotchState s)
+        {
+            bool dot = settings.Style == "dot";
+            Brush color = s.Kind == "alert" ? Theme.Amber
+                : s.Kind == "voice" ? (s.Muted ? Theme.Dim : Theme.Green)
+                : s.Busy ? Theme.Clay
+                : s.JustFinished ? Theme.Green
+                : Theme.Idle;
+            bool pulse = s.Kind == "alert" || s.Busy;
+            string key = settings.Style + "|" + settings.Edge + "|" + color.GetHashCode() + "|" + pulse;
+            if (key == miniKey) return;
+            miniKey = key;
+
+            mini.Background = color;
+            if (dot)
             {
-                line += " · " + s.Done + " done";
-                if (s.Total - s.Done > 0) line += " · " + (s.Total - s.Done) + " left";
+                mini.Width = mini.Height = 12;
+                mini.CornerRadius = new CornerRadius(6);
+                mini.Margin = new Thickness(6);
             }
-            return line;
+            else
+            {
+                mini.Width = Vertical ? 5 : 120;
+                mini.Height = Vertical ? 120 : 5;
+                mini.CornerRadius = new CornerRadius(2.5);
+                mini.Margin = new Thickness(0);
+            }
+            Pulse(mini, pulse);
+            AutomationProperties.SetName(mini, "Claude Notch: " + state.Title);
         }
 
-        void UpdateCorners(double height = LineHeight)
+        // Rows for every running session: a status dot, the name, where it runs, and what it's doing.
+        void BuildList(List<SessionInfo> sessions)
         {
-            double r = Math.Min(height / 2, 22);
-            shell.CornerRadius = docked ? new CornerRadius(0, 0, r, r) : new CornerRadius(r);
+            var sb = new StringBuilder();
+            int shownCount = Math.Min(sessions.Count, 5);
+            for (int i = 0; i < shownCount; i++)
+                sb.Append(sessions[i].Id).Append(sessions[i].Busy).Append(RowStatus(sessions[i])).Append(sessions[i].DisplayName).Append('|');
+            sb.Append(sessions.Count);
+            if (sb.ToString() == listKey) return;
+            listKey = sb.ToString();
+
+            list.Children.Clear();
+            list.Children.Add(new Border { Height = 1, Background = Theme.Chip, Margin = new Thickness(8, 0, 8, 6) });
+            for (int i = 0; i < shownCount; i++) list.Children.Add(Row(sessions[i]));
+            if (sessions.Count > shownCount)
+            {
+                var more = Text(11, Theme.Dim, FontWeights.Normal);
+                more.Text = "+" + (sessions.Count - shownCount) + " more";
+                more.Margin = new Thickness(14, 2, 0, 0);
+                list.Children.Add(more);
+            }
+        }
+
+        FrameworkElement Row(SessionInfo s)
+        {
+            var dot = new Ellipse
+            {
+                Width = 7, Height = 7, Margin = new Thickness(6, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center,
+                Fill = s.Busy ? Theme.Clay : s.JustFinished ? Theme.Green : Theme.Idle,
+            };
+            var name = Text(12, Brushes.White, FontWeights.Normal);
+            name.Text = s.DisplayName;
+            var where = Text(10, Theme.Dim, FontWeights.Normal);
+            where.Text = s.Desktop ? "APP" : "CLI";
+            where.Margin = new Thickness(8, 1, 0, 0);
+            var status = Text(11, Theme.Dim, FontWeights.Normal);
+            status.Text = RowStatus(s);
+            status.Margin = new Thickness(8, 0, 6, 0);
+            status.VerticalAlignment = VerticalAlignment.Center;
+
+            var dock = new DockPanel { LastChildFill = true };
+            DockPanel.SetDock(dot, Dock.Left);
+            DockPanel.SetDock(status, Dock.Right);
+            var middle = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { name, where } };
+            dock.Children.Add(dot);
+            dock.Children.Add(status);
+            dock.Children.Add(middle);
+
+            var row = new Border { Child = dock, Padding = new Thickness(4, 6, 4, 6), CornerRadius = new CornerRadius(8), Background = Brushes.Transparent, Cursor = Cursors.Hand };
+            row.ToolTip = (s.Desktop ? "Open in the Claude app" : "Open the terminal") + (string.IsNullOrEmpty(s.Cwd) ? "" : "\n" + s.Cwd);
+            AutomationProperties.SetName(row, s.DisplayName + ", " + status.Text);
+            row.MouseEnter += (a, b) => row.Background = Theme.Chip;
+            row.MouseLeave += (a, b) => row.Background = Brushes.Transparent;
+            row.MouseLeftButtonDown += (a, b) => b.Handled = true;
+            row.MouseLeftButtonUp += (a, b) => { b.Handled = true; if (OpenSession != null) OpenSession(s); };
+            return row;
+        }
+
+        public static string RowStatus(SessionInfo s)
+        {
+            string t = s.Busy ? SessionTracker.Clock(s.Elapsed) : s.JustFinished ? "done" : "idle";
+            if (s.Total > 0) t += " · " + s.Done + "/" + s.Total;
+            return t;
+        }
+
+        void AnswerPending(bool allow)
+        {
+            var p = state.Pending;
+            if (p != null && Answer != null) Answer(p, allow);
         }
 
         void TickVoice()
         {
-            var t = DateTime.Now - voiceStarted;
+            var t = DateTime.Now - state.VoiceStarted;
             timerText.Text = string.Format("{0}:{1:00}", (int)t.TotalMinutes, t.Seconds);
             for (int i = 0; i < bars.Length; i++)
             {
                 double center = 1 - Math.Abs(i - 2) / 3.0; // middle bars run taller
-                bars[i].Height = muted ? 3 : 4 + rnd.NextDouble() * 14 * center + rnd.NextDouble() * 3;
-                bars[i].Opacity = muted ? 0.4 : 1;
+                bars[i].Height = state.Muted ? 3 : 4 + rnd.NextDouble() * 14 * center + rnd.NextDouble() * 3;
+                bars[i].Opacity = state.Muted ? 0.4 : 1;
             }
-        }
-
-        static void Animate(UIElement el, DependencyProperty prop, double to, int ms)
-        {
-            el.BeginAnimation(prop, new DoubleAnimation(to, TimeSpan.FromMilliseconds(ms))
-            {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
-            });
         }
 
         // ---- input ---------------------------------------------------------
@@ -493,23 +499,51 @@ namespace ClaudeNotch
             if (Math.Abs(Left - startLeft) < 4 && Math.Abs(Top - startTop) < 4)
             {
                 Left = startLeft; Top = startTop;
-                if (OpenClaude != null) OpenClaude();
+                if (OpenPrimary != null) OpenPrimary();
                 return;
             }
-            SnapAndSave();
+            SnapToNearestEdge();
+        }
+
+        // After a drag: the edge closest to where the notch was dropped, and how far along it.
+        void SnapToNearestEdge()
+        {
+            var p = holder.TranslatePoint(new Point(holder.ActualWidth / 2, holder.ActualHeight / 2), this);
+            double cx = Left + p.X, cy = Top + p.Y;
+            var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)(cx * scale), (int)(cy * scale)));
+            var r = screen.WorkingArea;
+            var wa = new Rect(r.Left / scale, r.Top / scale, r.Width / scale, r.Height / scale);
+
+            double dTop = Math.Abs(cy - wa.Top), dBottom = Math.Abs(wa.Bottom - cy), dLeft = Math.Abs(cx - wa.Left), dRight = Math.Abs(wa.Right - cx);
+            double min = Math.Min(Math.Min(dTop, dBottom), Math.Min(dLeft, dRight));
+            settings.Edge = min == dTop ? "top" : min == dBottom ? "bottom" : min == dLeft ? "left" : "right";
+            settings.EdgeOffset = Vertical
+                ? Math.Max(0, Math.Min(1, (cy - wa.Top) / wa.Height))
+                : Math.Max(0, Math.Min(1, (cx - wa.Left) / wa.Width));
+            settings.Monitor = screen.Primary ? "" : screen.DeviceName;
+            settings.Save();
+            ApplySettings();
         }
 
         ContextMenu BuildMenu()
         {
             var menu = new ContextMenu();
-            menu.Items.Add(Item("Open Claude", () => { if (OpenClaude != null) OpenClaude(); }));
+            menu.Items.Add(Item("Open Claude", () => { if (OpenPrimary != null) OpenPrimary(); }));
             menu.Items.Add(endVoiceItem);
-            menu.Items.Add(Item("Hide for now", Dismiss));
-            menu.Items.Add(Item("Move back to top center", () => { CenterTop(); SavePosition(); }));
+            menu.Items.Add(Item("Hide for now", () => { if (Dismiss != null) Dismiss(); }));
+            menu.Items.Add(Item("Move back to top center", () =>
+            {
+                settings.Edge = "top"; settings.EdgeOffset = 0.5; settings.Monitor = "";
+                settings.Save();
+                ApplySettings();
+            }));
             menu.Items.Add(new Separator());
+            menu.Items.Add(Item("Settings…", () => { if (OpenSettings != null) OpenSettings(); }));
             menu.Items.Add(Item("Quit Claude Notch", () => { if (Quit != null) Quit(); }));
             return menu;
         }
+
+        // ---- helpers -------------------------------------------------------
 
         static MenuItem Item(string header, Action click)
         {
@@ -518,85 +552,62 @@ namespace ClaudeNotch
             return item;
         }
 
-        // ---- position ------------------------------------------------------
-
-        void SnapAndSave()
+        static TextBlock Text(double size, Brush color, FontWeight weight)
         {
-            double vl = SystemParameters.VirtualScreenLeft, vt = SystemParameters.VirtualScreenTop;
-            double vr = vl + SystemParameters.VirtualScreenWidth, vb = vt + SystemParameters.VirtualScreenHeight;
-            Left = Math.Max(vl - Width / 3, Math.Min(Left, vr - Width * 2 / 3));
-            Top = Math.Max(vt, Math.Min(Top, vb - Height));
-
-            docked = Top - vt < SnapDistance;
-            if (docked) Top = vt;
-            UpdateCorners(shell.ActualHeight > 0 ? shell.ActualHeight : LineHeight);
-            SavePosition();
+            return new TextBlock { FontFamily = Theme.Font, FontSize = size, Foreground = color, FontWeight = weight, TextTrimming = TextTrimming.CharacterEllipsis };
         }
 
-        void CenterTop()
+        // Real buttons (so screen readers and UI Automation can press them), drawn as a rounded
+        // chip. The template binds the chip's color to the button's Background.
+        static Button ChipButton(UIElement content, string name, Brush background, CornerRadius radius, Thickness padding, Action click)
         {
-            Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
-            Top = 0;
-            docked = true;
-            UpdateCorners(shell != null && shell.ActualHeight > 0 ? shell.ActualHeight : LineHeight);
-        }
+            var border = new FrameworkElementFactory(typeof(Border));
+            border.SetValue(Border.CornerRadiusProperty, radius);
+            border.SetValue(Border.PaddingProperty, padding);
+            border.SetBinding(Border.BackgroundProperty, new System.Windows.Data.Binding("Background") { RelativeSource = System.Windows.Data.RelativeSource.TemplatedParent });
+            var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
+            presenter.SetValue(HorizontalAlignmentProperty, HorizontalAlignment.Center);
+            presenter.SetValue(VerticalAlignmentProperty, VerticalAlignment.Center);
+            border.AppendChild(presenter);
 
-        void LoadPosition()
-        {
-            try
+            var b = new Button
             {
-                var parts = File.ReadAllText(PositionFile).Split(',');
-                Left = double.Parse(parts[0], CultureInfo.InvariantCulture);
-                Top = double.Parse(parts[1], CultureInfo.InvariantCulture);
-                docked = Top - SystemParameters.VirtualScreenTop < SnapDistance;
-                return;
-            }
-            catch { }
-            Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
-            Top = 0;
-            docked = true;
-        }
-
-        void SavePosition()
-        {
-            try
-            {
-                Directory.CreateDirectory(SettingsDir);
-                File.WriteAllText(PositionFile, Left.ToString(CultureInfo.InvariantCulture) + "," + Top.ToString(CultureInfo.InvariantCulture));
-            }
-            catch { }
-        }
-
-        // ---- helpers -------------------------------------------------------
-
-        static string Str(Dictionary<string, object> d, string key)
-        {
-            object v;
-            return d != null && d.TryGetValue(key, out v) && v != null ? v.ToString() : "";
-        }
-
-        static string ProjectName(string cwd)
-        {
-            if (string.IsNullOrEmpty(cwd)) return "";
-            try { return System.IO.Path.GetFileName(cwd.TrimEnd('\\', '/')); } catch { return ""; }
-        }
-
-        static string DescribeTool(string tool, Dictionary<string, object> input)
-        {
-            string what = Str(input, "command");
-            if (what == "") what = Str(input, "file_path");
-            if (what == "") what = Str(input, "url");
-            if (what == "") what = Str(input, "description");
-            what = what.Replace("\r", " ").Replace("\n", " ");
-            if (tool == "") return what;
-            return what == "" ? tool : tool + ": " + what;
-        }
-
-        static Brush Frozen(Color c)
-        {
-            var b = new SolidColorBrush(c);
-            b.Freeze();
+                Content = content, Background = background, Cursor = Cursors.Hand, Focusable = false,
+                VerticalAlignment = VerticalAlignment.Center, ToolTip = name,
+                Template = new ControlTemplate(typeof(Button)) { VisualTree = border },
+            };
+            AutomationProperties.SetName(b, name);
+            b.MouseEnter += (s, e) => b.Opacity = 0.85;
+            b.MouseLeave += (s, e) => b.Opacity = 1;
+            b.Click += (s, e) => { e.Handled = true; click(); };
             return b;
+        }
+
+        static Button RoundButton(double size, UIElement content, string name, Action click)
+        {
+            var b = ChipButton(content, name, Theme.Chip, new CornerRadius(size / 2), new Thickness(0), click);
+            b.Width = b.Height = size;
+            return b;
+        }
+
+        static Button PillButton(string label, Brush background, Action click)
+        {
+            var text = new TextBlock { Text = label, Foreground = Brushes.White, FontFamily = Theme.Font, FontSize = 12, FontWeight = FontWeights.SemiBold };
+            var b = ChipButton(text, label, background, new CornerRadius(11), new Thickness(14, 3, 14, 4), click);
+            b.Margin = new Thickness(8, 0, 0, 0);
+            return b;
+        }
+
+        static void Pulse(UIElement el, bool on)
+        {
+            el.BeginAnimation(OpacityProperty, on
+                ? new DoubleAnimation(1, 0.3, TimeSpan.FromMilliseconds(800)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever }
+                : null);
+        }
+
+        static void Animate(UIElement el, DependencyProperty prop, double to, int ms)
+        {
+            el.BeginAnimation(prop, new DoubleAnimation(to, TimeSpan.FromMilliseconds(ms)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
         }
 
         // Keep the notch out of Alt+Tab and stop it from stealing focus when clicked.
@@ -607,8 +618,8 @@ namespace ClaudeNotch
             SetWindowLong(hwnd, GWL_EXSTYLE, ex | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
         }
 
-        // Another always-on-top window (or a shell flyout) can push the notch behind it,
-        // so while it's meant to be visible it re-asserts its place without taking focus.
+        // Another always-on-top window (or a shell flyout) can push the notch behind it, so
+        // while it's meant to be visible it re-asserts its place without taking focus.
         void KeepOnTop()
         {
             var hwnd = new WindowInteropHelper(this).Handle;

@@ -1,94 +1,119 @@
 # Claude Notch
 
-A small Windows companion for the Claude desktop app.
+A small Windows companion for Claude: the Claude desktop app and Claude Code in a terminal.
+A notch on the edge of your screen shows what your sessions are doing, lets you answer
+permission requests, and lets you talk or type to Claude from anywhere.
 
-- **Notch:** a black pill with an animated pixel mascot that shows while Claude is open but not the window in front.
-  - *Minimized:* it always shows.
-  - *Alt+Tabbed away:* it only shows while something is going on (a voice conversation, a session that's working, or a permission request). If nothing is happening, it stays hidden. "Working" is read from the Stop button in Claude's input box, so it works for any session, including ones the hooks don't cover. The hooks add task counts and exact working time on top.
-  - It stays hidden over fullscreen apps.
-- **Session info:** when you leave a Claude Code session, the notch shows its name, how long it has been working, and how many tasks are done and left (`Working 4:12 · 3 done · 2 left`, with a thin progress bar). When the session finishes it shows `Done in 4:12` for a few seconds. If you minimized, the last session stays on the notch for 30 minutes.
-- **Voice indicator:** during a Claude voice conversation, the notch widens and shows "Listening", a timer, live bars, and a mute button. The mute button presses Claude's own mic toggle. The mascot hops around.
-- **Permission alerts:** when Claude Code asks for permission, the notch shows the project and what it wants to run (e.g. `Bash: git push`). The mascot wiggles and an amber dot pulses. The alert goes away a few seconds after you switch back to Claude, or when the session moves on.
-- **Copilot key:** starts a Claude voice conversation, then minimizes Claude so you talk through the notch.
-  - If a chat is already open, voice continues in that chat. A new chat is only opened if the current view has no voice button (for example the Code tab), or if Claude isn't running.
-  - If voice is already running, pressing it does nothing.
+## What it does
 
-## Using the notch
-
-| Action | What happens |
-| --- | --- |
-| Click | Brings Claude to the front |
-| Drag | Moves it anywhere. Drop it near the top edge to snap it back into a notch. The position is remembered. |
-| Hover, then **x** | Hides it until you next switch to Claude. During a voice conversation it also ends the conversation. |
-| Mic button | Mutes or unmutes Claude (voice only) |
-| Right-click | Open Claude, End voice conversation, Hide for now, Move back to top center, Quit |
+- **Live sessions.** Every running Claude Code session, desktop or terminal, is read from
+  `~/.claude/sessions`. The notch shows the one you just left (or the one working) with its
+  name, working time, and tasks done and left: `Working 4:12 · 3 done · 2 left`. Hover over it
+  to see all sessions, and click one to jump to it. A terminal session brings its terminal
+  window forward. An app session opens Claude and selects it in the sidebar.
+- **Permission requests.** When a session needs permission while you're away from it, the notch
+  shows what it wants to run (`Bash: git push`) with **Allow** and **Deny**. If you go back to the
+  session instead, Claude asks in its own window as usual.
+- **Voice.** The shortcut (the Copilot key by default) starts a Claude voice conversation in the
+  open chat (or a new one) and minimizes Claude, so you talk through the notch. The notch shows a
+  timer, a mute button, and live bars. Its **×** ends the conversation.
+- **Typed prompts.** If there's no microphone, or you prefer typing, the shortcut opens a small
+  prompt box under the notch. Enter sends it to the Claude app (the open chat or session) or
+  starts a new Claude Code session in a terminal. You choose the default in settings and can
+  switch per prompt.
+- **Styles.** *Classic* shows the mascot and a status line. *Compact* is one slim line. *Line* is a
+  thin colored bar, and *Dot* is a small colored dot; hover either one for details. It can sit on
+  any edge of any display. Drag it and it snaps to the nearest edge.
+- **Stays out of the way.** It hides while you're looking at Claude (the app, or the terminal
+  running the session) and over fullscreen apps. **×** hides it until you go back to Claude, or for
+  15 minutes or an hour.
+- **Tray icon.** Settings, *Type a prompt*, *Repair hooks*, and *Quit*.
 
 ## Install
 
-From PowerShell in this folder:
+Run `ClaudeNotch.exe` (build it first, see below). It installs itself:
+
+1. Copies itself to `%LOCALAPPDATA%\ClaudeNotch`.
+2. Starts with Windows, through the `HKCU\...\Run` key.
+3. Adds its hooks to `~/.claude/settings.json`. The original file is kept as
+   `settings.json.claudenotch-backup`.
+4. Starts.
+
+Running a newer exe the same way updates it. Running it while it's already running opens the
+settings.
+
+Note that Claude Code reads hooks when a session starts, so sessions that were already open only
+report task counts and permission requests after they restart. Session status and working time
+work for every session right away.
+
+### Build
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1
+powershell -ExecutionPolicy Bypass -File .\build.ps1     # -> bin\ClaudeNotch.exe
+powershell -ExecutionPolicy Bypass -File .\install.ps1   # build, then run it (installs/updates)
 ```
-
-This builds the app, copies it to `%LOCALAPPDATA%\ClaudeNotch`, adds it to Windows startup, and starts it.
-To build without installing, run `build.ps1`. The output goes to `bin\ClaudeNotch.exe`.
-To preview every state without touching Claude, run `bin\ClaudeNotch.exe --demo` (about 40 seconds).
 
 No SDK is needed. It compiles with the C# compiler that ships with Windows (.NET Framework 4.x).
 
-### Claude Code hooks (permission alerts and session info)
+Other ways to run it:
 
-Add this to `~/.claude/settings.json`, using your own path. Each hook passes the event to the running notch and exits without output, so Claude Code behaves exactly as before.
-
-```json
-"hooks": {
-  "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "\"C:/Users/<you>/AppData/Local/ClaudeNotch/ClaudeNotch.exe\" --hook", "timeout": 5 }] }],
-  "Stop":             [{ "hooks": [{ "type": "command", "command": "\"C:/Users/<you>/AppData/Local/ClaudeNotch/ClaudeNotch.exe\" --hook", "timeout": 5 }] }],
-  "SessionEnd":       [{ "hooks": [{ "type": "command", "command": "\"C:/Users/<you>/AppData/Local/ClaudeNotch/ClaudeNotch.exe\" --hook", "timeout": 5 }] }],
-  "PostToolUse": [
-    { "matcher": "mcp__ccd_turn__update_plan|mcp__ccd_turn__wrap_up|TodoWrite",
-      "hooks": [{ "type": "command", "command": "\"C:/Users/<you>/AppData/Local/ClaudeNotch/ClaudeNotch.exe\" --hook", "timeout": 5 }] }
-  ],
-  "Notification": [
-    { "matcher": "permission_prompt",
-      "hooks": [{ "type": "command", "command": "\"C:/Users/<you>/AppData/Local/ClaudeNotch/ClaudeNotch.exe\" --hook", "timeout": 5 }] }
-  ],
-  "PermissionRequest": [
-    { "matcher": "*",
-      "hooks": [{ "type": "command", "command": "\"C:/Users/<you>/AppData/Local/ClaudeNotch/ClaudeNotch.exe\" --hook", "timeout": 5 }] }
-  ]
-}
-```
-
-- `UserPromptSubmit` and `Stop` give the working time.
-- The `PostToolUse` hook on the task tools gives the done/left counts.
-- `SessionEnd` clears a session.
-- `Notification` and `PermissionRequest` give the permission alerts.
+| Command | What it does |
+| --- | --- |
+| `ClaudeNotch.exe --here` | Run from where it is, without installing. Use this for testing a build. |
+| `ClaudeNotch.exe --demo` | Preview the notch's states without touching Claude (about 40 s). |
+| `ClaudeNotch.exe --settings` | Open the settings of the running copy. |
+| `ClaudeNotch.exe --uninstall` | Remove the app, its hooks, and its startup entry. |
 
 ## Uninstall
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
-```
+Use **Settings → Uninstall…**, or run `uninstall.ps1`. Only Claude Notch's own hooks are removed
+from `~/.claude/settings.json`; everything else in that file stays as it is.
 
-Remove the hooks from `~/.claude/settings.json` too.
+## Settings
+
+| Section | Options |
+| --- | --- |
+| General | Start with Windows. Answer permission requests from the notch. Keep the hooks installed (repaired automatically every 5 minutes if something removes them). |
+| Shortcut | Copilot key, your own key combination, or none. |
+| Voice and typed prompts | Voice with typing as a fallback, always type, or always voice. Send typed prompts to the app or a new terminal session. Which folder terminal sessions start in. |
+| Notch | Style, screen edge, display, position along the edge, whether to list sessions on hover. |
+| When it shows | Only when something's going on (or Claude is minimized), whenever you're away from Claude, or only for permission requests and voice. How long × hides it. How long "Done" stays. Whether to show over fullscreen apps. |
+
+Settings are saved in `%LOCALAPPDATA%\ClaudeNotch\settings.json`. Problems are written to
+`ClaudeNotch.log` in the same folder.
 
 ## How it works
 
+```
+Claude Code hooks ──stdin──> ClaudeNotch.exe --hook ──named pipe──> running notch
+                   <─stdout── (allow / deny for PermissionRequest)
+~/.claude/sessions/*.json ──polled every second──> session list
+Claude window ──UI Automation──> voice, mute, current session title, prompt box
+```
+
+- **The pipe** is `\\.\pipe\ClaudeNotch-<your user SID>`. Only your Windows user can open it, and
+  network clients are refused. The hook checks that the process on the other end is Claude Notch
+  before sending anything. If the notch isn't running, the hook prints nothing and exits, so
+  Claude Code behaves as if there were no hook.
+- **Permission requests** are held for at most 9 minutes (the hook's timeout is 10). They are
+  handed back to Claude's own prompt when you look at the session, when the session moves on,
+  or when you hide the notch.
+
 | File | What it does |
 | --- | --- |
-| `src/Program.cs` | Entry point; single instance; `--hook` relay and the named pipe it talks to; `--demo`. |
-| `src/ClaudeWatcher.cs` | Polls whether Claude is open, minimized, in front, or covered by a fullscreen app. It detects voice and mute by looking for Claude's "Turn off/on microphone" button through UI Automation, reads the current session's name from the header, and ends voice. |
-| `src/SessionTracker.cs` | Builds each session's working time and task list from the hook events. |
-| `src/NotchWindow.cs` | The notch: alert, voice, session and idle layouts; show/hide rules; drag/snap; menu; animations. |
-| `src/Mascot.cs` | The pixel mascot and its idle, talking, and alert animations. |
-| `src/CopilotKey.cs` | Low-level keyboard hook for the Copilot key (Win + Shift + F23). It presses "Use voice mode" through UI Automation and minimizes Claude once voice is up. |
-
-## Config
-
-Everything lives in `%LOCALAPPDATA%\ClaudeNotch`:
-
-- `ClaudeNotch.txt` changes the link the Copilot key opens for a new chat. For example, `https://claude.ai/new` opens the browser instead. Voice auto-start only works with the desktop app.
-- `position.txt` stores where you dragged the notch. Delete it to reset.
-- `ClaudeNotch.log` is written when something fails. If voice mode doesn't start, it lists the buttons it found. If the x can't end a voice conversation, it lists the controls next to the mic toggle.
+| `src/Program.cs` | Entry point and command-line modes; the demo. |
+| `src/Controller.cs` | Ties it together: what the notch shows and when, permission requests, the shortcut. |
+| `src/HookServer.cs` | The named pipe, both ends (`--hook` relay and the server in the notch). |
+| `src/HookInstaller.cs` | Adds, repairs, and removes the hooks in `~/.claude/settings.json`. |
+| `src/Installer.cs` | Self-install, startup entry, update, uninstall. |
+| `src/SessionScanner.cs` | Reads the live session files and checks each session's process is really alive. |
+| `src/SessionTracker.cs` | Task lists and turn timing from hook events. |
+| `src/SessionHub.cs` | Merges both into one session list. |
+| `src/ClaudeWatcher.cs` | Claude's window: open, minimized, in front, voice, mute, current session, fullscreen apps. |
+| `src/VoiceLauncher.cs` | Starts voice mode; microphone detection. |
+| `src/PromptWindow.cs`, `src/PromptSender.cs` | The typed prompt box, and sending to the app or a terminal. |
+| `src/TerminalFocus.cs` | Finds the terminal window a CLI session runs in. |
+| `src/Hotkeys.cs` | The Copilot key hook and custom shortcuts. |
+| `src/NotchWindow.cs`, `src/Mascot.cs` | The notch and its pixel mascot. |
+| `src/SettingsWindow.cs`, `src/TrayIcon.cs` | Settings and the tray icon. |
+| `src/Settings.cs`, `src/Json.cs`, `src/Log.cs`, `src/Native.cs`, `src/Theme.cs` | Shared pieces. |

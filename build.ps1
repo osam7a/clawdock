@@ -14,6 +14,9 @@ $refs = @(
     "$wpf\UIAutomationClient.dll",
     "$wpf\UIAutomationTypes.dll",
     "$fw\System.Xaml.dll",
+    "$fw\System.Core.dll",
+    "$fw\System.Drawing.dll",
+    "$fw\System.Windows.Forms.dll",
     "$fw\System.Web.Extensions.dll"
 ) | ForEach-Object { "/r:$_" }
 
