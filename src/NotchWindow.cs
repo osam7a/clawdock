@@ -347,8 +347,10 @@ namespace ClaudeNotch
             actions.Visibility = showActions ? Visibility.Visible : Visibility.Collapsed;
             list.Visibility = showList ? Visibility.Visible : Visibility.Collapsed;
 
-            double w = CardWidth(s.Kind) + (hover && !Mini ? 26 : 0);
-            if (showList || showActions) w = Math.Max(w, Compact ? 330 : 360);
+            // A notice (a permission request to answer elsewhere) is a small card with one button.
+            bool notice = alert && s.Pending == null;
+            double w = (notice ? (Compact ? 270 : 300) : CardWidth(s.Kind)) + (hover && !Mini ? 26 : 0);
+            if (showList || (showActions && !notice)) w = Math.Max(w, Compact ? 330 : 360);
             Animate(card, WidthProperty, w, 220);
             if (s.Kind == "question") header.Height = double.NaN; // the question may wrap: fit it
             else header.Height = Compact ? 30 : s.Kind == "session" || alert ? (hasTasks ? 54 : 56) : 38;

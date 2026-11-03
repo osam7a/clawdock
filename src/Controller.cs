@@ -15,7 +15,7 @@ namespace ClaudeNotch
         static readonly TimeSpan HoldPermissionFor = TimeSpan.FromMinutes(9); // the hook itself times out at 10
         static readonly TimeSpan AlertFadeAfterSeen = TimeSpan.FromSeconds(6);
 
-        class Alert { public string SessionId, Title, Detail; public DateTime At, SeenAt; }
+        class Alert { public string SessionId, Title, Detail; public bool Terminal; public DateTime At, SeenAt; }
 
         readonly Settings settings;
         readonly ClaudeWatcher watcher = new ClaudeWatcher();
@@ -112,17 +112,23 @@ namespace ClaudeNotch
             }
             // A new prompt (typed in Claude, or a button pressed there) answers its question.
             if (ev == "UserPromptSubmit" || ev == "SessionEnd") questions.RemoveAll(q => q.SessionId == sid);
+            if (ev == "UserPromptSubmit") ChoiceSender.PromptSubmitted(sid);
             if (ev == "PostToolUse" && Json.Str(d, "tool_name") == "mcp__ccd_turn__wrap_up") OnWrapUp(sid, d);
 
             if (ev == "PermissionRequest")
             {
                 string detail = DescribeTool(Json.Str(d, "tool_name"), Json.Obj(d, "tool_input"));
                 bool looking = LookingAt(sid);
+                // Only app sessions are held for Allow / Deny. A terminal session keeps waiting
+                // on the hook instead of asking, so it's handed straight back and the notch
+                // just says it needs you.
+                var session = sessions.Find(x => x.Id == sid);
+                bool desktop = session != null && session.Desktop;
                 if (p != null)
                 {
                     p.Detail = detail;
                     p.FullDetail = FullCommand(Json.Obj(d, "tool_input"));
-                    if (settings.ApproveFromNotch && !looking)
+                    if (settings.ApproveFromNotch && !looking && desktop)
                     {
                         pending.Add(p);
                         alert = null;
@@ -146,12 +152,15 @@ namespace ClaudeNotch
         void ShowAlert(string sid, Dictionary<string, object> d, string detail)
         {
             string project = ProjectName(Json.Str(d, "cwd"));
+            var session = sessions.Find(x => x.Id == sid);
+            bool terminal = session != null && !session.Desktop;
             alert = new Alert
             {
                 SessionId = sid,
                 At = DateTime.Now,
+                Terminal = terminal,
                 Title = project == "" ? "Needs your permission" : "Needs permission · " + project,
-                Detail = string.IsNullOrEmpty(detail) ? "Open Claude to respond" : detail,
+                Detail = string.IsNullOrEmpty(detail) ? (terminal ? "Answer in the terminal" : "Open Claude to respond") : detail,
             };
         }
 
@@ -182,6 +191,16 @@ namespace ClaudeNotch
         {
             var p = owner as HookServer.Pending;
             if (p != null) { Answer(p, index == 1); return; } // Deny, Allow
+
+            var a = owner as Alert;
+            if (a != null)
+            {
+                var target = sessions.Find(x => x.Id == a.SessionId);
+                if (a == alert) alert = null;
+                if (target != null) OpenSession(target); else watcher.RestoreClaude();
+                Refresh();
+                return;
+            }
 
             var q = owner as Question;
             if (q == null || !questions.Contains(q)) return;
@@ -262,6 +281,9 @@ namespace ClaudeNotch
                 st.Kind = "alert";
                 st.Title = alert.Title;
                 st.Detail = alert.Detail;
+                st.Owner = alert;
+                st.Choices = new List<string> { alert.Terminal ? "Open terminal" : "Open Claude" };
+                st.Primary = 0;
             }
             else if (voice) st.Kind = "voice";
             else if (question != null)

@@ -43,6 +43,20 @@ namespace ClaudeNotch
             return string.IsNullOrEmpty(action) ? "OK" : action.Replace('_', ' ');
         }
 
+        static readonly Dictionary<string, DateTime> submitted = new Dictionary<string, DateTime>();
+
+        // Called for every UserPromptSubmit hook: proof that an answer reached the session.
+        public static void PromptSubmitted(string sessionId)
+        {
+            lock (submitted) submitted[sessionId ?? ""] = DateTime.UtcNow;
+        }
+
+        static bool SubmittedSince(string sessionId, DateTime since)
+        {
+            DateTime at;
+            lock (submitted) return submitted.TryGetValue(sessionId ?? "", out at) && at >= since;
+        }
+
         public static void Answer(Question q, int index, string newChatLink, Action openSession, Action selectSession)
         {
             string label = q.Labels[index];
@@ -55,21 +69,28 @@ namespace ClaudeNotch
                     if (h != IntPtr.Zero)
                     {
                         var win = AutomationElement.FromHandle(h);
-                        if (Press(win, q.Ask, label, isReply)) return;
-                        if (selectSession != null)
+                        var since = DateTime.UtcNow;
+                        bool pressed = Press(win, q.Ask, label, isReply);
+                        if (!pressed && selectSession != null)
                         {
                             selectSession();
                             var clock = Stopwatch.StartNew();
-                            while (clock.ElapsedMilliseconds < 3000)
+                            while (!pressed && clock.ElapsedMilliseconds < 3000)
                             {
                                 Thread.Sleep(250);
-                                if (Press(win, q.Ask, label, isReply)) return;
+                                pressed = Press(win, q.Ask, label, isReply);
                             }
                         }
+                        // Claude can ignore a press that doesn't come from the mouse, so only trust
+                        // it once the answer shows up: a reply as a new prompt, an app action by
+                        // its box going away.
+                        if (pressed && Confirmed(win, q, label, isReply, since)) { Log.Write("Choice: pressed in Claude"); return; }
+                        Log.Write(pressed ? "Choice: Claude ignored the press" : "Choice: button not found");
                     }
                     if (isReply)
                     {
                         // Same as the button: the label goes to the session as your reply.
+                        Log.Write("Choice: sending the reply as a prompt instead");
                         Dispatch(openSession);
                         Thread.Sleep(800);
                         PromptSender.ToDesktop(label, newChatLink);
@@ -91,6 +112,16 @@ namespace ClaudeNotch
         // Finds the button near the question's text. Only falls back to the whole window for a
         // reply, and then only if exactly one button has that label.
         static bool Press(AutomationElement win, string ask, string label, bool isReply)
+        {
+            var target = FindButton(win, ask, label, isReply);
+            if (target == null || !target.Current.IsEnabled) return false;
+            object pattern;
+            if (!target.TryGetCurrentPattern(InvokePattern.Pattern, out pattern)) return false;
+            ((InvokePattern)pattern).Invoke();
+            return true;
+        }
+
+        static AutomationElement FindButton(AutomationElement win, string ask, string label, bool isReply)
         {
             var buttons = new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button);
             AutomationElement target = null;
@@ -117,12 +148,19 @@ namespace ClaudeNotch
                 var all = win.FindAll(TreeScope.Descendants, new AndCondition(buttons, new PropertyCondition(AutomationElement.NameProperty, label)));
                 if (all.Count == 1) target = all[0];
             }
-            if (target == null || !target.Current.IsEnabled) return false;
+            return target;
+        }
 
-            object pattern;
-            if (!target.TryGetCurrentPattern(InvokePattern.Pattern, out pattern)) return false;
-            ((InvokePattern)pattern).Invoke();
-            return true;
+        static bool Confirmed(AutomationElement win, Question q, string label, bool isReply, DateTime since)
+        {
+            var clock = Stopwatch.StartNew();
+            while (clock.ElapsedMilliseconds < 2500)
+            {
+                Thread.Sleep(200);
+                if (SubmittedSince(q.SessionId, since)) return true;
+                if (!isReply && FindButton(win, q.Ask, label, false) == null) return true;
+            }
+            return false;
         }
 
         static bool Matches(string name, string label)

@@ -56,7 +56,7 @@ namespace ClaudeNotch
             Page("general", "General",
                 Card(
                     Toggle("Start with Windows", "Claude Notch starts when you sign in.", s.StartWithWindows, v => s.StartWithWindows = v),
-                    Toggle("Answer permission requests", "Allow or deny from the notch while you're away from Claude. Back in Claude, it asks in its own window as usual.", s.ApproveFromNotch, v => s.ApproveFromNotch = v),
+                    Toggle("Answer permission requests", "For Claude app sessions: allow or deny from the notch while you're away. Terminal sessions get a small notice instead and ask in the terminal.", s.ApproveFromNotch, v => s.ApproveFromNotch = v),
                     Toggle("Show Claude's questions", "When a session ends with a question like \"Should I test it?\", answer from the notch. It presses the same button in Claude.", s.ShowQuestions, v => s.ShowQuestions = v)),
                 Section("Claude Code hooks"),
                 Card(

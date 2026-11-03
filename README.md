@@ -11,12 +11,13 @@ permission requests, and lets you talk or type to Claude from anywhere.
   name, working time, and tasks done and left: `Working 4:12 · 3 done · 2 left`. Hover over it
   to see all sessions, and click one to jump to it. A terminal session brings its terminal
   window forward. An app session opens Claude and selects it in the sidebar.
-- **Permission requests.** When a session needs permission while you're away from it, the notch
-  shows what it wants to run (`Bash: git push`) with **Allow** and **Deny**. If you go back to the
-  session instead, Claude asks in its own window as usual.
+- **Permission requests.** When a Claude app session needs permission while you're away from it,
+  the notch shows what it wants to run (`Bash: git push`) with **Allow** and **Deny**. If you go
+  back to the session instead, Claude asks in its own window as usual. A terminal (CLI) session
+  asks in the terminal right away; the notch shows a small notice with **Open terminal**.
 - **Claude's questions.** When a Claude app session ends its turn with a question ("Should I test
   …?") and buttons, the notch shows the same question with the same buttons, the recommended one
-  in clay. Clicking one presses that button in Claude. If it can't be found, a reply button's text
+  in clay. Clicking one presses that button in Claude. If it can't be pressed, a reply button's text
   is sent to the session as your answer, and an app action (Commit, Create PR, …) opens Claude so
   you can press it there. It goes away once you answer, in the notch or in Claude.
 - **Voice.** The shortcut (the Copilot key by default) starts a Claude voice conversation in the
