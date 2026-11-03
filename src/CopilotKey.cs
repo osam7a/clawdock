@@ -148,11 +148,13 @@ namespace ClaudeNotch
             if (InVoice(win)) return;                            // already talking to Claude
             if (IsIconic(hwnd)) ShowWindow(hwnd, SW_RESTORE);    // a hidden window can stall the voice connection
 
-            // Continue in whatever chat is open; only start a new one if this view has no voice button.
-            if (!PressVoiceButton(win, 2500))
+            // Continue in whatever chat is open; only start a new one if this view has no voice
+            // button. The open view is already loaded, so a short look is enough to tell; only
+            // after opening a new chat is it worth waiting for the button to appear.
+            if (!PressVoiceButton(win, 400, 100))
             {
                 Process.Start(new ProcessStartInfo(newChatLink) { UseShellExecute = true });
-                if (!PressVoiceButton(win, 12000)) { LogButtons(win); return; }
+                if (!PressVoiceButton(win, 12000, 100)) { LogButtons(win); return; }
             }
             TuckAwayOnceVoiceStarts(win, hwnd);
         }
@@ -188,10 +190,13 @@ namespace ClaudeNotch
         }
 
         // Polls for the voice button and presses it. False if it never shows up.
-        static bool PressVoiceButton(AutomationElement win, int timeoutMs)
+        static bool PressVoiceButton(AutomationElement win, int timeoutMs, int pollMs)
         {
-            var exact = new PropertyCondition(AutomationElement.NameProperty, VoiceButton);
-            for (int waited = 0; waited < timeoutMs; waited += 300)
+            var exact = new AndCondition(
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button),
+                new PropertyCondition(AutomationElement.NameProperty, VoiceButton));
+            var clock = Stopwatch.StartNew();
+            do
             {
                 try
                 {
@@ -204,8 +209,8 @@ namespace ClaudeNotch
                     }
                 }
                 catch { }
-                Thread.Sleep(300);
-            }
+                Thread.Sleep(pollMs);
+            } while (clock.ElapsedMilliseconds < timeoutMs); // always at least one look, however slow it was
             return false;
         }
 
@@ -214,15 +219,16 @@ namespace ClaudeNotch
         // stays in front so you can see what happened.
         static void TuckAwayOnceVoiceStarts(AutomationElement win, IntPtr hwnd)
         {
-            for (int i = 0; i < 25; i++)
+            var clock = Stopwatch.StartNew();
+            while (clock.ElapsedMilliseconds < 8000)
             {
-                Thread.Sleep(300);
                 if (InVoice(win))
                 {
-                    Thread.Sleep(400); // let voice finish connecting before hiding the window
+                    Thread.Sleep(250); // let voice finish connecting before hiding the window
                     PostMessage(hwnd, WM_SYSCOMMAND, (IntPtr)SC_MINIMIZE, IntPtr.Zero);
                     return;
                 }
+                Thread.Sleep(100);
             }
         }
 
