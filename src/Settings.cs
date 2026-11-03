@@ -29,6 +29,10 @@ namespace ClaudeNotch
         public bool QuickSpeak { get; set; }          // read answers aloud
         public string QuickVoiceName { get; set; }    // a Windows voice; empty = default
         public int QuickRate { get; set; }            // -5 (slow) .. 5 (fast)
+        public string QuickEngine { get; set; }       // speech recognition: "windows" | "local" (whisper.cpp on this PC)
+        public string QuickLocalModel { get; set; }   // "small" | "base"
+        public string QuickAccess { get; set; }       // "web": web search only | "full": your skills and connectors
+        public string QuickHistory { get; set; }      // "private": not saved | "history": one VOICE_CHATS session
 
         // Look and placement
         public string Style { get; set; }             // "classic" | "compact" | "line" | "dot"
@@ -62,6 +66,10 @@ namespace ClaudeNotch
             QuickSpeak = true;
             QuickVoiceName = "";
             QuickRate = 1;
+            QuickEngine = "windows";
+            QuickLocalModel = "small";
+            QuickAccess = "web";
+            QuickHistory = "private";
             Style = "classic";
             Edge = "top";
             EdgeOffset = 0.5;
@@ -132,6 +140,10 @@ namespace ClaudeNotch
             QuickModel = OneOf(QuickModel, "haiku", "sonnet", "opus");
             if (QuickVoiceName == null) QuickVoiceName = "";
             if (QuickRate < -5 || QuickRate > 5) QuickRate = 1;
+            QuickEngine = OneOf(QuickEngine, "windows", "local");
+            QuickLocalModel = OneOf(QuickLocalModel, "small", "base");
+            QuickAccess = OneOf(QuickAccess, "web", "full");
+            QuickHistory = OneOf(QuickHistory, "private", "history");
             PromptTarget = OneOf(PromptTarget, "desktop", "cli");
             Style = OneOf(Style, "classic", "compact", "line", "dot");
             Edge = OneOf(Edge, "top", "bottom", "left", "right");

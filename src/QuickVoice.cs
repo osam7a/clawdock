@@ -52,6 +52,10 @@ namespace ClaudeNotch
         ModernDictation modern;
         bool listeningModern, modernBroken, privacyBlocked; // privacyBlocked: online speech recognition is off
         readonly object listenGate = new object();
+        MicRecorder mic;                    // the built-in engine records, then transcribes
+        bool listeningLocal, voiced, transcribing;
+        int listenId;                       // which press a transcription belongs to
+        string runningConfig;               // the settings the running Claude Code was started with
         SpeechSynthesizer voice;
         Process claude;
         Stream claudeIn;
@@ -69,9 +73,46 @@ namespace ClaudeNotch
             Heard = Partial = Answer = Status = "";
             tick = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
             tick.Tick += (s, e) => OnTick();
+            if (settings.QuickEngine == "local") MicRecorder.WarmUp();
         }
 
         public bool Active { get { return State != Phase.Idle; } }
+        public double Level { get; private set; }   // microphone loudness, 0..1 (built-in engine)
+        public bool MicReady { get; private set; }  // audio is coming in (the microphone takes a moment to start)
+        public string HookExe { get; set; }         // ClaudeNotch.exe, for approving tools from the notch
+
+        public static readonly string Folder = Path.Combine(Settings.DataDir, "voice");
+
+        // A hook event from quick voice's own Claude Code session (not one of your sessions).
+        public static bool IsVoiceFolder(string cwd)
+        {
+            if (string.IsNullOrEmpty(cwd)) return false;
+            return cwd.Replace('/', '\\').TrimEnd('\\').StartsWith(Folder, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Tools that only look things up go ahead without asking; anything that acts asks on the notch.
+        public static bool SafeTool(string tool)
+        {
+            switch (tool)
+            {
+                case "WebSearch": case "WebFetch": case "Read": case "Glob": case "Grep": case "LS":
+                case "Skill": case "ToolSearch": case "TodoWrite": case "TaskCreate": case "TaskUpdate": case "TaskList": case "TaskGet":
+                    return true;
+            }
+            if (!tool.StartsWith("mcp__", StringComparison.Ordinal)) return false;
+            string action = tool.Substring(tool.LastIndexOf("__", StringComparison.Ordinal) + 2).ToLowerInvariant();
+            foreach (string verb in new[] { "get", "list", "search", "read", "query", "fetch", "find", "describe", "lookup", "show" })
+                if (action.StartsWith(verb)) return true;
+            return false;
+        }
+
+        // A tool is waiting for Allow / Deny on the notch.
+        public void ApprovalNeeded()
+        {
+            if (!settings.QuickSpeak || (State != Phase.Thinking && State != Phase.Answering)) return;
+            lock (unspoken) unspoken.Append("\nI need your OK for that, on the notch.\n");
+            SpeakFinishedSentences(false);
+        }
 
         // ---- the shortcut --------------------------------------------------
 
@@ -79,7 +120,7 @@ namespace ClaudeNotch
         {
             if (State == Phase.Listening) { FinishListening(); return; } // second press: that's all
             StopSpeaking();
-            if (State == Phase.Thinking || State == Phase.Answering) Interrupt();
+            if ((State == Phase.Thinking && !transcribing) || State == Phase.Answering) Interrupt();
             StartListening();
         }
 
@@ -88,7 +129,8 @@ namespace ClaudeNotch
         {
             if (State == Phase.Listening) { stopping = true; StopRecognizer(); }
             StopSpeaking();
-            if (State == Phase.Thinking || State == Phase.Answering) Interrupt();
+            if ((State == Phase.Thinking && !transcribing) || State == Phase.Answering) Interrupt();
+            transcribing = false;
             State = Phase.Idle;
             tick.Stop();
             Raise();
@@ -109,24 +151,33 @@ namespace ClaudeNotch
 
             heardParts.Clear();
             Heard = Partial = Answer = Status = "";
-            held = false; holdDecided = false; stopping = false;
+            held = false; holdDecided = false; stopping = false; voiced = false; transcribing = false;
+            listenId++;
+            Level = 0;
+            MicReady = settings.QuickEngine != "local"; // the built-in engine says when audio is flowing
             ListenStarted = lastSpeech = DateTime.Now;
             State = Phase.Listening;
             ThreadPool.QueueUserWorkItem(_ => { try { EnsureClaude(); } catch (Exception e) { Log.Write("Quick voice: " + e.Message); } }); // warm up while you talk
             tick.Start();
             Raise();
 
+            // The built-in engine (whisper.cpp) when it's chosen and downloaded.
+            listeningLocal = settings.QuickEngine == "local" && LocalSpeech.Installed(settings.QuickLocalModel);
+            if (listeningLocal) { listeningModern = false; StartLocal(); return; }
+
             // Windows' modern dictation when it's allowed (much better), else the old engine.
             listeningModern = !modernBroken && (!privacyBlocked || ModernDictation.OnlineSpeechOn);
             if (!listeningModern) { StartLegacy(); return; }
             ThreadPool.QueueUserWorkItem(_ =>
             {
+                bool fresh = false;
                 try
                 {
                     lock (listenGate)
                     {
                         if (modern == null)
                         {
+                            fresh = true;
                             var m = new ModernDictation();
                             m.Hypothesis += t => ui.BeginInvoke(new Action(() => OnPartial(t)));
                             m.Result += t => ui.BeginInvoke(new Action(() => OnPhrase(t)));
@@ -138,9 +189,63 @@ namespace ClaudeNotch
                 catch (Exception e)
                 {
                     Log.Write("Quick voice: modern speech recognition: 0x" + e.HResult.ToString("X") + " " + e.Message);
-                    if (e.HResult == ModernDictation.PrivacyNotAccepted) privacyBlocked = true; else modernBroken = true;
+                    // A recognizer whose start failed stays unusable, so make a new one next time. Only
+                    // a brand-new one failing (for a reason other than the privacy setting) means
+                    // modern dictation doesn't work here.
+                    lock (listenGate) modern = null;
+                    if (e.HResult == ModernDictation.PrivacyNotAccepted) privacyBlocked = true;
+                    else if (fresh) modernBroken = true;
                     ui.BeginInvoke(new Action(() => { if (State == Phase.Listening && !stopping) { listeningModern = false; StartLegacy(); } }));
                 }
+            });
+        }
+
+        void StartLocal()
+        {
+            try
+            {
+                if (mic == null)
+                {
+                    mic = new MicRecorder();
+                    mic.Level += (level, speech) => ui.BeginInvoke(new Action(() =>
+                    {
+                        if (State != Phase.Listening) return;
+                        Level = level;
+                        if (!MicReady) { MicReady = true; Raise(); }
+                        if (speech) { voiced = true; lastSpeech = DateTime.Now; }
+                    }));
+                }
+                mic.Start();
+            }
+            catch (Exception e) { Log.Write("Quick voice: microphone: " + e.Message); Fail("Couldn't use the microphone."); }
+        }
+
+        // The recording is done: transcribe it on this PC, then ask.
+        void FinishLocal()
+        {
+            byte[] wav = mic.Stop();
+            if (!voiced || MicRecorder.Seconds(wav) < 0.3) { Fail("Didn't catch that."); return; }
+            State = Phase.Thinking;
+            Status = "Transcribing…";
+            transcribing = true;
+            Raise();
+            int id = listenId;
+            string model = settings.QuickLocalModel;
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                string text = null;
+                var clock = Stopwatch.StartNew();
+                try { text = LocalSpeech.Transcribe(wav, model); }
+                catch (Exception e) { Log.Write("Quick voice: transcribing: " + e.Message); }
+                if (Log.Verbose) Log.Write("Quick voice: transcribed " + MicRecorder.Seconds(wav).ToString("0.0") + " s in " + clock.ElapsedMilliseconds + " ms");
+                ui.BeginInvoke(new Action(() =>
+                {
+                    if (id != listenId || !transcribing) return; // cut off meanwhile
+                    transcribing = false;
+                    if (string.IsNullOrEmpty(text)) { Fail(text == null ? "Couldn't transcribe that." : "Didn't catch that."); return; }
+                    Heard = text;
+                    Ask(text);
+                }));
             });
         }
 
@@ -196,7 +301,7 @@ namespace ClaudeNotch
             var now = DateTime.Now;
             if (State == Phase.Listening && !stopping)
             {
-                bool any = heardParts.Count > 0 || Partial != "";
+                bool any = heardParts.Count > 0 || Partial != "" || voiced;
                 if (!holdDecided && now - ListenStarted >= HoldThreshold) { holdDecided = true; held = Hotkeys.Held; }
                 if (held && !Hotkeys.Held) FinishListening();              // let go of the key
                 else if (!held && holdDecided && any && now - lastSpeech > EndSilence) FinishListening();
@@ -212,6 +317,7 @@ namespace ClaudeNotch
         {
             if (stopping) return;
             stopping = true;
+            if (listeningLocal) { FinishLocal(); return; }
             if (listeningModern)
             {
                 // Stopping finishes the phrase being spoken; its result is queued before this.
@@ -242,6 +348,7 @@ namespace ClaudeNotch
 
         void StopRecognizer()
         {
+            if (listeningLocal && mic != null) { try { mic.Stop(); } catch { } }
             try { if (recognizer != null) recognizer.RecognizeAsyncCancel(); } catch { }
             if (modern != null) ThreadPool.QueueUserWorkItem(_ => { lock (listenGate) { if (modern != null) modern.Cancel(); } });
         }
@@ -316,22 +423,49 @@ namespace ClaudeNotch
         {
             lock (gate)
             {
-                if (claude != null && !claude.HasExited && DateTime.Now - lastUsed < IdleExit) return;
+                string config = settings.QuickModel + "|" + settings.QuickAccess + "|" + settings.QuickHistory;
+                if (claude != null && !claude.HasExited && DateTime.Now - lastUsed < IdleExit && config == runningConfig) return;
                 KillClaude();
                 string exe = FindClaude();
                 if (exe == null) throw new FileNotFoundException("claude.exe");
-                string folder = Path.Combine(Settings.DataDir, "voice");
+                string folder = Folder;
                 Directory.CreateDirectory(folder);
                 var args = new List<string>
                 {
                     "-p", "--input-format", "stream-json", "--output-format", "stream-json",
                     "--include-partial-messages", "--verbose",
                     "--model", settings.QuickModel,
-                    "--tools", "WebSearch,WebFetch", "--allowedTools", "WebSearch,WebFetch", // nothing else, so nothing to ask about
-                    "--setting-sources", "",          // no hooks or plugins: it isn't one of your sessions
-                    "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence",
-                    "--append-system-prompt", VoiceInstructions(),
                 };
+                if (settings.QuickAccess == "full")
+                {
+                    // Like a normal session: your settings, skills, plugins and connectors. Tools that
+                    // act (not just look things up) wait for Allow on the notch.
+                    args.AddRange(new[] { "--setting-sources", "user", "--settings", ApprovalHookFile() });
+                }
+                else
+                {
+                    args.AddRange(new[]
+                    {
+                        "--tools", "WebSearch,WebFetch", "--allowedTools", "WebSearch,WebFetch", // nothing else, so nothing to ask about
+                        "--setting-sources", "",          // no hooks or plugins: it isn't one of your sessions
+                        "--strict-mcp-config", "--disable-slash-commands",
+                    });
+                }
+                if (settings.QuickHistory == "history")
+                {
+                    // One conversation, VOICE_CHATS, picked up again each time.
+                    string id = HistorySession();
+                    if (id != null) args.AddRange(new[] { "--resume", id });
+                    else
+                    {
+                        id = Guid.NewGuid().ToString();
+                        try { File.WriteAllText(HistoryIdFile, id); } catch { }
+                        args.AddRange(new[] { "--session-id", id, "-n", "VOICE_CHATS" });
+                    }
+                }
+                else args.Add("--no-session-persistence");
+                args.AddRange(new[] { "--append-system-prompt", VoiceInstructions() });
+                runningConfig = config;
                 var psi = new ProcessStartInfo(exe, JoinArgs(args))
                 {
                     UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = folder,
@@ -348,6 +482,37 @@ namespace ClaudeNotch
                 p.ErrorDataReceived += (s, e) => { if (!string.IsNullOrEmpty(e.Data) && Log.Verbose) Log.Write("Quick voice stderr: " + e.Data); };
                 p.BeginErrorReadLine();
             }
+        }
+
+        static string HistoryIdFile { get { return Path.Combine(Folder, "VOICE_CHATS.id"); } }
+
+        // The VOICE_CHATS session to resume, if it's still in Claude Code's history.
+        static string HistorySession()
+        {
+            try
+            {
+                if (!File.Exists(HistoryIdFile)) return null;
+                string id = File.ReadAllText(HistoryIdFile).Trim();
+                Guid g;
+                if (!Guid.TryParse(id, out g)) return null;
+                string projects = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "projects");
+                return Directory.Exists(projects) && Directory.GetFiles(projects, id + ".jsonl", SearchOption.AllDirectories).Length > 0 ? id : null;
+            }
+            catch { return null; }
+        }
+
+        // A settings file adding one hook: before each tool runs, ask the notch.
+        string ApprovalHookFile()
+        {
+            string exe = string.IsNullOrEmpty(HookExe) ? Installer.CurrentExe : HookExe;
+            var hook = new Dictionary<string, object> { { "type", "command" }, { "command", "\"" + exe.Replace('\\', '/') + "\" --voice-hook" }, { "timeout", 600 } };
+            var root = new Dictionary<string, object>
+            {
+                { "hooks", new Dictionary<string, object> { { "PreToolUse", new List<object> { new Dictionary<string, object> { { "matcher", "*" }, { "hooks", new List<object> { hook } } } } } } },
+            };
+            string file = Path.Combine(Folder, "notch-approval.json");
+            File.WriteAllText(file, Json.Write(root), new UTF8Encoding(false));
+            return file;
         }
 
         void KillClaude()

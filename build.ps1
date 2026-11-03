@@ -18,6 +18,8 @@ $refs = @(
     "$fw\System.Drawing.dll",
     "$fw\System.Windows.Forms.dll",
     "$fw\System.Web.Extensions.dll",
+    "$fw\System.IO.Compression.dll",
+    "$fw\System.IO.Compression.FileSystem.dll",
     "$wpf\System.Speech.dll",
     # Windows Runtime, for modern dictation
     "$fw\System.Runtime.dll",
@@ -29,6 +31,6 @@ $refs = @(
 
 $sources = Get-ChildItem (Join-Path $PSScriptRoot 'src') -Filter *.cs | ForEach-Object FullName
 
-& "$fw\csc.exe" /nologo /target:winexe /optimize "/out:$out\ClaudeNotch.exe" @refs @sources
+& "$fw\csc.exe" /nologo /codepage:65001 /target:winexe /optimize "/out:$out\ClaudeNotch.exe" @refs @sources
 if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
 Write-Host "Built $out\ClaudeNotch.exe"

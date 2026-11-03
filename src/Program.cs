@@ -17,7 +17,8 @@ namespace ClaudeNotch
         static void Main(string[] args)
         {
             string mode = args.Length > 0 ? args[0].ToLowerInvariant() : "";
-            if (mode == "--hook") { HookServer.RunHookClient(); return; }
+            if (mode == "--hook") { HookServer.RunHookClient(false); return; }
+            if (mode == "--voice-hook") { HookServer.RunHookClient(true); return; }
             if (mode == "--demo") { Demo(); return; }
             if (mode == "--uninstall")
             {

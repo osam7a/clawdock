@@ -30,6 +30,9 @@ namespace ClaudeNotch
         public const string Allow = "{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}";
         public const string Deny = "{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"deny\",\"message\":\"Denied from Claude Notch.\"}}}";
         public const string NoDecision = "{}";
+        // Quick voice approves its tools before they run (its background session has no prompt to answer).
+        public const string PreAllow = "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"allow\",\"permissionDecisionReason\":\"Allowed from Claude Notch.\"}}";
+        public const string PreDeny = "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Denied from Claude Notch.\"}}";
 
         // Raised on the UI thread. Pending is set for a request that is waiting for an answer.
         public event Action<Dictionary<string, object>, Pending> HookReceived;
@@ -43,6 +46,7 @@ namespace ClaudeNotch
             static int nextId;
             public readonly int Id = Interlocked.Increment(ref nextId);
             public string SessionId, Tool, Detail, FullDetail, Cwd;
+            public string AllowReply = Allow, DenyReply = Deny;
             public DateTime At = DateTime.Now;
             internal NamedPipeServerStream Pipe;
             int settled;
@@ -178,15 +182,16 @@ namespace ClaudeNotch
         // ---- client side ---------------------------------------------------
 
         // `ClaudeNotch.exe --hook`: forwards the hook JSON on stdin to the notch. For a
-        // PermissionRequest it waits for the notch's answer and prints it. If the notch isn't
+        // PermissionRequest it waits for the notch's answer and prints it. `--voice-hook` (quick voice's
+        // PreToolUse) always waits. If the notch isn't
         // running, it prints nothing, so Claude Code behaves as if there were no hook.
-        public static void RunHookClient()
+        public static void RunHookClient(bool alwaysWait)
         {
             try
             {
                 string input = ReadStdin(MaxFrame);
                 if (input == null) return;
-                bool wait = input.IndexOf("\"PermissionRequest\"", StringComparison.Ordinal) >= 0;
+                bool wait = alwaysWait || input.IndexOf("\"PermissionRequest\"", StringComparison.Ordinal) >= 0;
 
                 using (var pipe = Connect(500))
                 {

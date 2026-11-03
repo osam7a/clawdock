@@ -29,6 +29,7 @@ namespace ClaudeNotch
         readonly Border previewNotch = new Border();
         readonly Button save;
         bool built, dirty;
+        volatile bool closing;
 
         public SettingsWindow(Settings settings, Controller controller)
         {
@@ -99,6 +100,49 @@ namespace ClaudeNotch
                 try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:privacy-speech") { UseShellExecute = true }); }
                 catch (Exception ex) { Log.Write("Couldn't open speech settings: " + ex.Message); }
             };
+            // The built-in engine: pick a model, download it if it's missing.
+            var localStatus = new TextBlock { FontSize = 11.5, Foreground = p.Sub, Margin = new Thickness(2, 6, 0, 0), TextWrapping = TextWrapping.Wrap, MaxWidth = 230 };
+            var download = new Button { Content = "Download", Margin = new Thickness(8, 0, 0, 0) };
+            string localModel = s.QuickLocalModel;
+            bool downloading = false;
+            Action showLocal = () =>
+            {
+                if (downloading) return;
+                bool have = LocalSpeech.Installed(localModel);
+                localStatus.Text = have ? "✓  Ready" : "Needs a " + (LocalSpeech.DownloadBytes(localModel) / 1048576) + " MB download.";
+                download.Visibility = have ? Visibility.Collapsed : Visibility.Visible;
+            };
+            var modelCombo = Combo(new[] { "small", "Accurate (190 MB)", "base", "Fast (60 MB)" }, s.QuickLocalModel, v => { s.QuickLocalModel = v; localModel = v; showLocal(); });
+            modelCombo.Width = 150;
+            download.Click += (a, b) =>
+            {
+                downloading = true;
+                download.IsEnabled = false;
+                modelCombo.IsEnabled = false;
+                string key = localModel;
+                var ui = Dispatcher;
+                new System.Threading.Thread(() =>
+                {
+                    string error = null;
+                    try
+                    {
+                        LocalSpeech.Install(key, f => ui.BeginInvoke(new Action(() => localStatus.Text = "Downloading… " + (int)(f * 100) + "%")), () => closing);
+                    }
+                    catch (OperationCanceledException) { return; }
+                    catch (Exception ex) { error = ex.Message; Log.Write("Built-in speech download: " + ex.Message); }
+                    ui.BeginInvoke(new Action(() =>
+                    {
+                        downloading = false;
+                        download.IsEnabled = true;
+                        modelCombo.IsEnabled = true;
+                        showLocal();
+                        if (error != null) localStatus.Text = "Download failed: " + error;
+                    }));
+                }) { IsBackground = true }.Start();
+            };
+            showLocal();
+            var localPanel = new StackPanel { Children = { new StackPanel { Orientation = Orientation.Horizontal, Children = { modelCombo, download } }, localStatus } };
+
             Page("voice", "Voice and prompts",
                 Card(
                     Row("When I press the shortcut", VoiceLauncher.HasMicrophone() ? "A microphone is available." : "No microphone found right now, so the shortcut opens a prompt box.",
@@ -106,10 +150,17 @@ namespace ClaudeNotch
                 Hint("Quick voice is push to talk: hold the shortcut while you speak (or press it and talk), and Claude's answer appears on the notch and is read aloud. Press again to cut it off. It runs Claude Code in the background, so you don't need the app open."),
                 Section("Quick voice"),
                 Card(
-                    Row("Speech recognition", ModernDictation.OnlineSpeechOn
-                            ? "Using Windows online speech recognition, the same as Win+H voice typing."
-                            : "Turn on Online speech recognition in Windows for much better accuracy. Until then the older, offline engine is used.",
+                    Row("Speech recognition", "Built in runs Whisper on this PC: accurate, and nothing leaves your computer.",
+                        Combo(new[] { "local", "Built in (Whisper)", "windows", "Windows speech recognition" }, s.QuickEngine, v => s.QuickEngine = v)),
+                    Row("Built-in model", "English only. Downloaded once from the whisper.cpp project, then checked.", localPanel),
+                    Row("Windows speech recognition", ModernDictation.OnlineSpeechOn
+                            ? "Uses Windows online speech recognition, the same as Win+H voice typing."
+                            : "Turn on Online speech recognition in Windows for better accuracy. Until then an older offline engine is used.",
                         speechSettings),
+                    Row("What it can use", "With skills and connectors, anything beyond looking things up asks for your OK on the notch first.",
+                        Combo(new[] { "web", "Web search only (fastest)", "full", "Your skills and connectors" }, s.QuickAccess, v => s.QuickAccess = v)),
+                    Row("History", "VOICE_CHATS keeps one ongoing conversation in your Claude Code history, picked up each time.",
+                        Combo(new[] { "private", "Private, not saved", "history", "One chat: VOICE_CHATS" }, s.QuickHistory, v => s.QuickHistory = v)),
                     Row("Model", "Haiku answers fastest.",
                         Combo(new[] { "haiku", "Haiku", "sonnet", "Sonnet", "opus", "Opus" }, s.QuickModel, v => s.QuickModel = v)),
                     Toggle("Read answers aloud", "Otherwise answers only appear on the notch.", s.QuickSpeak, v => s.QuickSpeak = v),
@@ -212,6 +263,7 @@ namespace ClaudeNotch
             save = new Button { Content = "Save", IsDefault = true, MinWidth = 92, Style = (Style)Resources["Primary"], Margin = new Thickness(8, 0, 0, 0), IsEnabled = false };
             save.Click += (a, b) => Save();
             var cancel = new Button { Content = "Close", IsCancel = true, MinWidth = 92 };
+            Closed += (a, b) => closing = true; // stops a download in progress
             Closing += (a, b) =>
             {
                 if (!dirty) return;

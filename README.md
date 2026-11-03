@@ -26,13 +26,20 @@ permission requests, and lets you talk or type to Claude from anywhere.
 - **Quick voice.** Push to talk, without opening Claude. Hold the shortcut while you speak (or
   press it once and talk); let go and the question goes to a Claude Code session running in the
   background. The answer streams onto the notch and is read aloud with a Windows voice, sentence
-  by sentence. Press the shortcut again to cut it off and ask something else. Follow-ups keep the
-  conversation's context for 15 minutes. It can search the web, nothing else. Answers follow the
+  by sentence. Press the shortcut again to cut it off and ask something else. Answers follow the
   `voice-replies` skill (`~/.claude/skills/voice-replies/SKILL.md`, written on first use and
   yours to edit): short, plain spoken sentences, no markdown or links. Needs Claude Code signed
-  in (`claude auth login`). Listening uses Windows' online speech recognition (the engine behind
-  Win+H voice typing) when it's turned on in Settings → Privacy & security → Speech, and the
-  older offline engine otherwise.
+  in (`claude auth login`).
+  - *Speech recognition:* **built in** runs [whisper.cpp](https://github.com/ggml-org/whisper.cpp)
+    (MIT) with an English Whisper model on your PC, downloaded once from settings (Accurate,
+    190 MB, or Fast, 60 MB) and checked against its SHA-256; nothing leaves the computer. Or
+    **Windows**: its online speech recognition (the Win+H engine) when that's turned on in
+    Settings → Privacy & security → Speech, else the older offline engine.
+  - *What it can use:* web search only (fastest), or **your skills and connectors**, like a normal
+    session. Then anything beyond looking things up (sending, creating, running commands) waits
+    for **Allow** on the notch.
+  - *History:* private (nothing saved; follow-ups keep context for 15 minutes), or **one chat,
+    VOICE_CHATS**, in your Claude Code history, picked up again each time.
 - **Typed prompts.** If there's no microphone, or you prefer typing, the shortcut opens a small
   prompt box under the notch. Enter sends it to the Claude app (the open chat or session) or
   starts a new Claude Code session in a terminal. You choose the default in settings and can
@@ -91,7 +98,7 @@ from `~/.claude/settings.json`; everything else in that file stays as it is.
 | --- | --- |
 | General | Start with Windows. Answer permission requests from the notch. Show Claude's questions with their choices. Keep the hooks installed (repaired automatically every 5 minutes if something removes them). |
 | Shortcut | Copilot key, your own key combination, or none. |
-| Voice and typed prompts | Voice with typing as a fallback, always type, always voice, or quick voice. Quick voice: model, reading answers aloud, the voice and its speed, and editing the answer style. Send typed prompts to the app or a new terminal session. Which folder terminal sessions start in. |
+| Voice and typed prompts | Voice with typing as a fallback, always type, always voice, or quick voice. Quick voice: speech recognition (built in or Windows), what it can use, history, model, reading answers aloud, the voice and its speed, and editing the answer style. Send typed prompts to the app or a new terminal session. Which folder terminal sessions start in. |
 | Notch | Style, screen edge, display, position along the edge, whether to list sessions on hover. |
 | When it shows | Only when something's going on (or Claude is minimized), whenever you're away from Claude, or only for permission requests and voice. How long × hides it. How long "Done" stays. Whether to show over fullscreen apps. |
 
@@ -129,6 +136,7 @@ Claude window ──UI Automation──> voice, mute, current session title, pro
 | `src/VoiceLauncher.cs` | Starts voice mode; microphone detection. |
 | `src/QuickVoice.cs` | Quick voice: speech recognition, the background Claude Code session, reading answers aloud, the voice-replies skill. |
 | `src/ModernDictation.cs` | Windows' modern (online) dictation, used by quick voice when allowed. |
+| `src/LocalSpeech.cs`, `src/MicRecorder.cs` | The built-in speech recognition (whisper.cpp): download, checks, transcribing; recording the microphone. |
 | `src/PromptWindow.cs`, `src/PromptSender.cs` | The typed prompt box, and sending to the app or a terminal. |
 | `src/TerminalFocus.cs` | Finds the terminal window a CLI session runs in. |
 | `src/Hotkeys.cs` | The Copilot key hook and custom shortcuts. |

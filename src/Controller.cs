@@ -43,7 +43,7 @@ namespace ClaudeNotch
             hub.FinishedFor = TimeSpan.FromSeconds(settings.FinishedSeconds);
             notch = new NotchWindow(settings);
             tray = new TrayIcon();
-            quick = new QuickVoice(settings);
+            quick = new QuickVoice(settings) { HookExe = HookExe };
             quick.Changed += Refresh;
 
             notch.OpenPrimary += OpenPrimary;
@@ -104,6 +104,7 @@ namespace ClaudeNotch
 
         void OnHook(Dictionary<string, object> d, HookServer.Pending p)
         {
+            if (QuickVoice.IsVoiceFolder(Json.Str(d, "cwd"))) { OnVoiceHook(d, p); return; }
             hub.Tracker.Apply(d);
             string ev = Json.Str(d, "hook_event_name");
             string sid = Json.Str(d, "session_id");
@@ -191,6 +192,22 @@ namespace ClaudeNotch
             if (q.Labels.Count > 0) questions.Add(q);
         }
 
+        // Quick voice's own session isn't one of yours: only its tool approvals matter. Look-ups go
+        // ahead; anything that acts waits for Allow / Deny on the notch.
+        void OnVoiceHook(Dictionary<string, object> d, HookServer.Pending p)
+        {
+            if (p == null) return;
+            string tool = Json.Str(d, "tool_name");
+            if (Json.Str(d, "hook_event_name") != "PreToolUse" || QuickVoice.SafeTool(tool)) { p.Respond(HookServer.PreAllow); return; }
+            p.Detail = DescribeTool(tool, Json.Obj(d, "tool_input"));
+            p.FullDetail = FullCommand(Json.Obj(d, "tool_input"));
+            p.AllowReply = HookServer.PreAllow;
+            p.DenyReply = HookServer.PreDeny;
+            pending.Add(p);
+            quick.ApprovalNeeded();
+            Refresh();
+        }
+
         void OnChoose(object owner, int index)
         {
             var p = owner as HookServer.Pending;
@@ -229,7 +246,7 @@ namespace ClaudeNotch
         void Answer(HookServer.Pending p, bool allow)
         {
             if (!pending.Contains(p)) return; // already handed back to Claude
-            p.Respond(allow ? HookServer.Allow : HookServer.Deny);
+            p.Respond(allow ? p.AllowReply : p.DenyReply);
             pending.Remove(p);
             Refresh();
         }
@@ -240,6 +257,7 @@ namespace ClaudeNotch
         {
             var now = DateTime.Now;
             sessions = hub.Build(scanner.Latest, now);
+            sessions.RemoveAll(x => QuickVoice.IsVoiceFolder(x.Cwd)); // quick voice's own session
             bool looking = watcher.ClaudeInFront || ForegroundIsTerminalOf(null);
             if (looking && !wasLooking && settings.DismissFor == "return") dismissedUntil = DateTime.MinValue;
             wasLooking = looking;
@@ -273,7 +291,7 @@ namespace ClaudeNotch
                 st.Kind = "alert";
                 st.Pending = p;
                 st.MorePending = pending.Count - 1;
-                string project = ProjectName(p.Cwd);
+                string project = QuickVoice.IsVoiceFolder(p.Cwd) ? "Quick voice" : ProjectName(p.Cwd);
                 st.Title = "Allow " + (p.Tool == "" ? "this" : p.Tool) + "?" + (project == "" ? "" : " · " + project);
                 st.Detail = string.IsNullOrEmpty(p.Detail) ? "Claude Code wants to continue" : p.Detail;
                 st.Owner = p;
@@ -350,14 +368,14 @@ namespace ClaudeNotch
                     st.VoiceStarted = quick.ListenStarted;
                     st.Title = "Listening";
                     string said = (quick.Heard + " " + quick.Partial).Trim();
-                    st.Detail = said != "" ? Tail(said, 160) : Hotkeys.Held ? "Let go when you're done" : "Go ahead, I'm listening";
+                    st.Detail = said != "" ? Tail(said, 160) : !quick.MicReady ? "One moment…" : Hotkeys.Held ? "Go ahead, let go when you're done" : "Go ahead, I'm listening";
                     break;
                 case QuickVoice.Phase.Error:
                     st.Title = "Quick voice";
                     st.Detail = quick.Status;
                     break;
                 default:
-                    st.Title = "“" + Tail(quick.Heard, 70) + "”";
+                    st.Title = quick.Heard == "" ? "Transcribing" : "“" + Tail(quick.Heard, 70) + "”";
                     st.Answering = quick.Answer != "";
                     st.Busy = quick.Speaking || quick.State == QuickVoice.Phase.Thinking;
                     string answer = QuickVoice.WithoutSources(quick.Answer);
@@ -495,7 +513,14 @@ namespace ClaudeNotch
 
         void Dismiss()
         {
-            if (quick.Active) { quick.Dismiss(); return; }
+            if (quick.Active)
+            {
+                // Stop quick voice, and say no to anything it was waiting to do.
+                foreach (var p in pending.ToArray())
+                    if (QuickVoice.IsVoiceFolder(p.Cwd)) { p.Respond(p.DenyReply); pending.Remove(p); }
+                quick.Dismiss();
+                return;
+            }
             if (watcher.InVoice) watcher.EndVoice();
             ReleasePending(null);
             alert = null;
@@ -545,6 +570,7 @@ namespace ClaudeNotch
             else if (hooksWere) HookInstaller.Uninstall();
             if (!settings.ApproveFromNotch) ReleasePending(null);
             if (settings.VoiceMode == "quick") QuickVoice.EnsureSkill();
+            if (settings.VoiceMode == "quick" && settings.QuickEngine == "local") MicRecorder.WarmUp();
             Refresh();
         }
 
