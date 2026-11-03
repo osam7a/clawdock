@@ -462,7 +462,7 @@ namespace ClaudeNotch
                     var content = new List<object>
                     {
                         new Dictionary<string, object> { { "type", "text" }, { "text", text } },
-                        new Dictionary<string, object> { { "type", "text" }, { "text", CardReminder } },
+                        new Dictionary<string, object> { { "type", "text" }, { "text", Reminder() } },
                     };
                     var msg = new Dictionary<string, object>
                     {
@@ -569,6 +569,7 @@ namespace ClaudeNotch
                 };
                 var p = Process.Start(psi);
                 claude = p;
+                instructionsSent = settings.QuickHistory != "history"; // a new conversation has them in its system prompt
                 claudeIn = p.StandardInput.BaseStream;
                 ignoreTurns = 0;
                 lastUsed = DateTime.Now;
@@ -1096,6 +1097,19 @@ namespace ClaudeNotch
             if (m.Success) text = text.Substring(m.Length);
             return "You are answering by voice, through Claude Notch. Your reply is read aloud and shown on a panel at the edge of the screen. Today is "
                 + DateTime.Now.ToString("dddd d MMMM yyyy", CultureInfo.InvariantCulture) + ".\n\n" + CardFormat + "\n\n" + text.Trim();
+        }
+
+        // A resumed conversation (VOICE_CHATS) keeps the system prompt it was started with, so new
+        // instructions (cards, today's date, your edits to the skill) never reach it that way. The
+        // first question after each start carries them in full instead; the rest a short reminder.
+        volatile bool instructionsSent;
+
+        string Reminder()
+        {
+            if (instructionsSent) return CardReminder;
+            instructionsSent = true;
+            return "<system-reminder>Claude Notch's current instructions for this conversation. They replace any earlier ones.\n\n"
+                + VoiceInstructions() + "</system-reminder>";
         }
 
         const string CardReminder =

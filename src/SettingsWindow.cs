@@ -198,9 +198,9 @@ namespace ClaudeNotch
             var naturalPanel = new StackPanel { Children = { new StackPanel { Orientation = Orientation.Horizontal, Children = { naturalCombo, naturalDownload, naturalPlay } }, naturalStatus } };
 
             // ElevenLabs: your API key (kept encrypted), then a voice from your account.
-            var elevenKey = new PasswordBox { Width = 230, Password = ElevenLabs.Unseal(s.ElevenLabsKey), ToolTip = "Your ElevenLabs API key (elevenlabs.io → Developers → API keys)" };
+            var elevenKey = new PasswordBox { Width = 190, Password = ElevenLabs.Unseal(s.ElevenLabsKey), ToolTip = "Your ElevenLabs API key (elevenlabs.io → Developers → API keys)" };
             var elevenStatus = new TextBlock { FontSize = 11.5, Foreground = p.Sub, Margin = new Thickness(2, 6, 0, 0), TextWrapping = TextWrapping.Wrap, MaxWidth = 230 };
-            var elevenVoices = new ComboBox { Width = 150 };
+            var elevenVoices = new ComboBox { Width = 190 };
             var elevenLoad = new Button { Content = "Check", Margin = new Thickness(8, 0, 0, 0), ToolTip = "Check the key and load your voices" };
             var elevenPlay = new Button { Content = "▶ Play", Margin = new Thickness(8, 0, 0, 0), ToolTip = "Hear this voice" };
             bool fillingVoices = false;
@@ -282,8 +282,21 @@ namespace ClaudeNotch
             };
             showEleven();
             if (s.QuickTts == "elevenlabs" && elevenKey.Password != "") loadVoices();
-            var elevenKeyPanel = new StackPanel { Children = { elevenKey, elevenStatus } };
-            var elevenVoicePanel = new StackPanel { Orientation = Orientation.Horizontal, Children = { elevenVoices, elevenLoad, elevenPlay } };
+            var elevenKeyPanel = new StackPanel { Children = { new StackPanel { Orientation = Orientation.Horizontal, Children = { elevenKey, elevenLoad } }, elevenStatus } };
+            var elevenVoicePanel = new StackPanel { Orientation = Orientation.Horizontal, Children = { elevenVoices, elevenPlay } };
+
+            // Only the rows for the speech recognition you picked are shown.
+            var localModelRow = Row("Built-in model", "English only. Downloaded once from the whisper.cpp project, then checked.", localPanel);
+            var windowsSpeechRow = Row("Windows speech recognition", ModernDictation.OnlineSpeechOn
+                    ? "Uses Windows online speech recognition, the same as Win+H voice typing."
+                    : "Turn on Online speech recognition in Windows for better accuracy. Until then an older offline engine is used.",
+                speechSettings);
+            Action showEngineRows = () =>
+            {
+                localModelRow.Visibility = s.QuickEngine == "local" ? Visibility.Visible : Visibility.Collapsed;
+                windowsSpeechRow.Visibility = s.QuickEngine == "windows" ? Visibility.Visible : Visibility.Collapsed;
+            };
+            showEngineRows();
 
             // Only the rows for the reading voice you picked are shown.
             var naturalRow = Row("Natural voice", "Downloaded once from the sherpa-onnx project, then checked. Until it's ready, the Windows voice reads.", naturalPanel);
@@ -306,12 +319,9 @@ namespace ClaudeNotch
                 Section("Quick voice"),
                 Card(
                     Row("Speech recognition", "Built in runs Whisper on this PC: accurate, and nothing leaves your computer.",
-                        Combo(new[] { "local", "Built in (Whisper)", "windows", "Windows speech recognition" }, s.QuickEngine, v => s.QuickEngine = v)),
-                    Row("Built-in model", "English only. Downloaded once from the whisper.cpp project, then checked.", localPanel),
-                    Row("Windows speech recognition", ModernDictation.OnlineSpeechOn
-                            ? "Uses Windows online speech recognition, the same as Win+H voice typing."
-                            : "Turn on Online speech recognition in Windows for better accuracy. Until then an older offline engine is used.",
-                        speechSettings),
+                        Combo(new[] { "local", "Built in (Whisper)", "windows", "Windows speech recognition" }, s.QuickEngine, v => { s.QuickEngine = v; showEngineRows(); })),
+                    localModelRow,
+                    windowsSpeechRow,
                     Row("What it can use", "With skills and connectors, anything beyond looking things up asks for your OK on the notch first.",
                         Combo(new[] { "web", "Web search only (fastest)", "full", "Your skills and connectors" }, s.QuickAccess, v => s.QuickAccess = v)),
                     Row("History", "VOICE_CHATS keeps one ongoing conversation in your Claude Code history, picked up each time.",
