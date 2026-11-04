@@ -224,7 +224,8 @@ namespace Clawdock
         // Must be what the release says it is, and really this app at that version.
         public static void Verify(string path, Release release)
         {
-            if (release.Sha256 != "" && !string.Equals(Sha256Of(path), release.Sha256, StringComparison.OrdinalIgnoreCase))
+            if (release.Sha256 == "") throw new InvalidDataException("the release doesn't give a checksum");
+            if (!string.Equals(Sha256Of(path), release.Sha256, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("the download doesn't match the release's checksum");
             AssemblyName name;
             try { name = AssemblyName.GetAssemblyName(path); }
@@ -235,7 +236,7 @@ namespace Clawdock
                 throw new InvalidDataException("the download is version " + name.Version + ", not " + release.Tag);
         }
 
-        static string Sha256Of(string path)
+        internal static string Sha256Of(string path)
         {
             using (var sha = SHA256.Create())
             using (var f = File.OpenRead(path))

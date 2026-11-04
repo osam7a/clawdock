@@ -66,12 +66,13 @@ namespace Clawdock.Tests
             {
                 string junk = Path.Combine(dir, "junk.exe");
                 File.WriteAllText(junk, "not a program");
-                Refused(junk, new Updater.Release { Tag = "v9.9.9", Sha256 = "" }, "isn't this app");
+                Refused(junk, new Updater.Release { Tag = "v9.9.9", Sha256 = Updater.Sha256Of(junk) }, "isn't this app");
                 Refused(junk, new Updater.Release { Tag = "v9.9.9", Sha256 = "00" }, "checksum");
+                Refused(junk, new Updater.Release { Tag = "v9.9.9", Sha256 = "" }, "checksum");
 
                 // A real .NET program, but not this app.
                 string other = typeof(UpdaterTests).Assembly.Location;
-                Refused(other, new Updater.Release { Tag = "v9.9.9", Sha256 = "" }, "Clawdock.Tests");
+                Refused(other, new Updater.Release { Tag = "v9.9.9", Sha256 = Updater.Sha256Of(other) }, "Clawdock.Tests");
             }
             finally { Directory.Delete(dir, true); }
         }
