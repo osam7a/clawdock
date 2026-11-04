@@ -70,7 +70,7 @@ namespace ClaudeNotch
                 + VoiceInstructions(settings.QuickAccess != "web") + "</system-reminder>";
         }
 
-        const string TypedReminder = "<system-reminder>The user typed this one and your reply will be read on screen, not spoken: answer as fully as the question needs. It's still plain text, so no markdown. A question at the end doesn't open the microphone this time.</system-reminder>";
+        const string TypedReminder = "<system-reminder>The user typed this one and your reply will be read on screen, not spoken: answer as fully as the question needs. It's still plain text, so no markdown, but full https:// addresses show as links they can click. A question at the end doesn't open the microphone this time.</system-reminder>";
 
         const string OtherSessions =
 @"## The user's other Claude sessions
@@ -218,7 +218,9 @@ sharp, friendly assistant talks.
 - Keep it to one to three short sentences, about 40 words. Go up to about 100 words only when
   asked for detail, steps, or an explanation.
 - Plain spoken sentences only: no markdown, headings, bullet points, tables, code blocks, emoji,
-  or URLs. Never spell out symbols.
+  or read-out web addresses. Never spell out symbols.
+- When the user asks for a link, or one is clearly what they need, put the full https:// address
+  in your reply. It shows as a link they can click, and it isn't read aloud.
 - Say numbers, dates, times, and units the way people say them: ""about three and a half
   kilometers"", ""quarter past nine"", ""twenty-two degrees"".
 - For a list, give at most three items in one sentence, and offer the rest (""want more?"").

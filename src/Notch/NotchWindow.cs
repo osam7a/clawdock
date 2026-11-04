@@ -79,6 +79,7 @@ namespace ClaudeNotch
         IntPtr beforeTyping; // the window you were in, to go back to
         readonly Border youBubble, cardHost;
         readonly TextBlock youText, answerText, quickStatus;
+        string answerKey = "";
         string historyKey = "", cardKey = "", turnKey = "";
         readonly MenuItem endVoiceItem;
         readonly TranslateTransform slide = new TranslateTransform();

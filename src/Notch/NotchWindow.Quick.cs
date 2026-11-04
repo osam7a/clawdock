@@ -46,13 +46,39 @@ namespace ClaudeNotch
             cardHost.Margin = new Thickness(0, now.Heard != "" ? 10 : 0, 0, 0);
             quickNotes.Text = string.Join("\n", now.Notes);
             quickNotes.Visibility = now.Notes.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-            answerText.Text = now.Text;
+            // Only when it changes: rebuilding a link under the mouse would lose the click.
+            if (now.Text != answerKey) { answerKey = now.Text; ShowWithLinks(answerText, now.Text, ""); }
             answerText.Visibility = now.Text != "" ? Visibility.Visible : Visibility.Collapsed;
             quickStatus.Text = s.QuickStatus;
             quickStatus.Visibility = s.QuickStatus != "" ? Visibility.Visible : Visibility.Collapsed;
 
             if (now.Heard != turnKey) { turnKey = now.Heard; follow = true; }
             if (follow) Dispatcher.BeginInvoke(new Action(() => quickScroll.ScrollToEnd()), DispatcherPriority.Loaded);
+        }
+
+        static void ShowWithLinks(TextBlock box, string text, string after)
+        {
+            box.Inlines.Clear();
+            foreach (var part in AnswerLinks.Split(text))
+                box.Inlines.Add(part.Url == null ? (Inline)new Run(part.Text) : LinkTo(part, box.Foreground));
+            if (after != "") box.Inlines.Add(new Run(after));
+        }
+
+        // A link with a thin underline. The tooltip shows where it really goes.
+        static Hyperlink LinkTo(TextPart part, Brush color)
+        {
+            var line = new TextDecoration(TextDecorationLocation.Underline, new Pen(new SolidColorBrush(Color.FromArgb(150, 255, 255, 255)), 0.75), 1, TextDecorationUnit.Pixel, TextDecorationUnit.Pixel);
+            var link = new Hyperlink(new Run(part.Text))
+            {
+                Foreground = color, Focusable = false, Cursor = Cursors.Hand, ToolTip = part.Url,
+                TextDecorations = new TextDecorationCollection { line },
+            };
+            link.MouseEnter += (a, b) => link.Foreground = Theme.Clay;
+            link.MouseLeave += (a, b) => link.Foreground = color;
+            // Not a press on the notch, which would start dragging it.
+            link.MouseLeftButtonDown += (a, b) => b.Handled = true;
+            link.Click += (a, b) => AnswerLinks.Open(part.Url);
+            return link;
         }
 
         // An earlier question and its answer, smaller and dimmer.
@@ -70,7 +96,7 @@ namespace ClaudeNotch
             if (t.Text != "")
             {
                 var a = Wrapped(12.5, Theme.Dim);
-                a.Text = t.Text + (t.Cut ? " …" : "");
+                ShowWithLinks(a, t.Text, t.Cut ? " …" : "");
                 a.LineHeight = 18;
                 a.MaxHeight = 54; // three lines
                 a.TextTrimming = TextTrimming.WordEllipsis;

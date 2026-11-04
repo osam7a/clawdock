@@ -41,7 +41,7 @@ namespace ClaudeNotch.Tests
 
         public static void Display_removes_markdown_and_sources()
         {
-            Check.Equal("Big news and a link", QuickVoice.Display("# Big **news** and [a link](https://x.y)\n\nSources: https://x.y"));
+            Check.Equal("Big news and [a link](https://x.y)", QuickVoice.Display("# Big **news** and [**a link**](https://x.y)\n\nSources: https://x.y"));
             Check.Equal("one\n\ntwo", QuickVoice.Display("one\n\n\n\n`two`"));
         }
 

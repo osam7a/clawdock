@@ -50,14 +50,30 @@ namespace ClaudeNotch
             return s;
         }
 
-        // The answer as the notch shows it: no card, no sources, no markdown marks.
+        // The answer as the notch shows it: no card, no sources, no markdown marks. Web links stay,
+        // as [label](address) or a bare address, for the notch to make clickable.
         public static string Display(string s)
         {
             s = WithoutSources(WithoutCard(s));
-            s = Regex.Replace(s, @"\[([^\]]*)\]\([^)]*\)", "$1");
+            s = Regex.Replace(s, @"\[([^\]\n]*)\]\([^)\n]*$", "$1"); // a link still arriving
+            var kept = new List<string>();
+            s = AnswerLinks.Token.Replace(s, m =>
+            {
+                string link, after = "";
+                if (m.Groups[2].Success)
+                {
+                    string label = m.Groups[1].Value;
+                    if (AnswerLinks.SafeUrl(m.Groups[2].Value) == null) return label;
+                    link = "[" + label.Replace("**", "").Replace("__", "").Replace("`", "") + "](" + m.Groups[2].Value + ")";
+                }
+                else link = AnswerLinks.TrimUrl(m.Value, out after);
+                kept.Add(link);
+                return "" + (kept.Count - 1) + "" + after;
+            });
             s = s.Replace("**", "").Replace("__", "").Replace("`", "");
             s = Regex.Replace(s, @"(?m)^\s*#+\s+", "");
             s = Regex.Replace(s, @"[ \t]+", " ");
+            s = Regex.Replace(s, "(\\d+)", m => kept[int.Parse(m.Groups[1].Value)]);
             return Regex.Replace(s, @"\n{3,}", "\n\n").Trim();
         }
 
