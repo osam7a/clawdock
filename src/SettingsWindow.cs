@@ -31,6 +31,7 @@ namespace ClaudeNotch
         bool built, dirty;
         volatile bool closing;
         static AudioPlayer voiceSample; // plays natural voice samples
+        static readonly string[] NotchSizes = { "small", "Small", "medium", "Medium", "large", "Large", "xlarge", "Extra large" };
 
         public SettingsWindow(Settings settings, Controller controller)
         {
@@ -366,6 +367,8 @@ namespace ClaudeNotch
                         "line", "Line: a thin bar",
                         "dot", "Dot: a small dot",
                     }, s.Style, v => s.Style = v)),
+                    Row("Size when collapsed", "The notch at rest: a session's status, the small bar.", Combo(NotchSizes, s.NotchSizeCollapsed, v => s.NotchSizeCollapsed = v)),
+                    Row("Size when open", "Quick voice's chat, permission requests, questions, the list of sessions.", Combo(NotchSizes, s.NotchSizeOpen, v => s.NotchSizeOpen = v)),
                     Row("Screen edge", null, Combo(new[] { "top", "Top", "bottom", "Bottom", "left", "Left", "right", "Right" }, s.Edge, v => s.Edge = v)),
                     Row("Display", null, Combo(monitors.ToArray(), s.Monitor, v => s.Monitor = v)),
                     Row("Position along the edge", "You can also drag the notch: it snaps to the nearest edge.", offset),

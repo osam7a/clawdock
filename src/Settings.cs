@@ -45,6 +45,8 @@ namespace ClaudeNotch
         public double EdgeOffset { get; set; }        // 0..1 along the edge
         public string Monitor { get; set; }           // device name; empty = primary
         public bool ExpandOnHover { get; set; }
+        public string NotchSizeCollapsed { get; set; } // at rest: "small" | "medium" | "large" | "xlarge"
+        public string NotchSizeOpen { get; set; }      // quick voice, requests, questions, the session list
 
         // When it shows and goes away
         public string ShowWhen { get; set; }          // "smart" | "away" | "alerts"
@@ -81,6 +83,8 @@ namespace ClaudeNotch
             EdgeOffset = 0.5;
             Monitor = "";
             ExpandOnHover = true;
+            NotchSizeCollapsed = "medium";
+            NotchSizeOpen = "medium";
             ShowWhen = "smart";
             DismissFor = "return";
             FinishedSeconds = 12;
@@ -157,6 +161,8 @@ namespace ClaudeNotch
             if (QuickNaturalVoice < 0 || QuickNaturalVoice > 7) QuickNaturalVoice = 1;
             Style = OneOf(Style, "classic", "compact", "line", "dot");
             Edge = OneOf(Edge, "top", "bottom", "left", "right");
+            NotchSizeCollapsed = OneOf(NotchSizeCollapsed, "medium", "small", "large", "xlarge");
+            NotchSizeOpen = OneOf(NotchSizeOpen, "medium", "small", "large", "xlarge");
             ShowWhen = OneOf(ShowWhen, "smart", "away", "alerts");
             DismissFor = OneOf(DismissFor, "return", "15m", "1h");
             if (double.IsNaN(EdgeOffset) || EdgeOffset < 0 || EdgeOffset > 1) EdgeOffset = 0.5;

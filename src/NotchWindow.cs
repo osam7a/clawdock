@@ -56,7 +56,18 @@ namespace ClaudeNotch
     // request shows Allow / Deny. Drag it anywhere: it snaps to the nearest screen edge.
     class NotchWindow : Window
     {
-        const double WinW = 560, WinH = 640; // room for the biggest card; the rest is transparent and clicks pass through
+        // Room for the biggest card at the chosen sizes; the rest is transparent and clicks pass through.
+        double WinW { get { return 560 * LargestSize; } }
+        double WinH { get { return 640 * LargestSize; } }
+        double LargestSize { get { return Math.Max(SizeOf(settings.NotchSizeCollapsed), SizeOf(settings.NotchSizeOpen)); } }
+
+        static double SizeOf(string size)
+        {
+            return size == "small" ? 0.85 : size == "large" ? 1.2 : size == "xlarge" ? 1.4 : 1;
+        }
+
+        readonly ScaleTransform sizing = new ScaleTransform(1, 1);
+        double sizeNow = 1;
 
         public event Action OpenPrimary, ToggleMute, EndVoice, OpenSettings, Quit, Dismiss, ToggleMinimize, ClearChat;
         public Func<double> QuickLevel; // quick voice: how loud you are, or the answer being read (0..1; -1 unknown)
@@ -261,7 +272,7 @@ namespace ClaudeNotch
             AutomationProperties.SetName(mini, "Claude Notch");
 
             endVoiceItem = Item("End voice conversation", () => { if (EndVoice != null) EndVoice(); });
-            holder = new Grid { RenderTransform = slide, Opacity = 0, Children = { card, mini }, ContextMenu = BuildMenu() };
+            holder = new Grid { RenderTransform = slide, LayoutTransform = sizing, Opacity = 0, Children = { card, mini }, ContextMenu = BuildMenu() };
             holder.MouseEnter += (s, e) => { leaveTimer.Stop(); if (!hover) { hover = true; Refresh(); } };
             holder.MouseLeave += (s, e) => leaveTimer.Start();
             holder.MouseLeftButtonDown += OnMouseDown;
@@ -310,6 +321,8 @@ namespace ClaudeNotch
 
             layoutKey = listKey = miniKey = "";
             if (IsLoaded || PresentationSource.FromVisual(this) != null) Place();
+            Width = WinW;
+            Height = WinH;
             Refresh();
         }
 
@@ -382,6 +395,16 @@ namespace ClaudeNotch
 
             mascot.Talking = (s.Kind == "voice" && !s.Muted) || (s.Kind == "session" && s.Busy) || listening || (quick && s.Busy);
             mascot.Alert = asking;
+
+            bool isOpen = asking || (quick && !s.QuickMinimized) || showList || showActions;
+            double size = SizeOf(isOpen ? settings.NotchSizeOpen : settings.NotchSizeCollapsed);
+            if (size != sizeNow)
+            {
+                sizeNow = size;
+                var grow = new DoubleAnimation(size, TimeSpan.FromMilliseconds(220)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+                sizing.BeginAnimation(ScaleTransform.ScaleXProperty, grow);
+                sizing.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
+            }
 
             title.Inlines.Clear();
             title.Inlines.Add(new Run(s.Title));
@@ -468,7 +491,7 @@ namespace ClaudeNotch
             micButton.Visibility = quick ? Visibility.Collapsed : Visibility.Visible;
             alertDot.Visibility = asking ? Visibility.Visible : Visibility.Collapsed;
             quickScroll.Visibility = quick && !minimized ? Visibility.Visible : Visibility.Collapsed;
-            quickScroll.MaxHeight = Compact ? 380 : 460;
+            quickScroll.MaxHeight = Math.Min(Compact ? 380 : 460, WorkArea().Height / SizeOf(settings.NotchSizeOpen) - 200); // large sizes still fit the screen
             alertDot.Fill = alert ? Theme.Amber : Theme.Blue;
             closeButton.Visibility = hover ? Visibility.Visible : Visibility.Collapsed;
             progressTrack.Visibility = hasTasks ? Visibility.Visible : Visibility.Collapsed;
