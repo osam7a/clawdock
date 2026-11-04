@@ -49,7 +49,7 @@ Claude Code reads hooks when a session starts, so test hook changes in a new ses
 - **Be careful with the user's files.** `~/.claude/settings.json` belongs to the user, so only touch
   Claude Notch's own hooks. Anything downloaded has to be checked against a pinned SHA-256.
 
-The file table in the [README](README.md#how-it-works) shows where things are.
+The file table in the [guide](docs/guide.md#how-it-works) shows where things are.
 
 ## Testing
 
@@ -88,7 +88,7 @@ touched, such as `notch`, `mascot`, `quick-voice`, `hooks`, or `settings`. Each 
 ## Pull requests
 
 1. Branch from `main`.
-2. Make the change, and update the README if behavior changes.
+2. Make the change, and update the README or guide if behavior changes.
 3. Open the pull request with what changed, why, and how you tested it. Add a screenshot for visual
    changes.
 
