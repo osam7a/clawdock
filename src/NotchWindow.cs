@@ -67,7 +67,7 @@ namespace ClaudeNotch
         readonly Settings settings;
         readonly Grid holder;
         readonly Border card, mini, progressTrack;
-        readonly Button closeButton, micButton, minButton, clearButton;
+        readonly Button closeButton, micButton, minButton, clearButton, openChatButton;
         readonly TextBlock minGlyph;
         readonly DockPanel header;
         readonly TextBlock title, subtitle, timerText, micGlyph, moreText;
@@ -75,6 +75,7 @@ namespace ClaudeNotch
         readonly Ellipse alertDot;
         readonly Rectangle[] bars = new Rectangle[5];
         readonly ColumnDefinition progressDone = new ColumnDefinition(), progressLeft = new ColumnDefinition();
+        public event Action OpenChat;            // see this quick voice chat in the Claude app
         // Compact style: a short bar and "4/6" at the right of the line, instead of the full-width bar.
         readonly ColumnDefinition miniDone = new ColumnDefinition(), miniLeft = new ColumnDefinition();
         readonly StackPanel compactTasks;
@@ -173,7 +174,14 @@ namespace ClaudeNotch
             compactCount.VerticalAlignment = VerticalAlignment.Center;
             compactTasks = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0), Visibility = Visibility.Collapsed, Children = { miniBar, compactCount } };
 
-            var right = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 0), Children = { compactTasks, voicePanel, alertDot, clearButton, minButton, closeButton } };
+            var right = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 0), Children = { compactTasks, voicePanel, alertDot, openChatButton, clearButton, minButton, closeButton } };
+            openChatButton = RoundButton(18, new TextBlock
+            {
+                Text = "", FontFamily = Theme.Icons, FontSize = 9, Foreground = Theme.Dim,
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            }, "Open this chat in Claude", () => { if (OpenChat != null) OpenChat(); });
+            openChatButton.Margin = new Thickness(8, 0, 0, 0);
+            openChatButton.ToolTip = "Open this chat in the Claude app";
             header = new DockPanel { LastChildFill = true };
             DockPanel.SetDock(right, Dock.Right);
             header.Children.Add(right);
@@ -452,6 +460,7 @@ namespace ClaudeNotch
             subtitle.Visibility = showSub ? Visibility.Visible : Visibility.Collapsed;
             voicePanel.Visibility = s.Kind == "voice" || listening || speakingBars ? Visibility.Visible : Visibility.Collapsed;
             timerText.Visibility = s.Kind == "voice" || (listening && !minimized) ? Visibility.Visible : Visibility.Collapsed;
+            openChatButton.Visibility = quick && hover && !minimized ? Visibility.Visible : Visibility.Collapsed;
             inputBar.Visibility = quick && s.QuickTyping ? Visibility.Visible : Visibility.Collapsed;
             SetTyping(quick && s.QuickTyping);
             minButton.Visibility = quick && hover ? Visibility.Visible : Visibility.Collapsed;

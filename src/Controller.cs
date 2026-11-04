@@ -79,6 +79,7 @@ namespace ClaudeNotch
             Hotkeys.DoublePressed += OnShortcutTwice;
             notch.SendTyped += text => quick.SendTyped(text);
             Hotkeys.Escape += OnEscape;
+            notch.OpenChat += () => quick.OpenInClaude();
 
             refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             refreshTimer.Tick += (s, e) => Refresh();
@@ -209,7 +210,9 @@ namespace ClaudeNotch
         {
             if (p == null) return;
             string tool = Json.Str(d, "tool_name");
-            if (Json.Str(d, "hook_event_name") != "PreToolUse" || QuickVoice.SafeTool(tool)) { p.Respond(HookServer.PreAllow); return; }
+            // A saved quick voice chat opened in Claude asks in its own window.
+            if (Json.Str(d, "hook_event_name") != "PreToolUse") { p.Respond(HookServer.NoDecision); return; }
+            if (QuickVoice.SafeTool(tool)) { p.Respond(HookServer.PreAllow); return; }
             p.Detail = DescribeTool(tool, Json.Obj(d, "tool_input"));
             p.FullDetail = FullCommand(Json.Obj(d, "tool_input"));
             p.AllowReply = HookServer.PreAllow;
@@ -444,7 +447,7 @@ namespace ClaudeNotch
                     st.Answering = quick.Answer != "";
                     st.Busy = quick.Speaking || quick.State == QuickVoice.Phase.Thinking;
                     st.Title = quick.State == QuickVoice.Phase.Thinking ? (quick.Status != "" ? quick.Status : "Thinking…") : quick.Speaking ? "Speaking" : settings.QuickMinimized ? "Ready" : "Claude";
-                    st.QuickStatus = quick.State == QuickVoice.Phase.Thinking ? quick.Status : "";
+                    st.QuickStatus = quick.State == QuickVoice.Phase.Thinking ? quick.Status : quick.Notice;
                     break;
             }
         }
