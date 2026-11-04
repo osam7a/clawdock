@@ -77,6 +77,7 @@ namespace ClaudeNotch
             QuickEngine = "windows";
             QuickLocalModel = "small";
             QuickAccess = "web";
+            ProjectsFolder = ProjectStarter.DefaultRoot;
             NewProjectAuto = true;
             QuickHistory = "private";
             QuickTts = "windows";
