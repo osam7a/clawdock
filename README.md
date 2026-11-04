@@ -18,6 +18,7 @@ You need Windows 10 or 11, and the [Claude desktop app](https://claude.ai/downlo
 **From a release:** download `Clawdock.exe` from the
 [latest release](https://github.com/osam7a/clawdock/releases/latest) and run it. The exe isn't
 code-signed yet, so if Windows SmartScreen warns you, choose **More info**, then **Run anyway**.
+[You can check the download first](SECURITY.md#checking-a-download).
 
 **From source:** no SDK needed, it builds with the compiler that ships with Windows.
 
@@ -31,6 +32,12 @@ Either way it installs itself to `%LOCALAPPDATA%\Clawdock`, starts with Windows,
 hooks to `~/.claude/settings.json`, keeping a backup of that file. It updates itself from GitHub
 releases, or you can run a newer exe the same way. Sessions that were already open report task counts and permission requests after they
 restart.
+
+On first run it also downloads quick voice's speech recognition and voice, about 160 MB in the
+background. Until they arrive, Windows' own are used.
+
+[SECURITY.md](SECURITY.md) lists what it does on your PC, what it connects to, and how to verify a
+release.
 
 ## Features
 
@@ -60,7 +67,7 @@ When a session ends with a question, it appears on the notch with its buttons.
 ### Talk to Claude
 
 Press the Copilot key or your own shortcut and just ask. Answers are read aloud, and speech
-recognition and the reading voice can both run on your PC. Press Esc to cancel.
+recognition and the reading voice both run on your PC by default. Press Esc to cancel.
 
 ![Quick voice listening to a question](docs/screenshots/quick-listening.png)
 
@@ -122,8 +129,8 @@ Right-click the tray icon and choose **Settings**, or run the exe again while it
 ## Privacy
 
 There's no account, server, or telemetry. Quick voice sends your questions to Claude through your
-own Claude Code. Voices and speech models are only downloaded if you choose them, and ElevenLabs is
-only used if you add your own key. It checks GitHub for new releases unless you turn that off. The
+own Claude Code. Speech recognition and the natural voice run on your PC, and are downloaded on
+first run. ElevenLabs is only used if you add your own key. It checks GitHub for new releases unless you turn that off. The
 [guide](docs/guide.md#privacy) has the details.
 
 ## Uninstall

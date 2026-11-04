@@ -1,5 +1,7 @@
 # Contributing to Clawdock
 
+For security problems, see [SECURITY.md](SECURITY.md).
+
 Thanks for helping out. Bug reports, fixes, and ideas are all welcome.
 
 ## Reporting a bug

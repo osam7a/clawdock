@@ -51,7 +51,8 @@ It's a single, small exe with no dependencies. It runs entirely on your PC.
 1. Download `Clawdock.exe` from the
    [latest release](https://github.com/osam7a/clawdock/releases/latest).
 2. Run it. The exe isn't code-signed yet, so Windows SmartScreen may warn you: choose
-   **More info**, then **Run anyway**. You can also [build it yourself](#build-from-source).
+   **More info**, then **Run anyway**. You can [check the download first](../SECURITY.md#checking-a-download)
+   or [build it yourself](#build-from-source).
 
 It installs itself:
 
@@ -107,8 +108,8 @@ once you answer, in the notch or in Claude.
 
 ### The shortcut
 
-The shortcut is the Copilot key by default, or your own key combination. What it does depends on
-**Voice and prompts** in the settings:
+The shortcut is the Copilot key by default, or your own key combination. It starts quick voice by
+default. What it does depends on **Voice and prompts** in the settings:
 
 | Mode | What the shortcut does |
 | --- | --- |
@@ -177,7 +178,8 @@ bar brings the conversation back. The bar goes away with its × or after 15 minu
 
 - **Natural** runs [KittenTTS](https://github.com/KittenML/KittenTTS) with
   [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) on your PC, about six times faster than real
-  time on a laptop CPU. It's an 85 MB download from the settings, checked against its SHA-256. It
+  time on a laptop CPU. This is the default, with the voice Bruno. It's an 85 MB download on first run
+or from the settings, checked against its SHA-256. It
   needs 64-bit Windows 10 1803 or later on an Intel or AMD processor.
 - **ElevenLabs** uses your own API key. It's in the cloud, so answers are sent to ElevenLabs and use
   your credits. The key is stored encrypted for your Windows user with DPAPI. When it can't be
@@ -187,8 +189,9 @@ bar brings the conversation back. The bar goes away with its × or after 15 minu
 **Speech recognition:**
 
 - **Built in** runs [whisper.cpp](https://github.com/ggml-org/whisper.cpp) with an English Whisper
-  model on your PC, downloaded once from the settings (Accurate, 190 MB, or Fast, 60 MB) and checked
-  against its SHA-256. Nothing leaves the computer.
+  model on your PC. This is the default, with the Fast model. It's downloaded once and checked against
+  its SHA-256: Fast (60 MB) on first run, or Accurate (190 MB) from the settings. Nothing leaves the
+  computer.
 - **Windows** uses its online speech recognition (the Win+H engine) when that's turned on in
   Settings → Privacy & security → Speech, or else the older offline engine.
 
@@ -276,8 +279,8 @@ Clawdock has no account, server, or telemetry. It talks to other services only i
   about your sessions, that includes parts of their transcripts: recent requests, replies, and tool
   descriptions. Those snapshots are kept in `%LOCALAPPDATA%\Clawdock\voice` until the next question, and digests of each
   session's requests and replies stay there until you uninstall.
-- **Downloads.** The speech recognition model and the natural voice are downloaded when you choose
-  them in the settings.
+- **Downloads.** On first run it downloads the speech recognition model and the natural voice from
+  GitHub and Hugging Face, about 160 MB. Other models and voices are downloaded when you choose them.
 - **Updates.** It asks GitHub for the latest release every 6 hours and downloads it if it's newer,
   unless you turn off **Update automatically**. GitHub sees the request as it would any other.
 - **ElevenLabs.** Answers are sent there only if you choose that voice and add your key.
@@ -337,7 +340,7 @@ Bug reports and pull requests are welcome. See [CONTRIBUTING.md](../CONTRIBUTING
 
 Clawdock is released under the [MIT License](../LICENSE).
 
-It downloads these separately, only if you choose them in the settings. They aren't part of the exe:
+It downloads these separately on first run. They aren't part of the exe:
 
 - [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (MIT) and Whisper models
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Apache 2.0)
