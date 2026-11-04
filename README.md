@@ -16,14 +16,14 @@ You need Windows 10 or 11, and the [Claude desktop app](https://claude.ai/downlo
 [Claude Code](https://claude.com/claude-code). Quick voice needs Claude Code, signed in.
 
 **From a release:** download `ClaudeNotch.exe` from the
-[latest release](https://github.com/osam7a/claude-notch/releases/latest) and run it. The exe isn't
+[latest release](https://github.com/osam7a/clawdock/releases/latest) and run it. The exe isn't
 code-signed yet, so if Windows SmartScreen warns you, choose **More info**, then **Run anyway**.
 
 **From source:** no SDK needed, it builds with the compiler that ships with Windows.
 
 ```powershell
-git clone https://github.com/osam7a/claude-notch
-cd claude-notch
+git clone https://github.com/osam7a/clawdock
+cd clawdock
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 

@@ -49,7 +49,7 @@ It's a single, small exe with no dependencies. It runs entirely on your PC.
 (`claude auth login`).
 
 1. Download `ClaudeNotch.exe` from the
-   [latest release](https://github.com/osam7a/claude-notch/releases/latest).
+   [latest release](https://github.com/osam7a/clawdock/releases/latest).
 2. Run it. The exe isn't code-signed yet, so Windows SmartScreen may warn you: choose
    **More info**, then **Run anyway**. You can also [build it yourself](#build-from-source).
 

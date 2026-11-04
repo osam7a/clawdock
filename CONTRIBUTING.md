@@ -12,15 +12,15 @@ Open an issue with:
   private first, such as project names or paths.
 
 For a security problem, please don't open a public issue. Use
-[a private report](https://github.com/osam7a/claude-notch/security/advisories/new) instead.
+[a private report](https://github.com/osam7a/clawdock/security/advisories/new) instead.
 
 ## Setting up
 
 You need Windows 10 or 11, and nothing else: the build uses the C# compiler that ships with Windows.
 
 ```powershell
-git clone https://github.com/osam7a/claude-notch.git
-cd claude-notch
+git clone https://github.com/osam7a/clawdock.git
+cd clawdock
 powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
