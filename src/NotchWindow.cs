@@ -94,6 +94,10 @@ namespace ClaudeNotch
         readonly TextBlock compactCount;
         // Quick voice: earlier turns, then what you said, the answer's card, and the answer.
         readonly ScrollViewer quickScroll;
+        readonly ScrollViewer detailScroll;
+        readonly TextBlock detailText;
+        object detailsFor;
+        bool detailsOpen;
         readonly StackPanel quickHistory;
         readonly TextBlock quickNotes;
         readonly TextBox input;
@@ -241,6 +245,17 @@ namespace ClaudeNotch
                 Focusable = false, Visibility = Visibility.Collapsed,
             };
 
+            // A permission request's details, opened by clicking the card.
+            detailText = new TextBlock { FontFamily = Theme.Mono, FontSize = 12, LineHeight = 17, Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap };
+            detailScroll = new ScrollViewer
+            {
+                Content = detailText, Margin = new Thickness(14, 0, 14, 8),
+                VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, // "Scroll for more" says when there's more
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Focusable = false, Visibility = Visibility.Collapsed,
+            };
+            detailScroll.ScrollChanged += (s, e) => UpdateActionsText();
+
             input = new TextBox
             {
                 Background = Brushes.Transparent, Foreground = Brushes.White, CaretBrush = Brushes.White, BorderThickness = new Thickness(0),
@@ -267,7 +282,7 @@ namespace ClaudeNotch
                 Background = Theme.Black,
                 Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 2, Opacity = 0.35, Direction = 270 },
                 Cursor = Cursors.Hand,
-                Child = new StackPanel { Children = { header, progressTrack, quickScroll, inputBar, actions, list } },
+                Child = new StackPanel { Children = { header, progressTrack, detailScroll, quickScroll, inputBar, actions, list } },
             };
             mini = new Border { Cursor = Cursors.Hand };
             AutomationProperties.SetName(mini, "Claude Notch");
@@ -394,6 +409,10 @@ namespace ClaudeNotch
             if (!showActions) actionsFor = null;
             else if (actionsFor != s.Owner) { actionsFor = s.Owner; actionsSince = DateTime.Now; BuildChoices(s); }
 
+            if (s.Pending != detailsFor) { detailsFor = s.Pending; detailsOpen = false; detailScroll.ScrollToTop(); } // never the last request's
+            bool showDetails = CanOpenDetails && detailsOpen;
+            detailText.Text = showDetails ? s.Pending.FullDetail : "";
+
             mascot.Mood = alert ? MascotMood.Alert : s.Kind == "question" ? MascotMood.Question : s.Mood;
 
             bool isOpen = asking || (quick && !s.QuickMinimized) || showList || showActions;
@@ -420,8 +439,6 @@ namespace ClaudeNotch
             // A question can be a full sentence: let it wrap onto a second line.
             subtitle.TextWrapping = s.Kind == "question" ? TextWrapping.Wrap : TextWrapping.NoWrap;
             subtitle.MaxHeight = s.Kind == "question" ? 34 : double.PositiveInfinity;
-            // The line is cut to fit; hover shows the whole command before you allow it.
-            card.ToolTip = alert && s.Pending != null && !string.IsNullOrEmpty(s.Pending.FullDetail) ? s.Pending.FullDetail : null;
             if (s.Kind == "voice") title.Inlines.Clear();
             if (s.Kind == "voice") title.Inlines.Add(new Run(s.Muted ? "Muted" : "Listening"));
             // Minimized, the bar shows the answer's key figure (a price, a time) next to what it's doing.
@@ -468,13 +485,13 @@ namespace ClaudeNotch
             micButton.Background = s.Muted ? Theme.Clay : Theme.Chip;
             closeButton.ToolTip = s.Kind == "voice" ? "End voice and hide" : quick ? "Stop and hide" : "Hide for now";
             endVoiceItem.Visibility = s.Kind == "voice" ? Visibility.Visible : Visibility.Collapsed;
-            moreText.Text = s.MorePending > 0 ? "+" + s.MorePending + " more" : "";
+            UpdateActionsText();
             if (s.Kind == "voice" || listening || speakingBars) TickVoice();
             if (showList) BuildList(s.Sessions);
             if (quick && !minimized) UpdateQuick(s);
             UpdateMini(s);
 
-            string key = s.Kind + "|" + listening + "|" + minimized + "|" + speakingBars + "|" + (barCard != null) + "|" + hover + "|" + s.Visible + "|" + hasTasks + "|" + compactHasTasks + "|" + showList + "|" + showActions + "|" + showSub + "|" + settings.Style + "|" + settings.Edge;
+            string key = s.Kind + "|" + listening + "|" + minimized + "|" + speakingBars + "|" + (barCard != null) + "|" + hover + "|" + s.Visible + "|" + hasTasks + "|" + compactHasTasks + "|" + showList + "|" + showActions + "|" + showSub + "|" + showDetails + "|" + settings.Style + "|" + settings.Edge;
             if (key == layoutKey) return;
             layoutKey = key;
 
@@ -490,6 +507,8 @@ namespace ClaudeNotch
             clearButton.Visibility = quick && hover && !minimized && s.QuickCanClear ? Visibility.Visible : Visibility.Collapsed;
             micButton.Visibility = quick ? Visibility.Collapsed : Visibility.Visible;
             alertDot.Visibility = asking ? Visibility.Visible : Visibility.Collapsed;
+            detailScroll.Visibility = showDetails ? Visibility.Visible : Visibility.Collapsed;
+            detailScroll.MaxHeight = Math.Min(Compact ? 240 : 320, WorkArea().Height / SizeOf(settings.NotchSizeOpen) - 200);
             quickScroll.Visibility = quick && !minimized ? Visibility.Visible : Visibility.Collapsed;
             quickScroll.MaxHeight = Math.Min(Compact ? 380 : 460, WorkArea().Height / SizeOf(settings.NotchSizeOpen) - 200); // large sizes still fit the screen
             alertDot.Fill = alert ? Theme.Amber : Theme.Blue;
@@ -503,6 +522,7 @@ namespace ClaudeNotch
             bool notice = alert && s.Pending == null;
             double w = (notice ? (Compact ? 270 : 300) : CardWidth(s.Kind)) + (hover && !Mini && !quick ? 26 : 0); // quick: don't reflow what you're reading
             if (compactHasTasks) w += 56;
+            if (showDetails) w = Math.Max(w, Compact ? 420 : 460);
             if (minimized) w = (Compact ? 290 : 320) + (barCard != null ? 90 : 0);
             if (showList || (showActions && !notice)) w = Math.Max(w, Compact ? 330 : 360);
             Animate(card, WidthProperty, w, 220);
@@ -542,6 +562,31 @@ namespace ClaudeNotch
                 slide.BeginAnimation(prop, move);
                 holder.BeginAnimation(OpacityProperty, fade);
             }
+        }
+
+        bool CanOpenDetails { get { return state.Kind == "alert" && state.Pending != null && !string.IsNullOrEmpty(state.Pending.FullDetail); } }
+
+        // Clicking opening or closing the details moves the buttons, so they wait again: the
+        // second click of a double click mustn't land on Allow.
+        void ToggleDetails()
+        {
+            detailsOpen = !detailsOpen;
+            actionsSince = DateTime.Now;
+            detailScroll.ScrollToTop();
+            Refresh();
+        }
+
+        // Beside the buttons: how to see the details, and how many more requests wait.
+        void UpdateActionsText()
+        {
+            var parts = new List<string>();
+            if (CanOpenDetails)
+            {
+                if (detailsOpen && detailScroll.ScrollableHeight - detailScroll.VerticalOffset > 1) parts.Add("Scroll for more");
+                parts.Add(detailsOpen ? "Hide details" : "Show details");
+            }
+            if (state.MorePending > 0) parts.Add("+" + state.MorePending + " more");
+            moreText.Text = string.Join(" · ", parts);
         }
 
         double CardWidth(string kind)
@@ -1016,7 +1061,8 @@ namespace ClaudeNotch
             if (Math.Abs(Left - startLeft) < 4 && Math.Abs(Top - startTop) < 4)
             {
                 Left = startLeft; Top = startTop;
-                if (OpenPrimary != null) OpenPrimary();
+                if (CanOpenDetails) ToggleDetails();
+                else if (OpenPrimary != null) OpenPrimary();
                 return;
             }
             SnapToNearestEdge();

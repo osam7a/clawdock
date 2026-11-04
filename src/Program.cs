@@ -75,7 +75,7 @@ namespace ClaudeNotch
             var idle = new SessionInfo { Id = "c", Name = "docs", Cwd = @"C:\code\docs" };
             var all = new List<SessionInfo> { working, cli, idle };
 
-            var demoPending = new HookServer.Pending();
+            var demoPending = new HookServer.Pending { FullDetail = "Command: git push origin main\n\nDescription: Push the commits\n\nFolder: C:\\code\\Claude-Notch" };
             var demoQuestion = new Question();
             int step = quickOnly ? 299 : 0;
             var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };

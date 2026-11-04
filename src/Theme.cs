@@ -17,6 +17,7 @@ namespace ClaudeNotch
         public static readonly Brush Idle = Frozen(0x70, 0x70, 0x70);
         public static readonly Brush Red = Frozen(0xE5, 0x6B, 0x6B);   // a value that went down
         public static readonly FontFamily Symbols = new FontFamily("Segoe UI Symbol, Segoe UI Emoji"); // weather
+        public static readonly FontFamily Mono = new FontFamily("Cascadia Mono, Consolas"); // commands and files
         public static readonly FontFamily Font = new FontFamily("Segoe UI Variable Text, Segoe UI");
         public static readonly FontFamily Icons = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets");
 

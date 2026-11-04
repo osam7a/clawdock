@@ -12,6 +12,7 @@ namespace ClaudeNotch
     // the notch, the tray icon and the settings window.
     class Controller
     {
+        const int MostDetail = 20000;
         static readonly TimeSpan HoldPermissionFor = TimeSpan.FromMinutes(9); // the hook itself times out at 10
         static readonly TimeSpan AlertFadeAfterSeen = TimeSpan.FromSeconds(6);
 
@@ -144,7 +145,7 @@ namespace ClaudeNotch
                 if (p != null)
                 {
                     p.Detail = detail;
-                    p.FullDetail = FullCommand(Json.Obj(d, "tool_input"));
+                    p.FullDetail = FullRequest(Json.Obj(d, "tool_input"), Json.Str(d, "cwd"));
                     if (settings.ApproveFromNotch && !looking && desktop)
                     {
                         pending.Add(p);
@@ -217,7 +218,7 @@ namespace ClaudeNotch
             if (Json.Str(d, "hook_event_name") != "PreToolUse") { p.Respond(HookServer.NoDecision); return; }
             if (QuickVoice.SafeTool(tool)) { p.Respond(HookServer.PreAllow); return; }
             p.Detail = DescribeTool(tool, Json.Obj(d, "tool_input"));
-            p.FullDetail = FullCommand(Json.Obj(d, "tool_input"));
+            p.FullDetail = FullRequest(Json.Obj(d, "tool_input"), "");
             p.AllowReply = HookServer.PreAllow;
             p.DenyReply = HookServer.PreDeny;
             pending.Add(p);
@@ -259,7 +260,7 @@ namespace ClaudeNotch
             var request = new HookServer.Pending
             {
                 SessionId = "", Tool = "sending a message", Cwd = QuickVoice.Folder,
-                Detail = "To " + name + (s.Busy ? " (working)" : "") + ": " + message, FullDetail = message,
+                Detail = "To " + name + (s.Busy ? " (working)" : "") + ": " + message, FullDetail = "To " + name + (s.Busy ? " (working)" : "") + ":\n" + message,
             };
             request.Decided = allow =>
             {
@@ -829,12 +830,37 @@ namespace ClaudeNotch
             try { return System.IO.Path.GetFileName(cwd.TrimEnd('\\', '/')); } catch { return ""; }
         }
 
-        static string FullCommand(Dictionary<string, object> input)
+        // Everything the tool was given, for the request's details: nothing left out but what's too long to show.
+        static string FullRequest(Dictionary<string, object> input, string cwd)
         {
-            string what = Json.Str(input, "command");
-            if (what == "") what = Json.Str(input, "file_path");
-            if (what == "") what = Json.Str(input, "url");
-            return what.Length > 4000 ? what.Substring(0, 4000) + "…" : what;
+            var t = new System.Text.StringBuilder();
+            if (input != null)
+                foreach (var kv in input)
+                {
+                    string value = kv.Value as string ?? (kv.Value == null ? "" : Json.Pretty(Json.Write(kv.Value)).Trim());
+                    value = value.Replace("\r\n", "\n");
+                    t.Append(InputLabel(kv.Key)).Append(value.IndexOf('\n') >= 0 ? ":\n" : ": ").Append(value).Append("\n\n");
+                }
+            if (cwd != "") t.Append("Folder: ").Append(cwd);
+            string all = t.ToString().TrimEnd();
+            int over = all.Length - MostDetail;
+            return over > 0 ? all.Substring(0, MostDetail) + "\n\n… and " + over + " more characters. Open the chat to see them." : all;
+        }
+
+        static string InputLabel(string key)
+        {
+            switch (key)
+            {
+                case "command": return "Command";
+                case "description": return "Description";
+                case "file_path": return "File";
+                case "old_string": return "Replace";
+                case "new_string": return "With";
+                case "content": return "Contents";
+                case "url": return "URL";
+                case "prompt": return "Prompt";
+                default: return key;
+            }
         }
 
         static string DescribeTool(string tool, Dictionary<string, object> input)
