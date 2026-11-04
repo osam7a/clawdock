@@ -6,7 +6,7 @@ using System.Threading;
 using System.Windows.Automation;
 using Microsoft.Win32;
 
-namespace ClaudeNotch
+namespace Wrenlet
 {
     // Starts a Claude voice conversation:
     //   - if voice is already running, nothing happens

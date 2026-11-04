@@ -5,7 +5,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 
-namespace ClaudeNotch
+namespace Wrenlet
 {
     // What the mascot is up to. Each one has its own little scene.
     enum MascotMood { Idle, Sleeping, Listening, Thinking, Speaking, Searching, Reading, Working, Alert, Question, Done }

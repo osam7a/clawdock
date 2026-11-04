@@ -1,4 +1,4 @@
-# Builds bin\ClaudeNotch.exe with the C# compiler that ships with Windows (.NET Framework 4.x).
+# Builds bin\Wrenlet.exe with the C# compiler that ships with Windows (.NET Framework 4.x).
 # No SDK or Visual Studio needed.
 $ErrorActionPreference = 'Stop'
 
@@ -49,7 +49,7 @@ $pngs = foreach ($size in 16, 24, 32, 48, 64, 128, 256) {
     $g.Dispose(); $accent.Dispose(); $bmp.Dispose()
     , @($size, $mem.ToArray())
 }
-$icon = Join-Path $out 'ClaudeNotch.ico'
+$icon = Join-Path $out 'Wrenlet.ico'
 $w = New-Object IO.BinaryWriter ([IO.File]::Create($icon))
 $w.Write([int16]0); $w.Write([int16]1); $w.Write([int16]$pngs.Count)
 $offset = 6 + 16 * $pngs.Count
@@ -62,6 +62,6 @@ foreach ($p in $pngs) {
 foreach ($p in $pngs) { $w.Write([byte[]]$p[1]) }
 $w.Close()
 
-& "$fw\csc.exe" /nologo /codepage:65001 /target:winexe /optimize "/win32icon:$icon" "/out:$out\ClaudeNotch.exe" @refs @sources
+& "$fw\csc.exe" /nologo /codepage:65001 /target:winexe /optimize "/win32icon:$icon" "/out:$out\Wrenlet.exe" @refs @sources
 if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
-Write-Host "Built $out\ClaudeNotch.exe"
+Write-Host "Built $out\Wrenlet.exe"

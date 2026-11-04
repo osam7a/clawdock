@@ -1,6 +1,6 @@
 using System.Windows.Media;
 
-namespace ClaudeNotch
+namespace Wrenlet
 {
     static class Theme
     {

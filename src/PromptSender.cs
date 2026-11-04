@@ -7,7 +7,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Automation;
 
-namespace ClaudeNotch
+namespace Wrenlet
 {
     // Puts text into the Claude app's prompt box (the chat or Code session that is open, or a new
     // chat if the open view has no prompt box) and sends it, and opens Claude's quick entry.

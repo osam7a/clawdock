@@ -5,7 +5,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace ClaudeNotch
+namespace Wrenlet
 {
     // ElevenLabs, a voice in the cloud, for reading quick voice answers with your own API key.
     // Each sentence is one request (text in, 16-bit PCM out), so it plays while the next one is
@@ -70,7 +70,7 @@ namespace ClaudeNotch
             var req = (HttpWebRequest)WebRequest.Create(Api + path);
             req.Method = method;
             req.Headers["xi-api-key"] = key;
-            req.UserAgent = "ClaudeNotch";
+            req.UserAgent = "Wrenlet";
             req.Timeout = 20000;
             req.ReadWriteTimeout = 20000;
             return req;

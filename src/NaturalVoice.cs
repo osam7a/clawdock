@@ -6,14 +6,14 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 
-namespace ClaudeNotch
+namespace Wrenlet
 {
     // A natural-sounding voice on this PC: KittenTTS (Apache 2.0, github.com/KittenML/KittenTTS),
     // run by sherpa-onnx (Apache 2.0, github.com/k2-fsa/sherpa-onnx). The Nano model speaks about
     // six times faster than real time on a laptop CPU, so a sentence is ready well before the one
     // before it has been read out.
     //
-    // Downloaded once, from settings, into %LOCALAPPDATA%\ClaudeNotch\kitten, and checked against
+    // Downloaded once, from settings, into %LOCALAPPDATA%\Wrenlet\kitten, and checked against
     // known SHA-256s. The engine build has its C runtime built in and needs only Windows' own DLLs,
     // so it works on any 64-bit x64 PC. The model stays loaded (in this process) after first use.
     static class NaturalVoice

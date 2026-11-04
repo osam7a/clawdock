@@ -5,7 +5,7 @@ using Microsoft.Win32;
 using Windows.Foundation;
 using Windows.Media.SpeechRecognition;
 
-namespace ClaudeNotch
+namespace Wrenlet
 {
     // Windows' modern dictation: the engine behind Win+H voice typing, far more accurate than the
     // old desktop engine in System.Speech. It needs "Online speech recognition" turned on in

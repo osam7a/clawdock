@@ -10,7 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Windows.Threading;
 
-namespace ClaudeNotch
+namespace Wrenlet
 {
     // The local channel between Claude Code's hooks (and later launches of the exe) and the
     // running notch.
@@ -23,16 +23,16 @@ namespace ClaudeNotch
     //   "cmd"        "settings" or "quit", from a second launch of the exe
     class HookServer
     {
-        public const string MutexName = "Local\\ClaudeNotch";
-        public static readonly string PipeName = "ClaudeNotch-" + WindowsIdentity.GetCurrent().User.Value;
+        public const string MutexName = "Local\\Wrenlet";
+        public static readonly string PipeName = "Wrenlet-" + WindowsIdentity.GetCurrent().User.Value;
         const int MaxFrame = 8 * 1024 * 1024;
 
         public const string Allow = "{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}";
-        public const string Deny = "{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"deny\",\"message\":\"Denied from Claude Notch.\"}}}";
+        public const string Deny = "{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"deny\",\"message\":\"Denied from Wrenlet.\"}}}";
         public const string NoDecision = "{}";
         // Quick voice approves its tools before they run (its background session has no prompt to answer).
-        public const string PreAllow = "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"allow\",\"permissionDecisionReason\":\"Allowed from Claude Notch.\"}}";
-        public const string PreDeny = "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Denied from Claude Notch.\"}}";
+        public const string PreAllow = "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"allow\",\"permissionDecisionReason\":\"Allowed from Wrenlet.\"}}";
+        public const string PreDeny = "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Denied from Wrenlet.\"}}";
 
         // Raised on the UI thread. Pending is set for a request that is waiting for an answer.
         public event Action<Dictionary<string, object>, Pending> HookReceived;
@@ -181,7 +181,7 @@ namespace ClaudeNotch
 
         // ---- client side ---------------------------------------------------
 
-        // `ClaudeNotch.exe --hook`: forwards the hook JSON on stdin to the notch. For a
+        // `Wrenlet.exe --hook`: forwards the hook JSON on stdin to the notch. For a
         // PermissionRequest it waits for the notch's answer and prints it. `--voice-hook` (quick voice's
         // PreToolUse) always waits. If the notch isn't
         // running, it prints nothing, so Claude Code behaves as if there were no hook.
@@ -232,7 +232,7 @@ namespace ClaudeNotch
             catch { return false; }
         }
 
-        // Connects and checks that the other end really is Claude Notch (not some other
+        // Connects and checks that the other end really is Wrenlet (not some other
         // program that took the pipe name first) before sending it anything.
         static NamedPipeClientStream Connect(int timeoutMs)
         {
@@ -243,7 +243,7 @@ namespace ClaudeNotch
                 uint pid;
                 if (!GetNamedPipeServerProcessId(pipe.SafePipeHandle.DangerousGetHandle(), out pid)) throw new IOException();
                 using (var server = Process.GetProcessById((int)pid))
-                    if (!string.Equals(server.ProcessName, "ClaudeNotch", StringComparison.OrdinalIgnoreCase)) throw new IOException();
+                    if (!string.Equals(server.ProcessName, "Wrenlet", StringComparison.OrdinalIgnoreCase)) throw new IOException();
                 return pipe;
             }
             catch (Exception e)

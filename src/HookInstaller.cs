@@ -4,21 +4,21 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 
-namespace ClaudeNotch
+namespace Wrenlet
 {
     // Keeps Claude Code's hooks in ~/.claude/settings.json pointing at the installed exe.
     //
-    // Only handlers whose command runs "ClaudeNotch.exe --hook" are ever touched: everything
+    // Only handlers whose command runs "Wrenlet.exe --hook" are ever touched: everything
     // else in the file (other hooks, other settings) is written back as it was read. The
     // first time the file is changed, a copy is kept next to it as
-    // settings.json.claudenotch-backup. If the file can't be parsed it is left alone.
+    // settings.json.wrenlet-backup. If the file can't be parsed it is left alone.
     static class HookInstaller
     {
         public enum State { Installed, Missing, Outdated, Unreadable }
 
         static readonly string ClaudeDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude");
         public static readonly string SettingsPath = Path.Combine(ClaudeDir, "settings.json");
-        static readonly string BackupPath = SettingsPath + ".claudenotch-backup";
+        static readonly string BackupPath = SettingsPath + ".wrenlet-backup";
 
         // event -> (matcher or null, timeout in seconds)
         static readonly object[][] Wanted =
@@ -42,7 +42,7 @@ namespace ClaudeNotch
             var h = handler as IDictionary<string, object>;
             if (h == null) return false;
             string cmd = Json.Str(h, "command");
-            return cmd.IndexOf("ClaudeNotch.exe", StringComparison.OrdinalIgnoreCase) >= 0
+            return (cmd.IndexOf("Wrenlet.exe", StringComparison.OrdinalIgnoreCase) >= 0 || cmd.IndexOf("ClaudeNotch.exe", StringComparison.OrdinalIgnoreCase) >= 0) // the old name
                 && cmd.IndexOf("--hook", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
@@ -78,7 +78,7 @@ namespace ClaudeNotch
                 string text = Json.Write(after);
                 if (text == before) return true;
 
-                string tmp = SettingsPath + ".claudenotch-tmp";
+                string tmp = SettingsPath + ".wrenlet-tmp";
                 try
                 {
                     Directory.CreateDirectory(ClaudeDir);

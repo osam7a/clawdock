@@ -10,7 +10,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Threading;
 
-namespace ClaudeNotch
+namespace Wrenlet
 {
     // One question and its answer, as the notch shows them.
     class QuickTurn
@@ -125,7 +125,7 @@ namespace ClaudeNotch
         // How loud you are while it listens, 0..1; -1 when it can't be measured (Windows recognition).
         public double InputLevel { get { return State != Phase.Listening ? 0 : listeningLocal ? Level : -1; } }
         public bool MicReady { get; private set; }  // audio is coming in (the microphone takes a moment to start)
-        public string HookExe { get; set; }         // ClaudeNotch.exe, for approving tools from the notch
+        public string HookExe { get; set; }         // Wrenlet.exe, for approving tools from the notch
         public Func<bool> KeepOpen { get; set; }    // the answer stays while this is true (you're reading it)
         public Func<bool> Persist { get; set; }     // and doesn't time out at all while this is true (minimized)
 
@@ -292,7 +292,7 @@ namespace ClaudeNotch
             if (turns.Count == 0) { Notice = "Nothing to open yet."; Raise(); return; }
             if (savedId != null && savedTurns == turns.Count) { VoiceLauncher.OpenLink("claude://resume?session=" + savedId); return; }
 
-            var text = new StringBuilder("This is a conversation I had with you through Claude Notch's quick voice. Keep it as the record: I may ask about it or continue it here. Reply only with: Saved.\n\n");
+            var text = new StringBuilder("This is a conversation I had with you through Wrenlet's quick voice. Keep it as the record: I may ask about it or continue it here. Reply only with: Saved.\n\n");
             foreach (var t in turns)
             {
                 text.Append("Me: ").Append(t.Heard).Append("\n\n");
@@ -1292,7 +1292,7 @@ namespace ClaudeNotch
 
         // SHA-256 of earlier default skills (LF line endings): a file still exactly like one of
         // them was never edited, so it gets the new default.
-        static readonly string[] OldDefaultSkills = { "4f7fc8aa5a04e0bdb8b387db594b11cb2e3a97642e9b1c185924d92ab2abefc6" };
+        static readonly string[] OldDefaultSkills = { "4f7fc8aa5a04e0bdb8b387db594b11cb2e3a97642e9b1c185924d92ab2abefc6", "fed5f59cb739bd0d094ddbe2fc79e2fab4699406cdc108284131d10f1a52c4e8" };
 
         // Writes the voice-replies skill if it isn't there yet (never over your edits).
         public static void EnsureSkill()
@@ -1321,7 +1321,7 @@ namespace ClaudeNotch
             // Drop the frontmatter: only the rules matter here.
             var m = Regex.Match(text, @"^\s*---[\s\S]*?\n---\s*\n");
             if (m.Success) text = text.Substring(m.Length);
-            return "You are answering by voice, through Claude Notch. Your reply is read aloud and shown on a panel at the edge of the screen. Today is "
+            return "You are answering by voice, through Wrenlet. Your reply is read aloud and shown on a panel at the edge of the screen. Today is "
                 + DateTime.Now.ToString("dddd d MMMM yyyy", CultureInfo.InvariantCulture) + ".\n\n" + CardFormat + "\n\n" + FollowUps + (full ? ManualSkills() : "") + "\n\n" + text.Trim();
         }
 
@@ -1334,7 +1334,7 @@ namespace ClaudeNotch
         {
             if (instructionsSent) return settings.QuickAccess == "full" && ManualSkills() != "" ? CardReminder.Replace("</system-reminder>", " If this falls under one of the skills listed under Skills you load yourself, read it and follow it.</system-reminder>") : CardReminder;
             instructionsSent = true;
-            return "<system-reminder>Claude Notch's current instructions for this conversation. They replace any earlier ones.\n\n"
+            return "<system-reminder>Wrenlet's current instructions for this conversation. They replace any earlier ones.\n\n"
                 + VoiceInstructions(settings.QuickAccess == "full") + "</system-reminder>";
         }
 
@@ -1385,7 +1385,7 @@ with no closers like ""anything else?"" or ""want more?"".";
         }
 
         const string CardReminder =
-            "<system-reminder>Claude Notch: if this answer has a key fact to see at a glance (a figure, the weather, steps, "
+            "<system-reminder>Wrenlet: if this answer has a key fact to see at a glance (a figure, the weather, steps, "
             + "a comparison, a short list), your reply must start with one <card>{json}</card> as described under Cards in your "
             + "instructions, then the spoken answer. The voice-replies rule against markup doesn't apply to the card. "
             + "No card for chat or explanations without one.</system-reminder>";
@@ -1432,7 +1432,7 @@ at most five): [day, weather, high, low]:
         const string DefaultSkill =
 @"---
 name: voice-replies
-description: How to answer when the reply will be read aloud (voice assistants, dictation, Claude Notch quick voice). Use whenever an answer will be spoken rather than read.
+description: How to answer when the reply will be read aloud (voice assistants, dictation, Wrenlet quick voice). Use whenever an answer will be spoken rather than read.
 ---
 
 # Voice replies

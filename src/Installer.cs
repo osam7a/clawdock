@@ -4,18 +4,18 @@ using System.IO;
 using System.Threading;
 using Microsoft.Win32;
 
-namespace ClaudeNotch
+namespace Wrenlet
 {
-    // Claude Notch is a single exe. Run from anywhere, it copies itself to
-    // %LOCALAPPDATA%\ClaudeNotch, registers itself to start with Windows (HKCU Run key),
+    // Wrenlet is a single exe. Run from anywhere, it copies itself to
+    // %LOCALAPPDATA%\Wrenlet, registers itself to start with Windows (HKCU Run key),
     // installs the Claude Code hooks, and starts the installed copy. A running older copy
     // is asked to quit first, so running a new build is also how you update.
     static class Installer
     {
         const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        const string RunValue = "ClaudeNotch";
+        const string RunValue = "Wrenlet";
 
-        public static readonly string InstalledExe = Path.Combine(Settings.DataDir, "ClaudeNotch.exe");
+        public static readonly string InstalledExe = Path.Combine(Settings.DataDir, "Wrenlet.exe");
 
         public static string CurrentExe
         {
@@ -50,7 +50,7 @@ namespace ClaudeNotch
 
         static string ShortcutPath
         {
-            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Claude Notch.lnk"); }
+            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Wrenlet.lnk"); }
         }
 
         // A Start menu entry, so the app can be found and opened (it opens the settings when
@@ -66,7 +66,7 @@ namespace ClaudeNotch
                 var lt = link.GetType();
                 lt.InvokeMember("TargetPath", System.Reflection.BindingFlags.SetProperty, null, link, new object[] { InstalledExe });
                 lt.InvokeMember("WorkingDirectory", System.Reflection.BindingFlags.SetProperty, null, link, new object[] { Settings.DataDir });
-                lt.InvokeMember("Description", System.Reflection.BindingFlags.SetProperty, null, link, new object[] { "Claude Notch" });
+                lt.InvokeMember("Description", System.Reflection.BindingFlags.SetProperty, null, link, new object[] { "Wrenlet" });
                 lt.InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, link, null);
             }
             catch (Exception e) { Log.Write("Couldn't add the Start menu entry: " + e.Message); }
@@ -87,6 +87,7 @@ namespace ClaudeNotch
             SetStartWithWindows(false);
             RemoveOldStartupEntries();
             try { File.Delete(ShortcutPath); } catch { }
+            try { if (Directory.Exists(LegacyDir)) Directory.Delete(LegacyDir, true); } catch { }
             try
             {
                 string dir = Settings.DataDir;
@@ -115,6 +116,57 @@ namespace ClaudeNotch
             catch (Exception e) { Log.Write("Could not change the startup entry: " + e.Message); }
         }
 
+        // ---- the app used to be called Claude Notch -----------------------
+
+        static string LegacyDir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClaudeNotch"); } }
+
+        // Moves an old install's settings and downloads here and removes its startup entries. Its
+        // exe stays for two weeks: sessions already open still run its hook until they restart,
+        // and with no notch on the old pipe it exits quietly. Its hooks are replaced when these are installed.
+        public static void MigrateLegacy()
+        {
+            try
+            {
+                if (!Directory.Exists(LegacyDir)) return;
+                string marker = Path.Combine(LegacyDir, "moved-to-wrenlet");
+                if (File.Exists(marker))
+                {
+                    if (DateTime.Now - File.GetLastWriteTime(marker) > TimeSpan.FromDays(14)) Directory.Delete(LegacyDir, true);
+                    return;
+                }
+                foreach (var p in Process.GetProcessesByName("ClaudeNotch"))
+                    try { p.Kill(); p.WaitForExit(2000); } catch { }
+                Directory.CreateDirectory(Settings.DataDir);
+                foreach (string entry in Directory.GetFileSystemEntries(LegacyDir))
+                {
+                    string name = Path.GetFileName(entry);
+                    string target = Path.Combine(Settings.DataDir, name);
+                    if (name == "ClaudeNotch.exe" || name == "ClaudeNotch.log" || File.Exists(target) || Directory.Exists(target)) continue;
+                    MoveWithRetry(entry, target);
+                }
+                using (var key = Registry.CurrentUser.CreateSubKey(RunKey))
+                    if (key.GetValue("ClaudeNotch") != null) key.DeleteValue("ClaudeNotch");
+                try { File.Delete(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Claude Notch.lnk")); } catch { }
+                File.WriteAllText(marker, "");
+                Log.Write("Moved the old Claude Notch install here.");
+            }
+            catch (Exception e) { Log.Write("Couldn't move the old install: " + e.Message); }
+        }
+
+        static void MoveWithRetry(string from, string to)
+        {
+            for (int i = 0; ; i++)
+            {
+                try
+                {
+                    if (Directory.Exists(from)) Directory.Move(from, to); else File.Move(from, to);
+                    return;
+                }
+                catch (IOException) { if (i >= 20) throw; Thread.Sleep(250); }
+                catch (UnauthorizedAccessException) { if (i >= 20) throw; Thread.Sleep(250); }
+            }
+        }
+
         // The startup-folder shortcuts the old PowerShell installer made.
         static void RemoveOldStartupEntries()
         {
@@ -134,7 +186,7 @@ namespace ClaudeNotch
             // Still there: end it. This can also end a hook that is waiting on a permission
             // answer; Claude Code then just shows its own prompt.
             int me = Process.GetCurrentProcess().Id;
-            foreach (var p in Process.GetProcessesByName("ClaudeNotch"))
+            foreach (var p in Process.GetProcessesByName("Wrenlet"))
                 if (p.Id != me)
                     try { if (!p.WaitForExit(1000)) p.Kill(); } catch { }
         }

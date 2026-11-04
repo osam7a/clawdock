@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-namespace ClaudeNotch
+namespace Wrenlet
 {
     // Win32 calls shared by several parts of the app.
     static class Native

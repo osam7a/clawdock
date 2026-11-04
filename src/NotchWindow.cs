@@ -14,7 +14,7 @@ using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 
-namespace ClaudeNotch
+namespace Wrenlet
 {
     // What the notch should show; built by the Controller every refresh.
     class NotchState
@@ -131,7 +131,7 @@ namespace ClaudeNotch
             ResizeMode = ResizeMode.NoResize;
             Width = WinW;
             Height = WinH;
-            Title = "Claude Notch";
+            Title = "Wrenlet";
 
             title = Text(13, Brushes.White, FontWeights.SemiBold);
             subtitle = Text(12, Theme.Dim, FontWeights.Normal);
@@ -270,7 +270,7 @@ namespace ClaudeNotch
                 Child = new StackPanel { Children = { header, progressTrack, quickScroll, inputBar, actions, list } },
             };
             mini = new Border { Cursor = Cursors.Hand };
-            AutomationProperties.SetName(mini, "Claude Notch");
+            AutomationProperties.SetName(mini, "Wrenlet");
 
             endVoiceItem = Item("End voice conversation", () => { if (EndVoice != null) EndVoice(); });
             holder = new Grid { RenderTransform = slide, LayoutTransform = sizing, Opacity = 0, Children = { card, mini }, ContextMenu = BuildMenu() };
@@ -878,7 +878,7 @@ namespace ClaudeNotch
                 mini.Margin = new Thickness(0);
             }
             Pulse(mini, pulse);
-            AutomationProperties.SetName(mini, "Claude Notch: " + state.Title);
+            AutomationProperties.SetName(mini, "Wrenlet: " + state.Title);
         }
 
         // Rows for every running session: a status dot, the name, where it runs, and what it's doing.
@@ -1056,7 +1056,7 @@ namespace ClaudeNotch
             }));
             menu.Items.Add(new Separator());
             menu.Items.Add(Item("Settings…", () => { if (OpenSettings != null) OpenSettings(); }));
-            menu.Items.Add(Item("Quit Claude Notch", () => { if (Quit != null) Quit(); }));
+            menu.Items.Add(Item("Quit Wrenlet", () => { if (Quit != null) Quit(); }));
             return menu;
         }
 

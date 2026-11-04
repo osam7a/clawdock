@@ -9,9 +9,9 @@ using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
-namespace ClaudeNotch
+namespace Wrenlet
 {
-    // Everything you can change about Claude Notch. Edits a copy of the settings; nothing
+    // Everything you can change about Wrenlet. Edits a copy of the settings; nothing
     // takes effect until Save. Styled like the Claude app, light or dark to match Windows.
     class SettingsWindow : Window
     {
@@ -37,7 +37,7 @@ namespace ClaudeNotch
         {
             s = settings;
             this.controller = controller;
-            Title = "Claude Notch settings";
+            Title = "Wrenlet settings";
             Width = 820;
             Height = 620;
             MinWidth = 680;
@@ -58,7 +58,7 @@ namespace ClaudeNotch
             ShowHookState();
             Page("general", "General",
                 Card(
-                    Toggle("Start with Windows", "Claude Notch starts when you sign in.", s.StartWithWindows, v => s.StartWithWindows = v),
+                    Toggle("Start with Windows", "Wrenlet starts when you sign in.", s.StartWithWindows, v => s.StartWithWindows = v),
                     Toggle("Answer permission requests", "For Claude app sessions: allow or deny from the notch while you're away. Terminal sessions get a small notice instead and ask in the terminal.", s.ApproveFromNotch, v => s.ApproveFromNotch = v),
                     Toggle("Show Claude's questions", "When a session ends with a question like \"Should I test it?\", answer from the notch. It presses the same button in Claude.", s.ShowQuestions, v => s.ShowQuestions = v)),
                 Section("Claude Code hooks"),
@@ -405,16 +405,16 @@ namespace ClaudeNotch
                 VerticalAlignment = VerticalAlignment.Center,
                 Children =
                 {
-                    new TextBlock { Text = "Claude Notch", FontFamily = p.Serif, FontSize = 17, Foreground = p.Text },
+                    new TextBlock { Text = "Wrenlet", FontFamily = p.Serif, FontSize = 17, Foreground = p.Text },
                     new TextBlock { Text = "Settings", FontSize = 12, Foreground = p.Sub },
                 }
             });
 
-            var uninstall = new Button { Content = "Uninstall Claude Notch…", Style = (Style)Resources["Link"], HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(18, 0, 12, 16) };
+            var uninstall = new Button { Content = "Uninstall Wrenlet…", Style = (Style)Resources["Link"], HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(18, 0, 12, 16) };
             uninstall.Click += (a, b) =>
             {
-                if (MessageBox.Show(this, "Remove Claude Notch, its Claude Code hooks and its startup entry?\n\nYour other Claude Code settings are left as they are.",
-                    "Uninstall Claude Notch", MessageBoxButton.OKCancel, MessageBoxImage.Question) == MessageBoxResult.OK)
+                if (MessageBox.Show(this, "Remove Wrenlet, its Claude Code hooks and its startup entry?\n\nYour other Claude Code settings are left as they are.",
+                    "Uninstall Wrenlet", MessageBoxButton.OKCancel, MessageBoxImage.Question) == MessageBoxResult.OK)
                 {
                     Close();
                     controller.Uninstall();
@@ -441,7 +441,7 @@ namespace ClaudeNotch
             Closing += (a, b) =>
             {
                 if (!dirty) return;
-                var answer = MessageBox.Show(this, "Save your changes before closing?", "Claude Notch settings", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                var answer = MessageBox.Show(this, "Save your changes before closing?", "Wrenlet settings", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
                 if (answer == MessageBoxResult.Cancel || (answer == MessageBoxResult.Yes && !Save())) b.Cancel = true;
             };
             var footer = new DockPanel { LastChildFill = false, Margin = new Thickness(36, 12, 28, 14) };

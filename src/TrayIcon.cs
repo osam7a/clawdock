@@ -3,9 +3,9 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-namespace ClaudeNotch
+namespace Wrenlet
 {
-    // The icon in the notification area: the one place Claude Notch is always reachable,
+    // The icon in the notification area: the one place Wrenlet is always reachable,
     // even when the notch is hidden.
     class TrayIcon : IDisposable
     {
@@ -22,22 +22,22 @@ namespace ClaudeNotch
             menu.Items.Add("Type to Claude (Ctrl+Alt+Space)", null, (s, e) => Raise(AskClaude));
             menu.Items.Add("Repair Claude Code hooks", null, (s, e) => Raise(RepairHooks));
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("Quit Claude Notch", null, (s, e) => Raise(Quit));
+            menu.Items.Add("Quit Wrenlet", null, (s, e) => Raise(Quit));
 
-            icon = new NotifyIcon { Icon = image, Text = "Claude Notch", ContextMenuStrip = menu, Visible = true };
+            icon = new NotifyIcon { Icon = image, Text = "Wrenlet", ContextMenuStrip = menu, Visible = true };
             icon.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) Raise(OpenSettings); };
         }
 
         public void SetStatus(string status)
         {
-            string text = "Claude Notch · " + status;
+            string text = "Wrenlet · " + status;
             if (text.Length > 63) text = text.Substring(0, 62) + "…"; // the tooltip's limit
             if (icon.Text != text) icon.Text = text;
         }
 
         public void Balloon(string message)
         {
-            icon.ShowBalloonTip(4000, "Claude Notch", message, ToolTipIcon.None);
+            icon.ShowBalloonTip(4000, "Wrenlet", message, ToolTipIcon.None);
         }
 
         public void Dispose()
