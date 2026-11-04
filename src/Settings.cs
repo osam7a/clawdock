@@ -81,6 +81,9 @@ namespace ClaudeNotch
             NewProjectAuto = true;
             QuickHistory = "private";
             QuickTts = "windows";
+            ElevenLabsKey = "";
+            ElevenLabsVoice = "";
+            ElevenLabsVoiceName = "";
             QuickNaturalVoice = 1;
             Style = "classic";
             Edge = "top";
