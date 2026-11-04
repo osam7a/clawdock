@@ -11,7 +11,7 @@ namespace ClaudeNotch
     enum MascotMood { Idle, Sleeping, Listening, Thinking, Speaking, Searching, Reading, Working, Alert, Question, Done }
 
     // A little pixel-art critter drawn from rectangles. It idles (gentle bob, blinks, glances
-    // around), and acts out its Mood: thought clouds, a welding mask and sparks, a magnifying
+    // around), and acts out its Mood: thought clouds, a laptop to code on, a magnifying
     // glass, a book, sound waves, and so on. Scenes are drawn in the critter's own grid, where
     // the body is x 0..13, y 1..8; there's room for 4 rows above it and a few columns each side.
     class Mascot : Canvas
@@ -130,15 +130,14 @@ namespace ClaudeNotch
             bool walks = mood == MascotMood.Speaking;
             bool wiggles = mood == MascotMood.Alert || mood == MascotMood.Question;
 
-            // Body motion: slow breathing bob, little hops, or a shake while it welds.
+            // Body motion: slow breathing bob, or little hops.
             double y = hops ? -Math.Round(Math.Abs(Math.Sin(tick * 0.55)) * 1.5) * px
                 : mood == MascotMood.Sleeping ? Math.Round(Math.Sin(tick * 0.05)) * px * 0.5
                 : Math.Round(Math.Sin(tick * 0.09)) * px * 0.5;
             SetTop(sprite, y);
 
-            bool welding = mood == MascotMood.Working && tick % 90 < 72; // now and then it lifts the mask for a look
-            double x = wiggles && tick % 12 < 4 ? (tick % 2 == 0 ? -px * 0.5 : px * 0.5)
-                : welding && tick % 4 == 0 ? px * 0.25 : 0;
+            bool typing = mood == MascotMood.Working && tick % 90 < 72; // now and then it stops to look at you
+            double x = wiggles && tick % 12 < 4 ? (tick % 2 == 0 ? -px * 0.5 : px * 0.5) : 0;
             SetLeft(sprite, x);
 
             for (int i = 0; i < 4; i++)
@@ -165,7 +164,7 @@ namespace ClaudeNotch
                 case MascotMood.Speaking: eyeTop = tick % 6 < 3 ? 1.5 : 2; DrawMouth(); break;
                 case MascotMood.Searching: dx = (int)Math.Round(Math.Sin(tick * 0.14)); DrawMagnifier(); break;
                 case MascotMood.Reading: eyeTop = 3; eyeHeight = 1; DrawBook(); break;
-                case MascotMood.Working: DrawWelding(welding); break;
+                case MascotMood.Working: dx = typing ? -1 : 0; DrawLaptop(typing); break;
                 case MascotMood.Alert: closed = false; eyeTop = 1.5; DrawBang(); break;
                 case MascotMood.Question: closed = false; eyeTop = 1.5; DrawQuestion(); break;
                 case MascotMood.Done: closed = false; eyeTop = 2.4; eyeHeight = 0.8; DrawSparkles(); break;
@@ -196,37 +195,34 @@ namespace ClaudeNotch
                 ".#####.");
         }
 
-        // Working: welding mask down, torch in hand, sparks flying.
-        void DrawWelding(bool down)
+        // Working: at a laptop in front of it, typing, with code filling up the screen.
+        void DrawLaptop(bool typing)
         {
-            int lift = down ? 0 : -2; // lifted, the eyes show under it
-            Dot(gear, SteelDark, 3, 0 + lift, 8, 1);
-            Dot(gear, Steel, 2, 1 + lift, 10, down ? 3 : 2);
-            if (down)
-            {
-                bool flash = tick % 3 != 0;
-                Dot(gear, flash ? GlassLit : Glass, 4, 2, 6, 1);
-                Dot(gear, SteelDark, 3, 4, 8, 1);
-            }
+            // The lid, and the base it sits on.
+            Dot(air, SteelDark, -6, 1, 6, 7);
+            Dot(air, Glass, -5, 2, 4, 5);
+            Dot(air, Steel, -6, 8, 9, 1);
 
-            // The torch, held out to the left.
-            Dot(gear, SteelDark, -1, 5, 2, 1);
-            Dot(gear, Steel, -3, 4, 2, 2);
-            Dot(gear, Amber, -4, 4);
-            if (!down) return;
-
-            // Sparks spray off the tip.
-            Dot(air, SparkHot, -5, 4);
-            for (int i = 0; i < 4; i++)
+            // Lines of code appear one at a time, then the screen scrolls on.
+            int written = tick / 5;
+            var colors = new[] { GlassLit, Blue, Spark, Cloud };
+            for (int row = 0; row < 5; row++)
             {
-                int age = (tick + i * 3) % 7;
-                int seed = (tick + i * 3) / 7 + i * 13;
-                int dir = seed % 3;
-                double sx = -5 - age * 0.7;
-                double sy = 4 + (dir - 1) * age * 0.5 + age * age * 0.08;
-                if (sx < -7.5) continue;
-                Dot(air, age < 3 ? SparkHot : Spark, sx, sy);
+                int line = written - 4 + row;
+                if (line < 0) continue;
+                int seed = line * 7 + 3;
+                int indent = seed % 3 == 0 ? 1 : 0;
+                double width = Math.Min(1 + seed % 4, 4 - indent);
+                if (row == 4 && typing) width = Math.Min(width, 1 + tick % 5 % (int)width); // the line being typed
+                Dot(air, colors[seed % colors.Length], -5 + indent, 2.25 + row, width, 0.5);
             }
+            if (typing && tick % 8 < 4) Dot(air, SparkHot, -4.5, 6.25, 0.5, 0.5); // a cursor, blinking
+
+            // Its arms reach over to the keys, one tapping and then the other.
+            int tap = tick / 2 % 2;
+            Dot(air, Clay, 0, 5, 2, 1);
+            Dot(air, Clay, 0, 6, 1, typing && tap == 0 ? 2 : 1);
+            Dot(air, ClayDark, 1, 6, 1, typing && tap == 1 ? 2 : 1);
         }
 
         // Searching: a magnifying glass sweeps across, above its head.
