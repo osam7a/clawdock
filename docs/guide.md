@@ -309,34 +309,16 @@ Claude window ──UI Automation──> voice, mute, current session title, pro
   them. After the 9 minutes a notice stays on the notch until you've gone to it. Quick voice's never
   go back to a prompt: they end as a no, noted in its chat.
 
-| File | What it does |
+| Folder | What's in it |
 | --- | --- |
-| `src/Program.cs` | Entry point and command-line modes; the demo. |
-| `src/Controller.cs` | Ties it together: what the notch shows and when, permission requests, the shortcut. |
-| `src/HookServer.cs` | The named pipe, both ends (`--hook` relay and the server in the notch). |
-| `src/HookInstaller.cs` | Adds, repairs, and removes the hooks in `~/.claude/settings.json`. |
-| `src/Installer.cs` | Self-install, startup entry, update, uninstall. |
-| `src/SessionScanner.cs` | Reads the live session files and checks each session's process is really alive. |
-| `src/SessionTracker.cs` | Task lists and turn timing from hook events. |
-| `src/SessionActivity.cs` | What a session is doing right now, from the end of its transcript. Drives the mascot. |
-| `src/SessionBrief.cs` | The read-only snapshot of your sessions that quick voice answers from. |
-| `src/SessionArchive.cs` | Digests of every Claude Code session on your PC, for quick voice to search. |
-| `src/ProjectStarter.cs` | Starts a new project: its folder, a session in it, and Auto mode. |
-| `src/SessionHub.cs` | Merges these into one session list. |
-| `src/ClaudeWatcher.cs` | Claude's window: open, minimized, in front, voice, mute, current session, fullscreen apps. |
-| `src/VoiceLauncher.cs` | Starts voice mode; microphone detection. |
-| `src/QuickVoice.cs` | Quick voice: speech recognition, the background Claude Code session, reading answers aloud, typing, opening a chat in Claude, the voice-replies skill. |
-| `src/ModernDictation.cs` | Windows' modern (online) dictation, used by quick voice when allowed. |
-| `src/LocalSpeech.cs`, `src/MicRecorder.cs` | The built-in speech recognition (whisper.cpp): download, checks, transcribing; recording the microphone. |
-| `src/NaturalVoice.cs`, `src/AudioPlayer.cs` | The natural voice (KittenTTS through sherpa-onnx's C API): download, checks, speaking; playing it with its loudness for the bars. |
-| `src/ElevenLabs.cs` | The ElevenLabs voice: speaking a sentence, listing your voices, keeping the key encrypted. |
-| `src/ChoiceSender.cs` | Pressing the button you picked on the notch in Claude's window. |
-| `src/PromptSender.cs` | Sending text to the Claude app's prompt box; opening its quick entry. |
-| `src/TerminalFocus.cs` | Finds the terminal window a CLI session runs in. |
-| `src/Hotkeys.cs` | The Copilot key hook, custom shortcuts, double-press, and Esc. |
-| `src/NotchWindow.cs`, `src/Mascot.cs` | The notch and its pixel mascot. |
-| `src/SettingsWindow.cs`, `src/TrayIcon.cs` | Settings and the tray icon. |
-| `src/Settings.cs`, `src/Json.cs`, `src/Log.cs`, `src/Native.cs`, `src/Theme.cs`, `src/AssemblyInfo.cs` | Shared pieces and the version number. |
+| `src/App` | Start-up and command-line modes, the Controller that ties everything together (`Controller.*.cs`), self-install, shortcuts, the tray icon, and shared helpers. |
+| `src/Claude` | Talking to Claude: the hook pipe and installer, watching the app's window, sending prompts and answers, starting voice and new projects. |
+| `src/Sessions` | Finding sessions and what they're doing: live files, hook events, transcripts and digests. |
+| `src/Voice` | Quick voice (`QuickVoice.*.cs`: listening, the background Claude session, answers, speaking, instructions), speech recognition, and the reading voices. |
+| `src/Notch` | The notch window (`NotchWindow.*.cs`: rendering, chat, cards, lists), its state, the mascot, and the theme. |
+| `src/SettingsUi` | The settings, their window (`SettingsWindow.*.cs`), and its colors. |
+| `tests` | The automated tests. |
+| `tools` | The screenshot tool and the release notes script. |
 
 ## Contributing
 
