@@ -24,7 +24,7 @@ Get-FileHash Clawdock.exe -Algorithm SHA256
 
 You can also skip the download and build it yourself. It needs no SDK or packages, just the compiler
 that comes with Windows, so all the code that runs is in this repo. See the
-[README](README.md#install). Your build's checksum won't match the release's, because the compiler
+[README](README.md#build-it-yourself). Your build's checksum won't match the release's, because the compiler
 stamps each build.
 
 The exe isn't code-signed yet, so Windows SmartScreen may warn about it. The steps above are how to
