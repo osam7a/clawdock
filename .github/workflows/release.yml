@@ -1,0 +1,27 @@
+name: Release
+
+# Push a tag like v0.4.0 to publish it. The tag must match src/App/AssemblyInfo.cs, and
+# CHANGELOG.md must have a section for that version.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run the tests
+        run: ./build.ps1 -Test
+      - name: Build the app
+        run: ./build.ps1
+      - name: Write the release notes
+        run: ./tools/release-notes.ps1 -Tag $env:GITHUB_REF_NAME -Exe bin/ClaudeNotch.exe -Out bin/notes.md
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create $env:GITHUB_REF_NAME bin/ClaudeNotch.exe --title "Claude Notch $($env:GITHUB_REF_NAME.TrimStart('v'))" --notes-file bin/notes.md
