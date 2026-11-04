@@ -84,6 +84,9 @@ to run (`Bash: git push`) with **Allow** and **Deny**. If you go back to that ch
 asks in its own window as usual (Claude being open on another chat doesn't count). A terminal
 session asks in the terminal right away, and the notch shows a small notice with **Open terminal**.
 
+Click the request to see exactly what it's asking for: the whole command, the edit it wants to make,
+and the folder. Click again to close it. To go to Claude instead, right-click and choose **Open Claude**.
+
 A request always stays findable: on the notch until it's answered, or in that chat with a notice on
 the notch. Several wait behind each other ("+1 more").
 
