@@ -72,7 +72,7 @@ namespace ClaudeNotch
             recorder.GotFocus += (a, b) => recorder.Text = "Press the keys…";
             recorder.LostFocus += (a, b) => recorder.Text = Hotkeys.Describe(s.CustomModifiers, s.CustomKey);
             recorder.IsEnabled = s.Shortcut == "custom";
-            shortcutNote = new TextBlock { Foreground = p.Clay, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4, 10, 4, 0), Text = controller.ShortcutError ?? "" };
+            shortcutNote = new TextBlock { Foreground = p.Accent, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4, 10, 4, 0), Text = controller.ShortcutError ?? "" };
             Page("shortcut", "Shortcut",
                 Card(
                     Row("Start talking to Claude with", "The Copilot key works on most new keyboards.",
@@ -515,7 +515,7 @@ namespace ClaudeNotch
                 case HookInstaller.State.Installed: hookStatus.Text = "Installed"; hookDot.Fill = Theme.Green; break;
                 case HookInstaller.State.Missing: hookStatus.Text = "Not installed"; hookDot.Fill = p.Sub; break;
                 case HookInstaller.State.Outdated: hookStatus.Text = "Out of date"; hookDot.Fill = Theme.Amber; break;
-                default: hookStatus.Text = "settings.json isn't valid JSON"; hookDot.Fill = p.Clay; break;
+                default: hookStatus.Text = "settings.json isn't valid JSON"; hookDot.Fill = p.Accent; break;
             }
             hookStatus.ToolTip = "~/.claude/settings.json";
         }
@@ -625,7 +625,7 @@ namespace ClaudeNotch
                 Content = new StackPanel { Orientation = Orientation.Horizontal, Children = { icon, new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center } } },
             };
             System.Windows.Automation.AutomationProperties.SetName(item, label); // for screen readers (the icon has no name)
-            item.Checked += (a, b) => { icon.Foreground = p.Clay; Show(key); };
+            item.Checked += (a, b) => { icon.Foreground = p.Accent; Show(key); };
             item.Unchecked += (a, b) => icon.Foreground = p.Sub;
             navItems[key] = item;
             return item;
@@ -734,7 +734,7 @@ namespace ClaudeNotch
     class Palette
     {
         public bool Dark;
-        public Brush Bg, Side, Card, Line, Text, Sub, Hover, Sel, Field, Clay, ClayHover, Off;
+        public Brush Bg, Side, Card, Line, Text, Sub, Hover, Sel, Field, Accent, AccentHover, Off;
         public Color ScreenTop, ScreenBottom;
         public readonly FontFamily Serif = new FontFamily("Georgia, Cambria, Times New Roman");
         readonly Dictionary<string, string> hex = new Dictionary<string, string>();
@@ -763,8 +763,8 @@ namespace ClaudeNotch
             Hover = Make("HOVER", dark ? "#3A3A37" : "#ECE9E0");
             Sel = Make("SEL", dark ? "#34332F" : "#E6E2D7");
             Field = Make("FIELD", dark ? "#262624" : "#FFFFFF");
-            Clay = Make("CLAY", "#D97757");
-            ClayHover = Make("CLAYHOVER", dark ? "#E08A6D" : "#C6613F");
+            Accent = Make("ACCENT", "#8F7BF0");
+            AccentHover = Make("ACCENTHOVER", dark ? "#A596F5" : "#7564DB");
             Off = Make("OFF", dark ? "#5A5954" : "#CFCBC0");
             ScreenTop = (Color)ColorConverter.ConvertFromString(dark ? "#3A3936" : "#E9E5DA");
             ScreenBottom = (Color)ColorConverter.ConvertFromString(dark ? "#2C2B29" : "#DAD5C7");
@@ -814,8 +814,8 @@ namespace ClaudeNotch
   <SolidColorBrush x:Key='Hover' Color='#HOVER'/>
   <SolidColorBrush x:Key='Sel' Color='#SEL'/>
   <SolidColorBrush x:Key='Field' Color='#FIELD'/>
-  <SolidColorBrush x:Key='Clay' Color='#CLAY'/>
-  <SolidColorBrush x:Key='ClayHover' Color='#CLAYHOVER'/>
+  <SolidColorBrush x:Key='Accent' Color='#ACCENT'/>
+  <SolidColorBrush x:Key='AccentHover' Color='#ACCENTHOVER'/>
   <SolidColorBrush x:Key='Off' Color='#OFF'/>
 
   <Style TargetType='Button'>
@@ -832,7 +832,7 @@ namespace ClaudeNotch
         </Border>
         <ControlTemplate.Triggers>
           <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='Background' Value='{StaticResource Hover}'/></Trigger>
-          <Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource Clay}'/></Trigger>
+          <Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource Accent}'/></Trigger>
           <Trigger Property='IsEnabled' Value='False'><Setter Property='Opacity' Value='0.5'/></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate>
@@ -847,11 +847,11 @@ namespace ClaudeNotch
     <Setter Property='FocusVisualStyle' Value='{x:Null}'/>
     <Setter Property='Template'><Setter.Value>
       <ControlTemplate TargetType='Button'>
-        <Border x:Name='b' Background='{StaticResource Clay}' CornerRadius='8' Padding='{TemplateBinding Padding}' BorderThickness='1' BorderBrush='{StaticResource Clay}'>
+        <Border x:Name='b' Background='{StaticResource Accent}' CornerRadius='8' Padding='{TemplateBinding Padding}' BorderThickness='1' BorderBrush='{StaticResource Accent}'>
           <ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/>
         </Border>
         <ControlTemplate.Triggers>
-          <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='Background' Value='{StaticResource ClayHover}'/><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource ClayHover}'/></Trigger>
+          <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='Background' Value='{StaticResource AccentHover}'/><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource AccentHover}'/></Trigger>
           <Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource Text}'/></Trigger>
           <Trigger Property='IsEnabled' Value='False'><Setter Property='Opacity' Value='0.45'/></Trigger>
         </ControlTemplate.Triggers>
@@ -868,7 +868,7 @@ namespace ClaudeNotch
       <ControlTemplate TargetType='Button'>
         <Border x:Name='b' Background='Transparent' CornerRadius='6' Padding='6,5'><ContentPresenter/></Border>
         <ControlTemplate.Triggers>
-          <Trigger Property='IsMouseOver' Value='True'><Setter Property='Foreground' Value='{StaticResource Clay}'/></Trigger>
+          <Trigger Property='IsMouseOver' Value='True'><Setter Property='Foreground' Value='{StaticResource Accent}'/></Trigger>
           <Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='b' Property='Background' Value='{StaticResource Hover}'/></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate>
@@ -902,7 +902,7 @@ namespace ClaudeNotch
         </Border>
         <ControlTemplate.Triggers>
           <Trigger Property='IsChecked' Value='True'>
-            <Setter TargetName='track' Property='Background' Value='{StaticResource Clay}'/>
+            <Setter TargetName='track' Property='Background' Value='{StaticResource Accent}'/>
             <Setter TargetName='knob' Property='HorizontalAlignment' Value='Right'/>
             <Setter TargetName='knob' Property='Margin' Value='0,0,2,0'/>
           </Trigger>
@@ -917,7 +917,7 @@ namespace ClaudeNotch
     <Setter Property='Background' Value='{StaticResource Field}'/>
     <Setter Property='BorderBrush' Value='{StaticResource Line}'/>
     <Setter Property='CaretBrush' Value='{StaticResource Text}'/>
-    <Setter Property='SelectionBrush' Value='{StaticResource Clay}'/>
+    <Setter Property='SelectionBrush' Value='{StaticResource Accent}'/>
     <Setter Property='Height' Value='34'/>
     <Setter Property='Template'><Setter.Value>
       <ControlTemplate TargetType='TextBox'>
@@ -926,7 +926,7 @@ namespace ClaudeNotch
         </Border>
         <ControlTemplate.Triggers>
           <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource Sub}'/></Trigger>
-          <Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource Clay}'/></Trigger>
+          <Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource Accent}'/></Trigger>
           <Trigger Property='IsEnabled' Value='False'><Setter Property='Opacity' Value='0.45'/></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate>
@@ -938,7 +938,7 @@ namespace ClaudeNotch
     <Setter Property='Background' Value='{StaticResource Field}'/>
     <Setter Property='BorderBrush' Value='{StaticResource Line}'/>
     <Setter Property='CaretBrush' Value='{StaticResource Text}'/>
-    <Setter Property='SelectionBrush' Value='{StaticResource Clay}'/>
+    <Setter Property='SelectionBrush' Value='{StaticResource Accent}'/>
     <Setter Property='Height' Value='34'/>
     <Setter Property='Template'><Setter.Value>
       <ControlTemplate TargetType='PasswordBox'>
@@ -947,7 +947,7 @@ namespace ClaudeNotch
         </Border>
         <ControlTemplate.Triggers>
           <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource Sub}'/></Trigger>
-          <Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource Clay}'/></Trigger>
+          <Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource Accent}'/></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate>
     </Setter.Value></Setter>
@@ -961,7 +961,7 @@ namespace ClaudeNotch
         <Border x:Name='b' Background='Transparent' CornerRadius='6' Padding='10,7'><ContentPresenter/></Border>
         <ControlTemplate.Triggers>
           <Trigger Property='IsHighlighted' Value='True'><Setter TargetName='b' Property='Background' Value='{StaticResource Hover}'/></Trigger>
-          <Trigger Property='IsSelected' Value='True'><Setter Property='Foreground' Value='{StaticResource Clay}'/></Trigger>
+          <Trigger Property='IsSelected' Value='True'><Setter Property='Foreground' Value='{StaticResource Accent}'/></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate>
     </Setter.Value></Setter>
@@ -984,7 +984,7 @@ namespace ClaudeNotch
                 </Border>
                 <ControlTemplate.Triggers>
                   <Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource Sub}'/></Trigger>
-                  <Trigger Property='IsChecked' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource Clay}'/></Trigger>
+                  <Trigger Property='IsChecked' Value='True'><Setter TargetName='b' Property='BorderBrush' Value='{StaticResource Accent}'/></Trigger>
                 </ControlTemplate.Triggers>
               </ControlTemplate>
             </ToggleButton.Template>
@@ -1003,7 +1003,7 @@ namespace ClaudeNotch
           </Popup>
         </Grid>
         <ControlTemplate.Triggers>
-          <Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='ring' Property='BorderBrush' Value='{StaticResource Clay}'/></Trigger>
+          <Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='ring' Property='BorderBrush' Value='{StaticResource Accent}'/></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate>
     </Setter.Value></Setter>
@@ -1019,7 +1019,7 @@ namespace ClaudeNotch
           <Track x:Name='PART_Track'>
             <Track.DecreaseRepeatButton>
               <RepeatButton Command='Slider.DecreaseLarge' Focusable='False'>
-                <RepeatButton.Template><ControlTemplate TargetType='RepeatButton'><Grid Background='Transparent'><Border Height='4' CornerRadius='2' Background='{StaticResource Clay}' Margin='8,0,0,0'/></Grid></ControlTemplate></RepeatButton.Template>
+                <RepeatButton.Template><ControlTemplate TargetType='RepeatButton'><Grid Background='Transparent'><Border Height='4' CornerRadius='2' Background='{StaticResource Accent}' Margin='8,0,0,0'/></Grid></ControlTemplate></RepeatButton.Template>
               </RepeatButton>
             </Track.DecreaseRepeatButton>
             <Track.IncreaseRepeatButton>
@@ -1029,7 +1029,7 @@ namespace ClaudeNotch
             </Track.IncreaseRepeatButton>
             <Track.Thumb>
               <Thumb>
-                <Thumb.Template><ControlTemplate TargetType='Thumb'><Ellipse x:Name='e' Width='18' Height='18' Fill='White' Stroke='{StaticResource Clay}' StrokeThickness='4'/></ControlTemplate></Thumb.Template>
+                <Thumb.Template><ControlTemplate TargetType='Thumb'><Ellipse x:Name='e' Width='18' Height='18' Fill='White' Stroke='{StaticResource Accent}' StrokeThickness='4'/></ControlTemplate></Thumb.Template>
               </Thumb>
             </Track.Thumb>
           </Track>

@@ -7,7 +7,7 @@ namespace ClaudeNotch
         public static readonly Brush Black = Frozen(0x0B, 0x0B, 0x0B);
         public static readonly Brush Chip = Frozen(0x2A, 0x2A, 0x2A);
         public static readonly Brush ChipHover = Frozen(0x3A, 0x3A, 0x3A);
-        public static readonly Brush Clay = Frozen(0xD9, 0x77, 0x57);
+        public static readonly Brush Accent = Frozen(0x8F, 0x7B, 0xF0);
         public static readonly Brush Amber = Frozen(0xF5, 0xA5, 0x24);
         public static readonly Brush Green = Frozen(0x5B, 0xBF, 0x72);
         public static readonly Brush Blue = Frozen(0x6C, 0xA0, 0xF0);
