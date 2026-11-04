@@ -208,6 +208,9 @@ namespace ClaudeNotch
             StartListening();
         }
 
+        // You're talking, or it's still working on what you said. Esc cancels this, even minimized.
+        public bool InTurn { get { return State == Phase.Listening || State == Phase.Thinking || State == Phase.Answering; } }
+
         // The answer on screen moves up into the history when you ask the next thing.
         void SaveTurn(bool cut)
         {

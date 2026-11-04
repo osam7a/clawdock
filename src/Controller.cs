@@ -582,7 +582,7 @@ namespace ClaudeNotch
 
             notch.Render(st);
             shownKind = st.Visible ? st.Kind : "";
-            Hotkeys.WatchEscape = shownKind == "quick" ? !settings.QuickMinimized || quick.Speaking || quick.FollowingUp || quick.Typing : shownKind == "alert" || shownKind == "question";
+            Hotkeys.WatchEscape = shownKind == "quick" ? !settings.QuickMinimized || quick.Speaking || quick.FollowingUp || quick.Typing || quick.InTurn : shownKind == "alert" || shownKind == "question";
             tray.SetStatus(st.Kind == "alert" ? "Needs permission" : st.Kind == "quick" ? "Quick voice" : st.Kind == "question" ? "Claude asked you something" : voice ? "Voice conversation" : primary != null && primary.Busy ? "Working: " + primary.DisplayName : "Idle");
         }
 
@@ -811,7 +811,7 @@ namespace ClaudeNotch
             {
                 if (quick.FollowingUp) quick.CancelFollowUp();
                 else if (quick.Typing) Dismiss();
-                else if (settings.QuickMinimized) quick.Hush();
+                else if (settings.QuickMinimized && !quick.InTurn) quick.Hush();
                 else Dismiss();
             }
             else if (shownKind == "alert") CloseShownRequest();

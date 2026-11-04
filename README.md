@@ -120,7 +120,7 @@ sentence by sentence. Press the shortcut again to cut it off and ask something e
 puts the focus back where it was.
 
 **The panel** is a small chat: what you said in a bubble, the answer in large text, and the earlier
-questions above it. It stays open while the pointer is on it. **Esc** closes it, like its ×.
+questions above it. It stays open while the pointer is on it. **Esc** closes it, like its ×. **Esc** while you're talking, or while it's working on what you said, cancels it, so nothing more is sent.
 
 **Open in Claude.** Hover the panel and click the open button to see the chat in the Claude app. A
 private chat is saved to your Claude Code history at that moment, and not before.
