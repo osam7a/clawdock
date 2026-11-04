@@ -28,6 +28,7 @@ namespace ClaudeNotch
         public bool QuickMinimized, Speaking; // quick voice as a small bar; the answer is being read out
         public bool QuickCanClear;            // a private chat, which can be cleared
         public bool QuickTyping;              // the text box is open
+        public MascotMood Mood;               // what the mascot acts out
         public string Title = "Claude", Detail = "", Short = ""; // Short: "4:12 · 3/5", for the compact style
         public bool Busy, JustFinished, Muted;
         public int Done, Total;
@@ -74,6 +75,7 @@ namespace ClaudeNotch
         public event Action<SessionInfo> OpenSession;
         public event Action<object, int> Choose; // owner, index into Choices
         public event Action<string> SendTyped;   // what you typed in the text box
+        public event Action OpenChat;            // see this quick voice chat in the Claude app
 
         readonly Settings settings;
         readonly Grid holder;
@@ -86,7 +88,6 @@ namespace ClaudeNotch
         readonly Ellipse alertDot;
         readonly Rectangle[] bars = new Rectangle[5];
         readonly ColumnDefinition progressDone = new ColumnDefinition(), progressLeft = new ColumnDefinition();
-        public event Action OpenChat;            // see this quick voice chat in the Claude app
         // Compact style: a short bar and "4/6" at the right of the line, instead of the full-width bar.
         readonly ColumnDefinition miniDone = new ColumnDefinition(), miniLeft = new ColumnDefinition();
         readonly StackPanel compactTasks;
@@ -174,6 +175,13 @@ namespace ClaudeNotch
             }, "Clear this chat", () => { if (ClearChat != null) ClearChat(); });
             clearButton.Margin = new Thickness(8, 0, 0, 0);
             clearButton.ToolTip = "Clear this chat: it's gone from here, and Claude forgets it too";
+            openChatButton = RoundButton(18, new TextBlock
+            {
+                Text = "", FontFamily = Theme.Icons, FontSize = 9, Foreground = Theme.Dim,
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            }, "Open this chat in Claude", () => { if (OpenChat != null) OpenChat(); });
+            openChatButton.Margin = new Thickness(8, 0, 0, 0);
+            openChatButton.ToolTip = "Open this chat in the Claude app";
 
             var miniGrid = new Grid();
             miniGrid.ColumnDefinitions.Add(miniDone);
@@ -186,13 +194,6 @@ namespace ClaudeNotch
             compactTasks = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0), Visibility = Visibility.Collapsed, Children = { miniBar, compactCount } };
 
             var right = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 0), Children = { compactTasks, voicePanel, alertDot, openChatButton, clearButton, minButton, closeButton } };
-            openChatButton = RoundButton(18, new TextBlock
-            {
-                Text = "", FontFamily = Theme.Icons, FontSize = 9, Foreground = Theme.Dim,
-                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-            }, "Open this chat in Claude", () => { if (OpenChat != null) OpenChat(); });
-            openChatButton.Margin = new Thickness(8, 0, 0, 0);
-            openChatButton.ToolTip = "Open this chat in the Claude app";
             header = new DockPanel { LastChildFill = true };
             DockPanel.SetDock(right, Dock.Right);
             header.Children.Add(right);
@@ -320,9 +321,9 @@ namespace ClaudeNotch
             shadow.Direction = edge == "bottom" ? 90 : edge == "left" ? 0 : edge == "right" ? 180 : 270;
 
             layoutKey = listKey = miniKey = "";
-            if (IsLoaded || PresentationSource.FromVisual(this) != null) Place();
             Width = WinW;
             Height = WinH;
+            if (IsLoaded || PresentationSource.FromVisual(this) != null) Place();
             Refresh();
         }
 
@@ -393,8 +394,7 @@ namespace ClaudeNotch
             if (!showActions) actionsFor = null;
             else if (actionsFor != s.Owner) { actionsFor = s.Owner; actionsSince = DateTime.Now; BuildChoices(s); }
 
-            mascot.Talking = (s.Kind == "voice" && !s.Muted) || (s.Kind == "session" && s.Busy) || listening || (quick && s.Busy);
-            mascot.Alert = asking;
+            mascot.Mood = alert ? MascotMood.Alert : s.Kind == "question" ? MascotMood.Question : s.Mood;
 
             bool isOpen = asking || (quick && !s.QuickMinimized) || showList || showActions;
             double size = SizeOf(isOpen ? settings.NotchSizeOpen : settings.NotchSizeCollapsed);

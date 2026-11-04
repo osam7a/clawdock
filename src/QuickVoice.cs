@@ -76,6 +76,7 @@ namespace ClaudeNotch
         public string Answer { get; private set; }
         public string Status { get; private set; }  // "Searching the web…", an error, …
         public bool Speaking { get; private set; }
+        public MascotMood ThinkingMood { get; private set; } // before the answer: thinking, or the tool it's using
         public DateTime ListenStarted { get; private set; }
         public DateTime FinishedAt { get; private set; }
 
@@ -271,11 +272,10 @@ namespace ClaudeNotch
             SaveTurn(cut);
             transcribing = false;
             turnNotes.Clear();
-            Heard = Partial = Answer = Status = "";
             Notice = "";
+            Heard = Partial = Answer = Status = "";
         }
 
-        // Forgets this private conversation: the chat on the notch and what Claude remembers of it.
         // ---- opening the chat in Claude ---------------------------------------
 
         public string Notice { get; private set; } // about opening it, under the chat
@@ -357,6 +357,7 @@ namespace ClaudeNotch
             catch (Exception e) { Log.Write("Quick voice: saving the chat: " + e.Message); return null; }
         }
 
+        // Forgets this private conversation: the chat on the notch and what Claude remembers of it.
         // The panel closes, and the next question starts a new one.
         public void ClearChat()
         {
@@ -367,9 +368,9 @@ namespace ClaudeNotch
             KillClaude();
             ignoreTurns = 0;
             transcribing = false;
-            history.Clear();
             savedId = null;
             Notice = "";
+            history.Clear();
             turnNotes.Clear();
             Heard = Partial = Answer = Status = "";
             State = Phase.Idle;
@@ -392,8 +393,8 @@ namespace ClaudeNotch
 
             heardParts.Clear();
             followUp = followUpDue = false;
-            turnNotes.Clear();
             Notice = "";
+            turnNotes.Clear();
             Heard = Partial = Answer = Status = "";
             held = false; holdDecided = false; stopping = false; voiced = false; transcribing = false;
             listenId++;
@@ -663,6 +664,7 @@ namespace ClaudeNotch
             Answer = "";
             bool typed = typedTurn;
             typedTurn = false;
+            ThinkingMood = MascotMood.Thinking;
             lock (unspoken) { unspoken.Length = 0; sourcesReached = false; fed = 0; hushed = typed; }
             lastUsed = DateTime.Now;
             Raise();
@@ -882,7 +884,7 @@ namespace ClaudeNotch
                     if (block == "tool_use" || block == "server_tool_use")
                     {
                         string name = Json.Str(Json.Obj(ev, "content_block"), "name");
-                        ui.BeginInvoke(new Action(() => OnStatus(ToolStatus(name))));
+                        ui.BeginInvoke(new Action(() => { ThinkingMood = SessionActivity.ForTool(name); OnStatus(ToolStatus(name)); }));
                     }
                 }
             }

@@ -31,6 +31,7 @@ namespace ClaudeNotch
 
         SettingsWindow settingsWindow;
         readonly List<Alert> alerts = new List<Alert>(); // one per session; the newest shows
+        readonly SessionActivity activity = new SessionActivity();
         string closedSession;
         DateTime closedUntil;
         List<SessionInfo> sessions = new List<SessionInfo>();
@@ -78,8 +79,8 @@ namespace ClaudeNotch
             Hotkeys.Pressed += OnShortcut;
             Hotkeys.DoublePressed += OnShortcutTwice;
             notch.SendTyped += text => quick.SendTyped(text);
-            Hotkeys.Escape += OnEscape;
             notch.OpenChat += () => quick.OpenInClaude();
+            Hotkeys.Escape += OnEscape;
 
             refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             refreshTimer.Tick += (s, e) => Refresh();
@@ -351,7 +352,11 @@ namespace ClaudeNotch
                 st.Primary = 0;
                 st.MorePending = alerts.Count - 1;
             }
-            else if (voice) st.Kind = "voice";
+            else if (voice)
+            {
+                st.Kind = "voice";
+                st.Mood = st.Muted ? MascotMood.Idle : MascotMood.Listening;
+            }
             else if (question != null)
             {
                 var qs = sessions.Find(x => x.Id == question.SessionId);
@@ -374,6 +379,9 @@ namespace ClaudeNotch
                 st.Total = primary.Total;
                 st.Detail = StatusLine(primary);
                 st.Short = NotchWindow.RowStatus(primary);
+                st.Mood = primary.Busy ? activity.For(primary.Id, primary.Cwd)
+                    : primary.JustFinished ? MascotMood.Done
+                    : MascotMood.Sleeping;
             }
             else if (watcher.Working)
             {
@@ -383,6 +391,7 @@ namespace ClaudeNotch
                 st.Title = string.IsNullOrEmpty(watcher.SessionTitle) ? "Claude" : watcher.SessionTitle;
                 st.Detail = "Working " + SessionTracker.Clock(now - watcher.WorkingSince);
                 st.Short = SessionTracker.Clock(now - watcher.WorkingSince);
+                st.Mood = MascotMood.Thinking;
             }
 
             bool alertOn = st.Kind == "alert";
@@ -435,6 +444,7 @@ namespace ClaudeNotch
             {
                 case QuickVoice.Phase.Listening:
                     st.Listening = true;
+                    st.Mood = MascotMood.Listening;
                     st.VoiceStarted = quick.ListenStarted;
                     st.Title = "Listening";
                     st.QuickStatus = st.QuickNow.Heard != "" ? "" : !quick.MicReady ? "One moment…" : Hotkeys.Held ? "Go ahead, let go when you're done" : "Go ahead, I'm listening";
@@ -446,6 +456,9 @@ namespace ClaudeNotch
                 default:
                     st.Answering = quick.Answer != "";
                     st.Busy = quick.Speaking || quick.State == QuickVoice.Phase.Thinking;
+                    st.Mood = quick.Speaking || quick.State == QuickVoice.Phase.Answering ? MascotMood.Speaking
+                        : quick.State == QuickVoice.Phase.Thinking ? quick.ThinkingMood
+                        : MascotMood.Idle;
                     st.Title = quick.State == QuickVoice.Phase.Thinking ? (quick.Status != "" ? quick.Status : "Thinking…") : quick.Speaking ? "Speaking" : settings.QuickMinimized ? "Ready" : "Claude";
                     st.QuickStatus = quick.State == QuickVoice.Phase.Thinking ? quick.Status : quick.Notice;
                     break;
