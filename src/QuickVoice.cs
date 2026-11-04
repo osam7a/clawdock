@@ -1122,10 +1122,12 @@ namespace ClaudeNotch
         // "0.68", "68" or "68%" as 0.68; -1 when there's none.
         static double Fraction(string s)
         {
-            s = (s ?? "").Trim().TrimEnd('%').Trim();
+            s = (s ?? "").Trim();
+            bool percent = s.EndsWith("%");
+            s = s.TrimEnd('%').Trim();
             double f;
             if (s == "" || !double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out f) || f < 0) return -1;
-            if (f > 1) f /= 100;
+            if (percent || f > 1) f /= 100;
             return Math.Min(f, 1);
         }
 
