@@ -1,7 +1,7 @@
 using System.Reflection;
 
-[assembly: AssemblyTitle("Wrenlet")]
-[assembly: AssemblyProduct("Wrenlet")]
+[assembly: AssemblyTitle("Claude Notch")]
+[assembly: AssemblyProduct("Claude Notch")]
 [assembly: AssemblyDescription("A Windows notch companion for Claude")]
-[assembly: AssemblyVersion("0.2.0.0")]
-[assembly: AssemblyFileVersion("0.2.0.0")]
+[assembly: AssemblyVersion("0.2.1.0")]
+[assembly: AssemblyFileVersion("0.2.1.0")]

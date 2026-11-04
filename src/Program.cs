@@ -3,16 +3,16 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Windows;
 
-namespace Wrenlet
+namespace ClaudeNotch
 {
     static class Program
     {
-        //   Wrenlet.exe              install (if needed) and run; if already running, open settings
-        //   Wrenlet.exe --here       run from where it is, without installing (for testing builds)
-        //   Wrenlet.exe --settings   open the settings of the running copy
-        //   Wrenlet.exe --uninstall  remove the app, its hooks and its startup entry
-        //   Wrenlet.exe --hook       what Claude Code's hooks run (see HookServer)
-        //   Wrenlet.exe --demo       preview the notch's states without touching Claude (--demo quick: just quick voice; --demo cards: each kind of card)
+        //   ClaudeNotch.exe              install (if needed) and run; if already running, open settings
+        //   ClaudeNotch.exe --here       run from where it is, without installing (for testing builds)
+        //   ClaudeNotch.exe --settings   open the settings of the running copy
+        //   ClaudeNotch.exe --uninstall  remove the app, its hooks and its startup entry
+        //   ClaudeNotch.exe --hook       what Claude Code's hooks run (see HookServer)
+        //   ClaudeNotch.exe --demo       preview the notch's states without touching Claude (--demo quick: just quick voice; --demo cards: each kind of card)
         [STAThread]
         static void Main(string[] args)
         {
@@ -23,18 +23,17 @@ namespace Wrenlet
             if (mode == "--uninstall")
             {
                 Installer.Uninstall();
-                MessageBox.Show("Wrenlet has been removed.", "Wrenlet");
+                MessageBox.Show("Claude Notch has been removed.", "Claude Notch");
                 return;
             }
 
-            Installer.MigrateLegacy();
             bool firstRun = !Settings.Exists;
             var settings = Settings.Load();
 
             if (mode != "--here" && mode != "--settings" && !Installer.IsInstalledCopy)
             {
                 if (!Installer.InstallAndLaunch(settings))
-                    MessageBox.Show("Wrenlet couldn't install itself. See " + Log.FilePath, "Wrenlet", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show("Claude Notch couldn't install itself. See " + Log.FilePath, "Claude Notch", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 

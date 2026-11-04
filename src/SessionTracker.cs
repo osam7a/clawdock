@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 
-namespace Wrenlet
+namespace ClaudeNotch
 {
     // Follows Claude Code sessions through the hook events the notch receives:
     //   UserPromptSubmit / Stop       -> a turn started / finished (working time)

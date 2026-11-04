@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
-namespace Wrenlet
+namespace ClaudeNotch
 {
     // What a running session is doing right now, for the mascot: the tail of its transcript says
     // whether Claude is in the middle of a tool or thinking about what to do next. Read at most

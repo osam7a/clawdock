@@ -1,9 +1,9 @@
 using System;
 using System.IO;
 
-namespace Wrenlet
+namespace ClaudeNotch
 {
-    // Troubleshooting notes in %LOCALAPPDATA%\Wrenlet\Wrenlet.log. The file is
+    // Troubleshooting notes in %LOCALAPPDATA%\ClaudeNotch\ClaudeNotch.log. The file is
     // started over once it passes 256 KB so it can't grow without bound.
     static class Log
     {
@@ -11,7 +11,7 @@ namespace Wrenlet
 
         // Set CLAUDE_NOTCH_DEBUG=1 to also record details that can include your session names.
         public static readonly bool Verbose = Environment.GetEnvironmentVariable("CLAUDE_NOTCH_DEBUG") == "1";
-        public static readonly string FilePath = Path.Combine(Settings.DataDir, "Wrenlet.log");
+        public static readonly string FilePath = Path.Combine(Settings.DataDir, "ClaudeNotch.log");
 
         public static void Write(string message)
         {

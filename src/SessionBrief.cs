@@ -6,7 +6,7 @@ using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace Wrenlet
+namespace ClaudeNotch
 {
     // What quick voice knows about your other sessions: a snapshot written just before each
     // question, which it reads when you ask about them. Everything comes from files Claude Code

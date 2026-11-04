@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Windows.Automation;
 
-namespace Wrenlet
+namespace ClaudeNotch
 {
     // A question Claude asked at the end of a turn in the desktop app (the "next step" box:
     // a question plus one or two buttons), as reported by the wrap_up hook event.

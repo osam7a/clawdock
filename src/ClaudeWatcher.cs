@@ -10,7 +10,7 @@ using System.Windows.Automation;
 using Microsoft.Win32;
 using System.Windows.Threading;
 
-namespace Wrenlet
+namespace ClaudeNotch
 {
     // Polls the state of the Claude desktop app: whether it has a window open,
     // whether that window is the one in front, whether some other app is

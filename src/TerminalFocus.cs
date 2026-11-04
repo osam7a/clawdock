@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 
-namespace Wrenlet
+namespace ClaudeNotch
 {
     // Finds the window a terminal session of Claude Code runs in, so the notch can bring it
     // to the front. The claude process itself has no window; the first ancestor process that

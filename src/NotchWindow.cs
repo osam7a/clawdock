@@ -14,7 +14,7 @@ using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 
-namespace Wrenlet
+namespace ClaudeNotch
 {
     // What the notch should show; built by the Controller every refresh.
     class NotchState
@@ -131,7 +131,7 @@ namespace Wrenlet
             ResizeMode = ResizeMode.NoResize;
             Width = WinW;
             Height = WinH;
-            Title = "Wrenlet";
+            Title = "Claude Notch";
 
             title = Text(13, Brushes.White, FontWeights.SemiBold);
             subtitle = Text(12, Theme.Dim, FontWeights.Normal);
@@ -270,7 +270,7 @@ namespace Wrenlet
                 Child = new StackPanel { Children = { header, progressTrack, quickScroll, inputBar, actions, list } },
             };
             mini = new Border { Cursor = Cursors.Hand };
-            AutomationProperties.SetName(mini, "Wrenlet");
+            AutomationProperties.SetName(mini, "Claude Notch");
 
             endVoiceItem = Item("End voice conversation", () => { if (EndVoice != null) EndVoice(); });
             holder = new Grid { RenderTransform = slide, LayoutTransform = sizing, Opacity = 0, Children = { card, mini }, ContextMenu = BuildMenu() };
@@ -878,7 +878,7 @@ namespace Wrenlet
                 mini.Margin = new Thickness(0);
             }
             Pulse(mini, pulse);
-            AutomationProperties.SetName(mini, "Wrenlet: " + state.Title);
+            AutomationProperties.SetName(mini, "Claude Notch: " + state.Title);
         }
 
         // Rows for every running session: a status dot, the name, where it runs, and what it's doing.
@@ -1056,7 +1056,7 @@ namespace Wrenlet
             }));
             menu.Items.Add(new Separator());
             menu.Items.Add(Item("Settings…", () => { if (OpenSettings != null) OpenSettings(); }));
-            menu.Items.Add(Item("Quit Wrenlet", () => { if (Quit != null) Quit(); }));
+            menu.Items.Add(Item("Quit Claude Notch", () => { if (Quit != null) Quit(); }));
             return menu;
         }
 

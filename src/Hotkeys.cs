@@ -4,7 +4,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
 
-namespace Wrenlet
+namespace ClaudeNotch
 {
     // The shortcut that starts talking to Claude (or opens its quick entry). Either:
     //   copilot  the Copilot key, which sends Left Win + Left Shift + F23. A low-level keyboard
@@ -92,7 +92,7 @@ namespace Wrenlet
                 if ((s.CustomModifiers & 0xF) == (1 | 2) && s.CustomKey == 0x20) return "Ctrl+Alt+Space is Claude's own quick entry shortcut. Pick another.";
                 if (hotkeyWindow == null)
                 {
-                    hotkeyWindow = new HwndSource(new HwndSourceParameters("WrenletHotkey") { ParentWindow = new IntPtr(-3), WindowStyle = 0 });
+                    hotkeyWindow = new HwndSource(new HwndSourceParameters("ClaudeNotchHotkey") { ParentWindow = new IntPtr(-3), WindowStyle = 0 });
                     hotkeyWindow.AddHook(WndProc);
                 }
                 registered = RegisterHotKey(hotkeyWindow.Handle, HotkeyId, (uint)s.CustomModifiers | MOD_NOREPEAT, (uint)s.CustomKey);

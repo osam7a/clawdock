@@ -3,7 +3,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-namespace Wrenlet
+namespace ClaudeNotch
 {
     // Records the default microphone as 16 kHz mono 16-bit PCM (what Whisper wants), through the
     // plain waveIn API. Every 50 ms it reports how loud it was and whether that sounded like
