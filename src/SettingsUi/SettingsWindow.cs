@@ -23,7 +23,6 @@ namespace Clawdock
         TextBlock hookStatus, shortcutNote;
         readonly TextBlock pageTitle, unsaved;
         Ellipse hookDot;
-        TextBox recorder;
         readonly ScrollViewer scroller;
         readonly Dictionary<string, FrameworkElement> pages = new Dictionary<string, FrameworkElement>();
         readonly Canvas preview = new Canvas { Width = 224, Height = 126 };
@@ -168,6 +167,7 @@ namespace Clawdock
 
         void Show(string key)
         {
+            StopRecording();
             FrameworkElement page;
             if (!pages.TryGetValue(key, out page)) return;
             pageTitle.Text = (string)page.Tag;
@@ -186,30 +186,6 @@ namespace Clawdock
                 default: hookStatus.Text = "settings.json isn't valid JSON"; hookDot.Fill = p.Clay; break;
             }
             hookStatus.ToolTip = "~/.claude/settings.json";
-        }
-
-        // Records a key combination: at least one modifier (or a function key) plus a key.
-        void RecordKey(object sender, KeyEventArgs e)
-        {
-            e.Handled = true;
-            var key = e.Key == Key.System ? e.SystemKey : e.Key;
-            if (key == Key.LeftCtrl || key == Key.RightCtrl || key == Key.LeftAlt || key == Key.RightAlt
-                || key == Key.LeftShift || key == Key.RightShift || key == Key.LWin || key == Key.RWin) return;
-            if (key == Key.Escape || key == Key.Tab) { Keyboard.ClearFocus(); return; }
-
-            int mods = 0;
-            var m = Keyboard.Modifiers;
-            if ((m & ModifierKeys.Alt) != 0) mods |= 1;
-            if ((m & ModifierKeys.Control) != 0) mods |= 2;
-            if ((m & ModifierKeys.Shift) != 0) mods |= 4;
-            if (Keyboard.IsKeyDown(Key.LWin) || Keyboard.IsKeyDown(Key.RWin)) mods |= 8;
-            bool functionKey = key >= Key.F1 && key <= Key.F24;
-            if (mods == 0 && !functionKey) { recorder.Text = "Add Ctrl, Alt, Shift or Win"; return; }
-
-            s.CustomModifiers = mods;
-            s.CustomKey = KeyInterop.VirtualKeyFromKey(key);
-            recorder.Text = Hotkeys.Describe(mods, s.CustomKey);
-            Changed();
         }
     }
 }

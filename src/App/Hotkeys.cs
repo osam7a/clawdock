@@ -107,14 +107,32 @@ namespace Clawdock
             if (registered && hotkeyWindow != null) { UnregisterHotKey(hotkeyWindow.Handle, HotkeyId); registered = false; }
         }
 
-        public static string Describe(int modifiers, int vk)
+        // What a shortcut can be: at least one modifier, or a function key by itself.
+        public static bool CanUse(int modifiers, int vk)
         {
-            if (vk == 0) return "None";
+            if (IsModifier(vk)) return false;
+            return modifiers != 0 || (vk >= 0x70 && vk <= 0x87); // F1 to F24
+        }
+
+        public static bool IsModifier(int vk)
+        {
+            return vk == 0x10 || vk == 0x11 || vk == 0x12 || (vk >= 0xA0 && vk <= 0xA5) || vk == 0x5B || vk == 0x5C;
+        }
+
+        public static string DescribeModifiers(int modifiers)
+        {
             string s = "";
             if ((modifiers & 2) != 0) s += "Ctrl + ";
             if ((modifiers & 1) != 0) s += "Alt + ";
             if ((modifiers & 4) != 0) s += "Shift + ";
             if ((modifiers & 8) != 0) s += "Win + ";
+            return s;
+        }
+
+        public static string Describe(int modifiers, int vk)
+        {
+            if (vk == 0) return "None";
+            string s = DescribeModifiers(modifiers);
             var key = KeyInterop.KeyFromVirtualKey(vk);
             string name = key.ToString();
             if (key >= Key.D0 && key <= Key.D9) name = name.Substring(1);

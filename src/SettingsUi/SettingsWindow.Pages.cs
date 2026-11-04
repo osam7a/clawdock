@@ -44,17 +44,13 @@ namespace Clawdock
 
         void BuildShortcutPage()
         {
-            recorder = new TextBox { Width = 230, IsReadOnly = true, Text = Hotkeys.Describe(s.CustomModifiers, s.CustomKey), Cursor = Cursors.Hand };
-            recorder.PreviewKeyDown += RecordKey;
-            recorder.GotFocus += (a, b) => recorder.Text = "Press the keys…";
-            recorder.LostFocus += (a, b) => recorder.Text = Hotkeys.Describe(s.CustomModifiers, s.CustomKey);
-            recorder.IsEnabled = s.Shortcut == "custom";
+            var recorder = BuildRecorder();
             shortcutNote = new TextBlock { Foreground = p.Clay, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4, 10, 4, 0), Text = controller.ShortcutError ?? "" };
             Page("shortcut", "Shortcut",
                 Card(
                     Row("Start talking to Claude with", "The Copilot key works on most new keyboards.",
-                        Combo(new[] { "copilot", "Copilot key", "custom", "My own shortcut", "off", "No shortcut" }, s.Shortcut, v => { s.Shortcut = v; recorder.IsEnabled = v == "custom"; })),
-                    Row("My own shortcut", "Click, then press the keys. Needs Ctrl, Alt, Shift or Win, or a function key.", recorder)),
+                        Combo(new[] { "copilot", "Copilot key", "custom", "My own shortcut", "off", "No shortcut" }, s.Shortcut, v => { s.Shortcut = v; StopRecording(); recordButton.IsEnabled = v == "custom"; })),
+                    Row("My own shortcut", "Click Record, then press the keys. Use Ctrl, Alt, Shift or Win with another key, or a function key.", recorder)),
                 shortcutNote);
         }
 

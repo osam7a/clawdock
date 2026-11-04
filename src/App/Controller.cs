@@ -165,6 +165,9 @@ namespace Clawdock
 
         public string HookExe { get { return Installer.IsInstalledCopy ? Installer.InstalledExe : Installer.CurrentExe; } }
 
+        // After recording a shortcut, which turns the current one off while it listens.
+        public void RestoreShortcut() { ShortcutError = Hotkeys.Apply(settings); }
+
         public HookInstaller.State HookState() { return HookInstaller.Check(HookExe); }
 
         public bool RepairHooks() { return HookInstaller.Install(HookExe); }
