@@ -34,7 +34,7 @@ namespace ClaudeNotch
             {
                 StopRunningCopy();
                 Directory.CreateDirectory(Settings.DataDir);
-                CopyWithRetry(CurrentExe, InstalledExe);
+                ReplaceFile(CurrentExe, InstalledExe);
                 RemoveOldStartupEntries();
                 SetStartWithWindows(settings.StartWithWindows);
                 if (settings.KeepHooksInstalled) HookInstaller.Install(InstalledExe);
@@ -44,6 +44,9 @@ namespace ClaudeNotch
             catch (Exception e)
             {
                 Log.Write("Install failed: " + e.Message);
+                // The running copy was already stopped, so bring it back.
+                try { if (!IsInstalledCopy && File.Exists(InstalledExe)) Process.Start(new ProcessStartInfo(InstalledExe) { UseShellExecute = false, WorkingDirectory = Settings.DataDir }); }
+                catch (Exception e2) { Log.Write("Couldn't restart: " + e2.Message); }
                 return false;
             }
         }
@@ -192,13 +195,37 @@ namespace ClaudeNotch
                     try { if (!p.WaitForExit(1000)) p.Kill(); } catch { }
         }
 
-        static void CopyWithRetry(string from, string to)
+        // Copies over the target. A hook from an open session may be running the old exe, which can't
+        // be overwritten but can be renamed, so after a few tries it moves out of the way.
+        internal static void ReplaceFile(string from, string to)
         {
-            for (int i = 0; ; i++)
+            for (int i = 0; i < 5; i++)
             {
                 try { File.Copy(from, to, true); return; }
-                catch (IOException) { if (i >= 10) throw; Thread.Sleep(300); }
+                catch (IOException) { Thread.Sleep(300); }
+                catch (UnauthorizedAccessException) { Thread.Sleep(300); }
             }
+            string aside = to + ".old-" + DateTime.Now.Ticks;
+            File.Move(to, aside);
+            try { File.Copy(from, to, true); }
+            catch { File.Move(aside, to); throw; }
+        }
+
+        // The downloaded update and any old exe moved aside. Whatever is still in use goes next time.
+        public static void CleanUpAfterUpdate()
+        {
+            try
+            {
+                string update = Path.Combine(Settings.DataDir, "update");
+                if (Directory.Exists(update)) Directory.Delete(update, true);
+            }
+            catch { }
+            try
+            {
+                foreach (string old in Directory.GetFiles(Settings.DataDir, Path.GetFileName(InstalledExe) + ".old-*"))
+                    try { File.Delete(old); } catch { }
+            }
+            catch { }
         }
     }
 }
