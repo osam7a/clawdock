@@ -1,0 +1,54 @@
+name: Bug report
+description: Something isn't working
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Which part?
+      options:
+        - Sessions on the notch
+        - Permission requests
+        - Claude's questions
+        - Quick voice or typing
+        - New projects
+        - Settings or install
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Claude Notch version
+      description: Right-click ClaudeNotch.exe, then Properties, then Details.
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2
+  - type: dropdown
+    id: claude
+    attributes:
+      label: Where does the session run?
+      options:
+        - Claude desktop app
+        - Claude Code in a terminal
+        - Both
+        - Not relevant
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: >-
+        The end of %LOCALAPPDATA%\ClaudeNotch\ClaudeNotch.log, if it has anything useful.
+        Check it for anything private first.
+      render: text
