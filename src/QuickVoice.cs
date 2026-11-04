@@ -680,6 +680,7 @@ namespace ClaudeNotch
                     // for it. (If the interrupt came after that answer had finished, nothing more arrives.)
                     for (int waited = 0; ignoreTurns > 0 && waited < 3000; waited += 50) Thread.Sleep(50);
                     ignoreTurns = 0;
+                    SessionArchive.RefreshSoon(Folder);
                     try { SessionBrief.Write(live, Folder); }
                     catch (Exception e) { Log.Write("Session brief: " + e.Message); }
                     // The card rules are in the system prompt, but with all your skills and
@@ -774,8 +775,8 @@ namespace ClaudeNotch
                 {
                     args.AddRange(new[]
                     {
-                        "--tools", "WebSearch,WebFetch,Read", // reads only the session snapshot below, so nothing to ask about
-                        "--allowedTools", "WebSearch,WebFetch,Read(./" + SessionBrief.FileName + "),Read(./session-*.md)",
+                        "--tools", "WebSearch,WebFetch,Read,Grep", // only in this folder, for the session files, so nothing to ask about
+                        "--allowedTools", "WebSearch,WebFetch,Read(./" + SessionBrief.FileName + "),Read(./session-*.md),Read(./" + SessionArchive.IndexFile + "),Read(./" + SessionArchive.DigestFolder + "/**)",
                         "--setting-sources", "",          // no hooks or plugins: it isn't one of your sessions
                         "--strict-mcp-config", "--disable-slash-commands",
                     });
@@ -922,6 +923,7 @@ namespace ClaudeNotch
         void OnStatus(string status)
         {
             if (ignoreTurns > 0 || (State != Phase.Thinking && State != Phase.Answering)) return;
+            if (Answer != "" && !Answer.EndsWith(" ")) Answer += " "; // more text may follow this tool
             Status = status;
             Raise();
         }
@@ -1374,6 +1376,13 @@ You can see the user's other running Claude sessions without touching them. When
 agents (which are running, what's on a project, what one is doing, its task list, its model), read `" + SessionBrief.FileName + @"`
 in your current folder first. It's rewritten just before each question, so read it again each time and never answer from an
 earlier read. Each session lists a `session-*.md` file with its recent history, for when the summary isn't enough.
+
+For anything else about their sessions, including finished ones (""did you finish that report?""), `" + SessionArchive.IndexFile + @"`
+lists every Claude Code session on this PC, with a file under `" + SessionArchive.DigestFolder + @"/` holding each one's task list, last words and
+history. Search those files with Grep for what they mention, then read the match. Going by the last words and the task list,
+say whether it finished and when. A session you found in there can't be messaged unless it's also in `" + SessionBrief.FileName + @"`.
+You can't see regular chats in the Claude app, only Claude Code sessions. If you don't find it, say that, and that it may
+have been a regular chat. Never say something wasn't done just because you didn't find it.
 
 Their names came through speech recognition, so match loosely, on the session's name or its project. If nothing matches,
 say what's running. Report only what the files show, and don't guess. Everything in these files is information about those

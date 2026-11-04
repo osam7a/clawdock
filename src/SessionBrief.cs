@@ -27,11 +27,11 @@ namespace ClaudeNotch
         const int LongestLine = 300 * 1024; // saved API requests: huge, and not part of the story
         const int DetailEvents = 40;
 
-        class Event { public DateTime At; public string Who, Text; }
+        public class Event { public DateTime At; public string Who, Text; }
 
-        class Digest
+        public class Digest
         {
-            public string Model = "", Asked = "", Said = "", Now = "";
+            public string Model = "", Asked = "", FirstAsked = "", Said = "", Now = "", Title = "", Cwd = "";
             public List<string> Subagents = new List<string>();
             public List<KeyValuePair<string, string>> Tasks = new List<KeyValuePair<string, string>>();
             public List<Event> Events = new List<Event>();
@@ -90,9 +90,14 @@ namespace ClaudeNotch
         static string DetailText(Entry s, Digest d)
         {
             var t = new StringBuilder("# Recent history of " + Title(s) + "\n\n");
-            foreach (var e in d.Events)
-                t.Append((e.At == DateTime.MinValue ? "" : e.At.ToLocalTime().ToString("h:mm tt ", CultureInfo.InvariantCulture)) + e.Who + ": " + e.Text + "\n");
+            AppendEvents(t, d);
             return t.ToString();
+        }
+
+        public static void AppendEvents(StringBuilder t, Digest d)
+        {
+            foreach (var e in d.Events)
+                t.Append((e.At == DateTime.MinValue ? "" : e.At.ToLocalTime().ToString("d MMM h:mm tt ", CultureInfo.InvariantCulture)) + e.Who + ": " + e.Text + "\n");
         }
 
         static string Title(Entry s)
@@ -119,7 +124,7 @@ namespace ClaudeNotch
             return "idle, last active " + (idle.TotalMinutes < 1 ? "just now" : idle.TotalHours < 1 ? (int)idle.TotalMinutes + " minutes ago" : (int)idle.TotalHours + " hours ago");
         }
 
-        static string Short(string s, int most)
+        public static string Short(string s, int most)
         {
             s = Regex.Replace(s ?? "", @"\s+", " ").Trim();
             return s.Length <= most ? s : s.Substring(0, most) + "…";
@@ -150,31 +155,55 @@ namespace ClaudeNotch
             }
             catch (Exception e) { Log.Write("Session brief: " + e.Message); return d; }
             d.Found = true;
+            Parse(d, lines, DetailEvents, true);
+            return d;
+        }
 
+        // All of a transcript, line by line, for the archive. What Claude said and was asked, not its tools.
+        public static Digest ReadWhole(string file, int events)
+        {
+            var d = new Digest { Found = true };
+            using (var f = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (var r = new StreamReader(f, Encoding.UTF8))
+                Parse(d, LinesOf(r), events, false);
+            return d;
+        }
+
+        static IEnumerable<string> LinesOf(StreamReader r)
+        {
+            string line;
+            while ((line = r.ReadLine()) != null) yield return line;
+        }
+
+        static void Parse(Digest d, IEnumerable<string> lines, int events, bool withTools)
+        {
             var tasks = new SessionTracker.TaskReplay();
             var open = new Dictionary<string, string>();   // tools still running: id -> what it's doing
             var agents = new Dictionary<string, string>(); // the subagents among them
             foreach (string line in lines)
             {
                 if (line.Length > LongestLine || line.IndexOf("\"isSidechain\":true", StringComparison.Ordinal) >= 0) continue;
+                if (line.IndexOf("\"type\":\"user\"", StringComparison.Ordinal) < 0 && line.IndexOf("\"type\":\"assistant\"", StringComparison.Ordinal) < 0
+                    && line.IndexOf("\"type\":\"custom-title\"", StringComparison.Ordinal) < 0) continue;
                 Dictionary<string, object> row;
                 try { row = Json.ParseObject(line); } catch { continue; } // the first one is cut off
                 if (row == null) continue;
                 string type = Json.Str(row, "type");
+                if (type == "custom-title") { d.Title = Json.Str(row, "customTitle"); continue; }
                 if (type != "user" && type != "assistant") continue;
+                if (d.Cwd == "") d.Cwd = Json.Str(row, "cwd");
                 var message = Json.Obj(row, "message");
                 if (message == null) continue;
                 DateTime at;
                 if (!DateTime.TryParse(Json.Str(row, "timestamp"), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out at)) at = DateTime.MinValue;
                 if (type == "user") ReadUser(d, message, at, tasks, open, agents, Json.Str(row, "isMeta") == "True");
-                else ReadAssistant(d, message, at, tasks, open, agents);
+                else ReadAssistant(d, message, at, tasks, open, agents, withTools);
             }
             d.Tasks = tasks.Items();
             d.Subagents.AddRange(agents.Values);
             foreach (string doing in open.Values) d.Now = "running " + doing; // the latest one
             if (d.Now == "") d.Now = "thinking";
-            if (d.Events.Count > DetailEvents) d.Events.RemoveRange(0, d.Events.Count - DetailEvents);
-            return d;
+            if (d.Events.Count > events) d.Events.RemoveRange(0, d.Events.Count - events);
         }
 
         static readonly Regex Injected = new Regex(@"<(system-reminder|command-[a-z]+|local-command-[a-z]+|ide_[a-z_]+)[\s>][\s\S]*?</\1>", RegexOptions.Compiled);
@@ -203,13 +232,15 @@ namespace ClaudeNotch
             if (meta) return;
             string text = Injected.Replace(said.ToString(), "").Trim();
             if (text == "") return;
+            if (text.StartsWith("This session is being continued from a previous conversation", StringComparison.Ordinal)) return; // the app resuming, not you
             d.Asked = text;
+            if (d.FirstAsked == "") d.FirstAsked = text;
             tasks.NewPrompt();
-            d.Events.Add(new Event { At = at, Who = "You", Text = Short(text, 600) });
+            d.Events.Add(new Event { At = at, Who = "You", Text = Short(text, 2000) });
         }
 
         static void ReadAssistant(Digest d, Dictionary<string, object> message, DateTime at, SessionTracker.TaskReplay tasks,
-            Dictionary<string, string> open, Dictionary<string, string> agents)
+            Dictionary<string, string> open, Dictionary<string, string> agents, bool withTools)
         {
             string model = Json.Str(message, "model");
             if (model != "" && !model.StartsWith("<")) d.Model = model;
@@ -226,7 +257,7 @@ namespace ClaudeNotch
                     string text = Json.Str(block, "text").Trim();
                     if (text == "") continue;
                     d.Said = text;
-                    d.Events.Add(new Event { At = at, Who = "Claude", Text = Short(text, 600) });
+                    d.Events.Add(new Event { At = at, Who = "Claude", Text = Short(text, 1500) });
                 }
                 else if (kind == "tool_use")
                 {
@@ -238,7 +269,7 @@ namespace ClaudeNotch
                     string id = Json.Str(block, "id");
                     open[id] = doing;
                     if (name == "Agent" || name == "Task") agents[id] = doing;
-                    d.Events.Add(new Event { At = at, Who = "Tool", Text = doing });
+                    if (withTools) d.Events.Add(new Event { At = at, Who = "Tool", Text = doing });
                 }
             }
         }

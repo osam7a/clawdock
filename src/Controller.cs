@@ -103,7 +103,7 @@ namespace ClaudeNotch
             watcher.Start();
             ShortcutError = Hotkeys.Apply(settings);
             if (ShortcutError != null) tray.Balloon(ShortcutError);
-            if (settings.VoiceMode == "quick") QuickVoice.EnsureSkill();
+            if (settings.VoiceMode == "quick") { QuickVoice.EnsureSkill(); SessionArchive.RefreshSoon(QuickVoice.Folder); }
             KeepHooks();
             refreshTimer.Start();
             hookTimer.Start();
