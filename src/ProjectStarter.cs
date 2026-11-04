@@ -39,7 +39,7 @@ namespace ClaudeNotch
                 if (Array.IndexOf(bad, c) < 0 && !char.IsControl(c)) t.Append(c);
             string s = t.ToString().Trim().TrimEnd('.', ' ');
             if (s.Length > LongestName) s = s.Substring(0, LongestName).TrimEnd('.', ' ');
-            if (s.Trim('.', ' ') == "" || Reserved.Contains(s)) return "";
+            if (s.Trim('.', ' ') == "" || Reserved.Contains(s.Split('.')[0].TrimEnd())) return "";
             return s;
         }
 
