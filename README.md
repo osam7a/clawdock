@@ -1,5 +1,12 @@
 # Clawdock
 
+[![Latest release](https://img.shields.io/github/v/release/osam7a/clawdock)](https://github.com/osam7a/clawdock/releases/latest)
+[![Build](https://img.shields.io/github/actions/workflow/status/osam7a/clawdock/ci.yml?branch=main&label=build)](https://github.com/osam7a/clawdock/actions/workflows/ci.yml)
+[![Downloads](https://img.shields.io/github/downloads/osam7a/clawdock/total)](https://github.com/osam7a/clawdock/releases)
+[![License: MIT](https://img.shields.io/github/license/osam7a/clawdock)](LICENSE)
+![Windows 10 and 11](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-FFDD00?logo=buymeacoffee&logoColor=000000)](https://buymeacoffee.com/ousama)
+
 **Press the Copilot key and talk to Claude, from any app.**
 
 Clawdock turns your keyboard's Copilot key into a Claude key for Windows. Hold it, ask out loud, and let
@@ -29,8 +36,8 @@ If your keyboard doesn't have a Copilot key, it takes about 30 seconds to pick a
    themselves the first time you run it.
 2. Click **Shortcut** on the left.
 3. Set **Start talking to Claude with** to **My own shortcut**.
-4. Click the **My own shortcut** box and press the keys you want. It starts as `Ctrl+Shift+Space`, so
-   if that suits you, skip this step.
+4. Click **Record** and press the keys you want. It starts as `Ctrl+Shift+Space`, so if that suits
+   you, skip this step.
 5. Click **Save**.
 
 Your shortcut works right away, and everything in the table above works the same with it.
@@ -125,3 +132,5 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 - [Contributing](CONTRIBUTING.md): building, testing and pull requests.
 - [Changelog](CHANGELOG.md): what changed in each release.
 - [MIT License](LICENSE).
+
+If Clawdock saves you time, you can [buy me a coffee](https://buymeacoffee.com/ousama).
