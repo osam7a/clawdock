@@ -5,8 +5,13 @@ when it's released.
 
 ## Unreleased
 
+## 0.4.0 - 2026-11-05
+
 ### App
 
+- **Claude Notch is now Clawdock.** Running the new exe moves your settings, downloads and quick voice's
+  chat over, replaces the hooks and removes the old startup entry. The exe is now `Clawdock.exe`, in
+  `%LOCALAPPDATA%Clawdock`. Sessions already open report to the notch again after they restart.
 - Links in quick voice's answers are underlined and open when you click them. They aren't read aloud.
 - The compact style is wider: as wide as classic when open, and with more room for a session's status.
 - The installed copy updates itself from GitHub releases. You can turn this off in the settings.
