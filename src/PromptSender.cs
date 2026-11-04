@@ -80,6 +80,7 @@ namespace Wrenlet
             IntPtr hwnd = Native.FindClaudeWindow();
             if (hwnd == IntPtr.Zero)
             {
+                if (newChatLink == null) { SetClipboard(text); return false; } // only this chat: never a new one
                 VoiceLauncher.OpenLink(newChatLink);
                 hwnd = VoiceLauncher.WaitForClaudeWindow(15000);
                 if (hwnd == IntPtr.Zero) { SetClipboard(text); return false; }
@@ -90,6 +91,7 @@ namespace Wrenlet
             var box = FindPromptBox(win, 400);
             if (box == null)
             {
+                if (newChatLink == null) { SetClipboard(text); return false; } // only this chat: never a new one
                 VoiceLauncher.OpenLink(newChatLink);
                 box = FindPromptBox(win, 10000);
             }

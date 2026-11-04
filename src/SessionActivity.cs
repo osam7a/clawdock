@@ -29,7 +29,7 @@ namespace Wrenlet
         }
 
         // Claude Code keeps it under the project's folder, with every other character as a dash.
-        static string Transcript(string sessionId, string cwd)
+        public static string Transcript(string sessionId, string cwd)
         {
             var dir = new StringBuilder();
             foreach (char c in cwd) dir.Append(char.IsLetterOrDigit(c) ? c : '-');

@@ -38,6 +38,23 @@ namespace Wrenlet
             public int Done, Total;
         }
 
+        // Rebuilds a session's task list from its transcript, the same way the hook events do, so
+        // it also works for sessions that started before the hooks were installed.
+        public class TaskReplay
+        {
+            readonly Session s = new Session();
+
+            public void NewPrompt() { s.Items.RemoveAll(i => i.Id == null || i.Status == "completed"); }
+            public void Tool(string name, Dictionary<string, object> input) { ApplyTool(s, name, input, null); }
+
+            public List<KeyValuePair<string, string>> Items()
+            {
+                var list = new List<KeyValuePair<string, string>>();
+                foreach (var i in s.Items) list.Add(new KeyValuePair<string, string>(i.Content, i.Status));
+                return list;
+            }
+        }
+
         readonly Dictionary<string, Session> sessions = new Dictionary<string, Session>();
 
         public void Apply(Dictionary<string, object> d)

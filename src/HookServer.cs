@@ -47,6 +47,7 @@ namespace Wrenlet
             public readonly int Id = Interlocked.Increment(ref nextId);
             public string SessionId, Tool, Detail, FullDetail, Cwd;
             public string AllowReply = Allow, DenyReply = Deny;
+            public Action<bool> Decided; // a request of the notch's own, with no hook waiting
             public DateTime At = DateTime.Now;
             internal NamedPipeServerStream Pipe;
             int settled;
