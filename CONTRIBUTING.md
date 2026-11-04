@@ -53,8 +53,18 @@ The file table in the [README](README.md#how-it-works) shows where things are.
 
 ## Testing
 
-There are no automated tests yet, so try your change by hand and say in your pull request what you
-tried. Depending on what you changed, check:
+Run the tests, which also run on every push:
+
+```powershell
+.uild.ps1 -Test
+.uild.ps1 -Test -Only Json,Settings   # only tests with these words in their names
+```
+
+A test is a public static method in a `*Tests` class in `tests`. Tests must not touch your real
+`~/.claude`, settings file or Claude app.
+
+They cover the logic, not the screen, so also try your change by hand and say in your pull request
+what you tried. Depending on what you changed, check:
 
 - The notch in each style (Classic, Compact, Line, Dot), and on another edge or size.
 - A session in the Claude app and one in a terminal.
