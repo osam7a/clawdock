@@ -37,7 +37,7 @@ It's a single, small exe with no dependencies. It runs entirely on your PC.
   voice. Speech recognition and the reading voice can both run on your PC.
 - **Quick typing.** Double-press the shortcut for a small text box, and keep chatting there.
 - **Open in Claude.** Move a long voice or typed chat into the Claude app to read it or continue.
-- **A mascot that acts it out.** Clouds when it's thinking, a welding mask and torch when it's
+- **A mascot that acts it out.** Clouds when it's thinking, typing on a laptop when it's
   working, a magnifier when searching, a book when reading, and more.
 - **Fits your screen.** Four styles, any edge of any display, and separate sizes for collapsed and
   open.
@@ -135,6 +135,13 @@ exact message with **Allow** and **Deny**, and nothing is sent without Allow. In
 that chat and sends the message, and only if that chat is confirmed open. For a terminal session, or if
 it can't be confirmed, the terminal or chat comes forward and the message is on your clipboard to paste.
 
+**New projects.** Say "start a new project called Lab Tracker and set up a basic site". After you press
+**Allow**, it makes the folder (`Documents\Claude Projects` unless you change it), starts a Claude Code session there, opens it
+in the Claude app, and sends your first message. It won't use a folder that already has something in it. If the chat
+can't be confirmed open, the message goes on your clipboard to paste. New projects start in Auto mode, where Claude Code's safety
+checks decide what can run rather than asking each time. You can turn that off in Settings. The app has no documented way to start a session
+like this, so an app update could stop it working.
+
 **Finished sessions.** It can also search every Claude Code session on your PC, running or finished: "Did you
 finish pushing those screenshots?" Each transcript is read once in the background into a short digest of what was
 asked and said, and again only when it changes. It answers from those, going by the session's last words and
@@ -204,7 +211,7 @@ keeps everything in your Claude Code history and picks it up again each time.
 | Thinking | Claude is working out its answer: little clouds. |
 | Searching | It's searching the web: a magnifier. |
 | Reading | It's reading or looking through files: a book. |
-| Working | It's editing or running things: a welding mask, a torch, and sparks. |
+| Working | It's editing or running things: typing on a laptop, with code filling the screen. |
 | Speaking | An answer is being read aloud. |
 | Alert | A permission request is waiting. |
 | Question | Claude is asking you something. |
@@ -313,6 +320,7 @@ Claude window ──UI Automation──> voice, mute, current session title, pro
 | `src/SessionActivity.cs` | What a session is doing right now, from the end of its transcript. Drives the mascot. |
 | `src/SessionBrief.cs` | The read-only snapshot of your sessions that quick voice answers from. |
 | `src/SessionArchive.cs` | Digests of every Claude Code session on your PC, for quick voice to search. |
+| `src/ProjectStarter.cs` | Starts a new project: its folder, a session in it, and Auto mode. |
 | `src/SessionHub.cs` | Merges these into one session list. |
 | `src/ClaudeWatcher.cs` | Claude's window: open, minimized, in front, voice, mute, current session, fullscreen apps. |
 | `src/VoiceLauncher.cs` | Starts voice mode; microphone detection. |
