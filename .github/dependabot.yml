@@ -1,0 +1,7 @@
+version: 2
+updates:
+  # The workflows pin each action to a commit. This proposes the new commit when one is released.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

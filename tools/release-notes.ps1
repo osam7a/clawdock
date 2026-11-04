@@ -33,11 +33,19 @@ $notes
 
 ## Install
 
-Download ``Clawdock.exe`` and run it. It installs itself. To update, run the new exe the same way.
+Download ``Clawdock.exe`` and run it. It installs itself, and later updates install by themselves.
 
 The exe isn't code-signed yet, so if Windows SmartScreen warns you, choose **More info**, then **Run anyway**.
 
-## SHA-256
+## Check the download
+
+This exe was built by GitHub Actions from this tag. To confirm that, use the [GitHub CLI](https://cli.github.com):
+
+``````powershell
+gh attestation verify Clawdock.exe --repo osam7a/clawdock
+``````
+
+Its SHA-256:
 
 ``````text
 $hash  Clawdock.exe
