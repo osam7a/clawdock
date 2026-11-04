@@ -1,7 +1,8 @@
 # Builds bin\ClaudeNotch.exe with the C# compiler that ships with Windows (.NET Framework 4.x).
 # No SDK or Visual Studio needed.
 # -Test builds and runs the tests in tests\ instead of the app. -Only picks tests by name.
-param([switch]$Test, [string[]]$Only = @())
+# -Screenshots regenerates docs\screenshots. It covers your screen for about a minute.
+param([switch]$Test, [string[]]$Only = @(), [switch]$Screenshots)
 
 $ErrorActionPreference = 'Stop'
 
@@ -33,7 +34,7 @@ $refs = @(
     "$env:WINDIR\System32\WinMetadata\Windows.Media.winmd"
 ) | ForEach-Object { "/r:$_" }
 
-$sources = Get-ChildItem (Join-Path $PSScriptRoot 'src') -Filter *.cs | ForEach-Object FullName
+$sources = Get-ChildItem (Join-Path $PSScriptRoot 'src') -Filter *.cs -Recurse | ForEach-Object FullName
 
 if ($Test) {
     $tests = Get-ChildItem (Join-Path $PSScriptRoot 'tests') -Filter *.cs | ForEach-Object FullName
@@ -41,6 +42,18 @@ if ($Test) {
     if ($LASTEXITCODE -ne 0) { throw 'Building the tests failed' }
     & "$out\ClaudeNotch.Tests.exe" @Only
     if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
+    return
+}
+
+if ($Screenshots) {
+    & "$fw\csc.exe" /nologo /codepage:65001 /target:exe /main:ClaudeNotch.Tools.Screenshots "/out:$out\ClaudeNotch.Screenshots.exe" @refs @sources (Join-Path $PSScriptRoot 'tools\Screenshots.cs')
+    if ($LASTEXITCODE -ne 0) { throw 'Building the screenshot tool failed' }
+    # A running notch would sit on top of the shots, so it's stopped for them and started again.
+    $running = Get-Process ClaudeNotch -ErrorAction SilentlyContinue | Select-Object -First 1
+    $path = if ($running) { $running.Path } else { $null }
+    if ($running) { $running | Stop-Process -Force; Start-Sleep -Milliseconds 400 }
+    try { & "$out\ClaudeNotch.Screenshots.exe" (Join-Path $PSScriptRoot 'docs\screenshots') }
+    finally { if ($path) { Start-Process $path -WorkingDirectory (Split-Path $path) } }
     return
 }
 
