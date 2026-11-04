@@ -61,7 +61,14 @@ It installs itself:
    `settings.json.claudenotch-backup`.
 4. Starts.
 
-To update, run a newer exe the same way. Running it while it's already running opens the settings.
+Running a newer exe the same way also updates it. Running it while it's already running opens the
+settings.
+
+The installed copy also updates itself. It checks GitHub for a new release two minutes after it
+starts and every 6 hours after that, downloads the exe, and checks that it's this app at that
+version. It installs when no session is working and nothing is waiting on you, and restarts by
+itself. A permission request you haven't answered and quick voice in use always hold it back; anything
+else does for a day at most. To turn it off or check now, use **Settings → General → Updates**.
 
 Claude Code reads hooks when a session starts, so sessions that were already open only report task
 counts and permission requests after they restart. Session status and working time work for every
@@ -271,6 +278,8 @@ Claude Notch has no account, server, or telemetry. It talks to other services on
   session's requests and replies stay there until you uninstall.
 - **Downloads.** The speech recognition model and the natural voice are downloaded when you choose
   them in the settings.
+- **Updates.** It asks GitHub for the latest release every 6 hours and downloads it if it's newer,
+  unless you turn off **Update automatically**. GitHub sees the request as it would any other.
 - **ElevenLabs.** Answers are sent there only if you choose that voice and add your key.
 - **Windows speech.** Its online engine sends your voice to Microsoft if you've turned it on in
   Windows and picked the Windows engine.

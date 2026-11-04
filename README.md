@@ -28,8 +28,8 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
 Either way it installs itself to `%LOCALAPPDATA%\ClaudeNotch`, starts with Windows, and adds its
-hooks to `~/.claude/settings.json`, keeping a backup of that file. To update, run a newer exe the
-same way. Sessions that were already open report task counts and permission requests after they
+hooks to `~/.claude/settings.json`, keeping a backup of that file. It updates itself from GitHub
+releases, or you can run a newer exe the same way. Sessions that were already open report task counts and permission requests after they
 restart.
 
 ## Features
@@ -123,7 +123,8 @@ Right-click the tray icon and choose **Settings**, or run the exe again while it
 
 There's no account, server, or telemetry. Quick voice sends your questions to Claude through your
 own Claude Code. Voices and speech models are only downloaded if you choose them, and ElevenLabs is
-only used if you add your own key. The [guide](docs/guide.md#privacy) has the details.
+only used if you add your own key. It checks GitHub for new releases unless you turn that off. The
+[guide](docs/guide.md#privacy) has the details.
 
 ## Uninstall
 

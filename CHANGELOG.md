@@ -5,6 +5,12 @@ when it's released.
 
 ## Unreleased
 
+### App
+
+- Links in quick voice's answers are underlined and open when you click them. They aren't read aloud.
+- The compact style is wider: as wide as classic when open, and with more room for a session's status.
+- The installed copy updates itself from GitHub releases. You can turn this off in the settings.
+
 ### Project
 
 - Split the largest source files into smaller ones and grouped `src/` into folders. The app behaves
