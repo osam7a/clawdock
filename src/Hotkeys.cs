@@ -14,7 +14,11 @@ namespace ClaudeNotch
     static class Hotkeys
     {
         public static event Action Pressed;
+        public static event Action DoublePressed; // a second press right after Pressed
         public static event Action Escape; // Esc, while WatchEscape is on
+
+        const double DoublePressWithin = 450; // ms
+        static bool doubled;
 
         // Listens for Esc (on its own, no modifiers) while something is up on the notch. Esc
         // still reaches the app you're in; the hook only watches.
@@ -125,8 +129,17 @@ namespace ClaudeNotch
 
         static void Fire()
         {
-            if ((DateTime.Now - lastPress).TotalMilliseconds < 800) return; // ignore auto-repeat and double presses
+            double gap = (DateTime.Now - lastPress).TotalMilliseconds;
+            if (gap < DoublePressWithin && !doubled)
+            {
+                lastPress = DateTime.Now;
+                doubled = true;
+                if (ui != null) ui.BeginInvoke(new Action(() => { if (DoublePressed != null) DoublePressed(); }));
+                return;
+            }
+            if (gap < 800) return; // ignore auto-repeat and stray presses
             lastPress = DateTime.Now;
+            doubled = false;
             if (ui != null) ui.BeginInvoke(new Action(() => { if (Pressed != null) Pressed(); }));
         }
 

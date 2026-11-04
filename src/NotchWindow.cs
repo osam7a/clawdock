@@ -27,6 +27,7 @@ namespace ClaudeNotch
         public string QuickStatus = "";     // "Thinking…", "Searching the web…", an error
         public bool QuickMinimized, Speaking; // quick voice as a small bar; the answer is being read out
         public bool QuickCanClear;            // a private chat, which can be cleared
+        public bool QuickTyping;              // the text box is open
         public string Title = "Claude", Detail = "", Short = ""; // Short: "4:12 · 3/5", for the compact style
         public bool Busy, JustFinished, Muted;
         public int Done, Total;
@@ -61,6 +62,7 @@ namespace ClaudeNotch
         public Func<double> QuickLevel; // quick voice: how loud you are, or the answer being read (0..1; -1 unknown)
         public event Action<SessionInfo> OpenSession;
         public event Action<object, int> Choose; // owner, index into Choices
+        public event Action<string> SendTyped;   // what you typed in the text box
 
         readonly Settings settings;
         readonly Grid holder;
@@ -81,6 +83,10 @@ namespace ClaudeNotch
         readonly ScrollViewer quickScroll;
         readonly StackPanel quickHistory;
         readonly TextBlock quickNotes;
+        readonly TextBox input;
+        readonly Border inputBar;
+        bool typing;
+        IntPtr beforeTyping; // the window you were in, to go back to
         readonly Border youBubble, cardHost;
         readonly TextBlock youText, answerText, quickStatus;
         string historyKey = "", cardKey = "", turnKey = "";
@@ -215,13 +221,33 @@ namespace ClaudeNotch
                 Focusable = false, Visibility = Visibility.Collapsed,
             };
 
+            input = new TextBox
+            {
+                Background = Brushes.Transparent, Foreground = Brushes.White, CaretBrush = Brushes.White, BorderThickness = new Thickness(0),
+                FontSize = 13.5, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 96,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            };
+            AutomationProperties.SetName(input, "Message Claude");
+            input.PreviewKeyDown += OnInputKey;
+            var inputHint = Text(13.5, Theme.Dim, FontWeights.Normal);
+            inputHint.Text = "Message Claude…";
+            inputHint.IsHitTestVisible = false;
+            inputHint.Margin = new Thickness(2, 0, 0, 0);
+            input.TextChanged += (s, e) => inputHint.Visibility = input.Text == "" ? Visibility.Visible : Visibility.Collapsed;
+            inputBar = new Border
+            {
+                Background = Theme.Chip, CornerRadius = new CornerRadius(14), Padding = new Thickness(12, 8, 12, 8),
+                Margin = new Thickness(14, 2, 14, 14), Visibility = Visibility.Collapsed,
+                Child = new Grid { Children = { input, inputHint } },
+            };
+
             card = new Border
             {
                 Width = 150, // animations need a starting value
                 Background = Theme.Black,
                 Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 2, Opacity = 0.35, Direction = 270 },
                 Cursor = Cursors.Hand,
-                Child = new StackPanel { Children = { header, progressTrack, quickScroll, actions, list } },
+                Child = new StackPanel { Children = { header, progressTrack, quickScroll, inputBar, actions, list } },
             };
             mini = new Border { Cursor = Cursors.Hand };
             AutomationProperties.SetName(mini, "Claude Notch");
@@ -426,6 +452,8 @@ namespace ClaudeNotch
             subtitle.Visibility = showSub ? Visibility.Visible : Visibility.Collapsed;
             voicePanel.Visibility = s.Kind == "voice" || listening || speakingBars ? Visibility.Visible : Visibility.Collapsed;
             timerText.Visibility = s.Kind == "voice" || (listening && !minimized) ? Visibility.Visible : Visibility.Collapsed;
+            inputBar.Visibility = quick && s.QuickTyping ? Visibility.Visible : Visibility.Collapsed;
+            SetTyping(quick && s.QuickTyping);
             minButton.Visibility = quick && hover ? Visibility.Visible : Visibility.Collapsed;
             clearButton.Visibility = quick && hover && !minimized && s.QuickCanClear ? Visibility.Visible : Visibility.Collapsed;
             micButton.Visibility = quick ? Visibility.Collapsed : Visibility.Visible;
@@ -1070,6 +1098,48 @@ namespace ClaudeNotch
         static void Animate(UIElement el, DependencyProperty prop, double to, int ms)
         {
             el.BeginAnimation(prop, new DoubleAnimation(to, TimeSpan.FromMilliseconds(ms)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+        }
+
+        // Enter sends; Shift+Enter is a new line.
+        void OnInputKey(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter || (Keyboard.Modifiers & ModifierKeys.Shift) != 0) return;
+            e.Handled = true;
+            string text = input.Text;
+            if (text.Trim() == "") return;
+            input.Clear();
+            if (SendTyped != null) SendTyped(text);
+        }
+
+        // The notch never takes focus, except while its text box is open. Then it goes back to
+        // the window you were in.
+        void SetTyping(bool on)
+        {
+            if (on == typing) return;
+            typing = on;
+            var hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero) return;
+            int ex = GetWindowLong(hwnd, GWL_EXSTYLE);
+            SetWindowLong(hwnd, GWL_EXSTYLE, on ? ex & ~WS_EX_NOACTIVATE : ex | WS_EX_NOACTIVATE);
+            if (on)
+            {
+                beforeTyping = Native.GetForegroundWindow();
+                // After the card has appeared: a window that isn't showing can't take focus.
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (!typing) return;
+                    Native.ForceForeground(hwnd);
+                    Activate();
+                    input.Focus();
+                    Keyboard.Focus(input);
+                }), DispatcherPriority.Loaded);
+            }
+            else
+            {
+                bool hadFocus = Native.GetForegroundWindow() == hwnd;
+                if (hadFocus && beforeTyping != IntPtr.Zero && Native.IsWindow(beforeTyping)) Native.ForceForeground(beforeTyping);
+                beforeTyping = IntPtr.Zero;
+            }
         }
 
         // Keep the notch out of Alt+Tab and stop it from stealing focus when clicked.

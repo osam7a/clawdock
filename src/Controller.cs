@@ -44,7 +44,7 @@ namespace ClaudeNotch
             hub.FinishedFor = TimeSpan.FromSeconds(settings.FinishedSeconds);
             notch = new NotchWindow(settings);
             tray = new TrayIcon();
-            quick = new QuickVoice(settings) { HookExe = HookExe, KeepOpen = () => notch.Hovering, Persist = () => settings.QuickMinimized };
+            quick = new QuickVoice(settings) { HookExe = HookExe, KeepOpen = () => notch.Hovering || quick.Typing, Persist = () => settings.QuickMinimized };
             quick.Changed += Refresh;
             notch.ToggleMinimize += ToggleQuickMinimized;
             notch.ClearChat += ClearQuickChat;
@@ -76,6 +76,8 @@ namespace ClaudeNotch
             server.CommandReceived += cmd => { if (cmd == "settings") OpenSettings(); else if (cmd == "quit") Quit(); };
             watcher.Changed += Refresh;
             Hotkeys.Pressed += OnShortcut;
+            Hotkeys.DoublePressed += OnShortcutTwice;
+            notch.SendTyped += text => quick.SendTyped(text);
             Hotkeys.Escape += OnEscape;
 
             refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
@@ -395,7 +397,7 @@ namespace ClaudeNotch
 
             notch.Render(st);
             shownKind = st.Visible ? st.Kind : "";
-            Hotkeys.WatchEscape = shownKind == "quick" ? !settings.QuickMinimized || quick.Speaking || quick.FollowingUp : shownKind == "alert" || shownKind == "question";
+            Hotkeys.WatchEscape = shownKind == "quick" ? !settings.QuickMinimized || quick.Speaking || quick.FollowingUp || quick.Typing : shownKind == "alert" || shownKind == "question";
             tray.SetStatus(st.Kind == "alert" ? "Needs permission" : st.Kind == "quick" ? "Quick voice" : st.Kind == "question" ? "Claude asked you something" : voice ? "Voice conversation" : primary != null && primary.Busy ? "Working: " + primary.DisplayName : "Idle");
         }
 
@@ -423,7 +425,8 @@ namespace ClaudeNotch
             st.QuickCanClear = settings.QuickHistory != "history";
             st.QuickNow = quick.Current;
             st.QuickHistory = quick.History;
-            st.QuickMinimized = settings.QuickMinimized;
+            st.QuickTyping = quick.Typing;
+            st.QuickMinimized = settings.QuickMinimized && !quick.Typing;
             st.Speaking = quick.Speaking;
             switch (quick.State)
             {
@@ -618,12 +621,19 @@ namespace ClaudeNotch
             if (shownKind == "quick")
             {
                 if (quick.FollowingUp) quick.CancelFollowUp();
+                else if (quick.Typing) Dismiss();
                 else if (settings.QuickMinimized) quick.Hush();
                 else Dismiss();
             }
             else if (shownKind == "alert") CloseShownRequest();
             else if (shownKind == "question" && questions.Count > 0) questions.RemoveAt(questions.Count - 1);
             Refresh();
+        }
+
+        // Twice in a row: the text box instead of the microphone the first press opened.
+        void OnShortcutTwice()
+        {
+            if (settings.VoiceMode == "quick") quick.OpenTyping();
         }
 
         void OnShortcut()

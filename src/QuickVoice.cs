@@ -191,6 +191,7 @@ namespace ClaudeNotch
         public void Press()
         {
             if (State == Phase.Listening) { FinishListening(); return; } // second press: that's all
+            Typing = false; // back to talking
             StopSpeaking();
             bool cut = (State == Phase.Thinking && !transcribing) || State == Phase.Answering;
             if (cut) Interrupt();
@@ -212,6 +213,7 @@ namespace ClaudeNotch
         public void Dismiss()
         {
             followUpDue = false;
+            Typing = false;
             if (State == Phase.Listening) { stopping = true; StopRecognizer(); }
             StopSpeaking();
             bool cut = (State == Phase.Thinking && !transcribing) || State == Phase.Answering;
@@ -223,11 +225,61 @@ namespace ClaudeNotch
             Raise();
         }
 
+        // ---- typing ---------------------------------------------------------
+
+        // The text box is open: the same conversation, typed, and not read aloud.
+        public bool Typing { get; private set; }
+        bool typedTurn;
+
+        public void OpenTyping()
+        {
+            CutOffForNewTurn();
+            Typing = true;
+            lastUsed = DateTime.Now;
+            State = Phase.Done;
+            FinishedAt = DateTime.Now;
+            tick.Start();
+            Raise();
+        }
+
+        public void CloseTyping()
+        {
+            if (!Typing) return;
+            Typing = false;
+            Raise();
+        }
+
+        public void SendTyped(string text)
+        {
+            text = (text ?? "").Trim();
+            if (text == "") return;
+            CutOffForNewTurn();
+            Heard = text;
+            typedTurn = true;
+            Ask(text);
+        }
+
+        // Whatever is going on (listening, reading, an answer coming in) stops, and the turn on
+        // screen moves up into the history.
+        void CutOffForNewTurn()
+        {
+            followUpDue = followUp = false;
+            if (State == Phase.Listening) { stopping = true; StopRecognizer(); }
+            StopSpeaking();
+            bool cut = (State == Phase.Thinking && !transcribing) || State == Phase.Answering;
+            if (cut) Interrupt();
+            SaveTurn(cut);
+            transcribing = false;
+            turnNotes.Clear();
+            Heard = Partial = Answer = Status = "";
+        }
+
         // Forgets this private conversation: the chat on the notch and what Claude remembers of it.
         // The panel closes, and the next question starts a new one.
         public void ClearChat()
         {
             followUpDue = followUp = false;
+            Typing = false;
             if (State == Phase.Listening) { stopping = true; StopRecognizer(); }
             StopSpeaking();
             KillClaude();
@@ -433,7 +485,7 @@ namespace ClaudeNotch
             // Minimized, the bar stays until you close it (or the conversation times out).
             if (State == Phase.Done && Persist != null && Persist() && now - lastUsed < IdleExit) FinishedAt = now;
             if (State == Phase.Done && !Speaking && now - FinishedAt > Linger) { SaveTurn(false); State = Phase.Idle; Raise(); }
-            if (State == Phase.Error && now - FinishedAt > TimeSpan.FromSeconds(8)) { State = Phase.Idle; Raise(); }
+            if (State == Phase.Error && now - FinishedAt > TimeSpan.FromSeconds(8)) { State = Typing ? Phase.Done : Phase.Idle; Status = Typing ? "" : Status; Raise(); }
             if (State == Phase.Idle) tick.Stop();
         }
 
@@ -524,7 +576,9 @@ namespace ClaudeNotch
             State = Phase.Thinking;
             Status = "Thinking…";
             Answer = "";
-            lock (unspoken) { unspoken.Length = 0; sourcesReached = false; fed = 0; hushed = false; }
+            bool typed = typedTurn;
+            typedTurn = false;
+            lock (unspoken) { unspoken.Length = 0; sourcesReached = false; fed = 0; hushed = typed; }
             lastUsed = DateTime.Now;
             Raise();
             ThreadPool.QueueUserWorkItem(_ =>
@@ -543,6 +597,7 @@ namespace ClaudeNotch
                         new Dictionary<string, object> { { "type", "text" }, { "text", text } },
                         new Dictionary<string, object> { { "type", "text" }, { "text", Reminder() } },
                     };
+                    if (typed) content.Add(new Dictionary<string, object> { { "type", "text" }, { "text", TypedReminder } });
                     var msg = new Dictionary<string, object>
                     {
                         { "type", "user" },
@@ -1202,6 +1257,8 @@ namespace ClaudeNotch
             return "<system-reminder>Claude Notch's current instructions for this conversation. They replace any earlier ones.\n\n"
                 + VoiceInstructions(settings.QuickAccess == "full") + "</system-reminder>";
         }
+
+        const string TypedReminder = "<system-reminder>The user typed this one and your reply will be read on screen, not spoken: answer as fully as the question needs. It's still plain text, so no markdown. A question at the end doesn't open the microphone this time.</system-reminder>";
 
         const string FollowUps =
 @"## Follow-ups
