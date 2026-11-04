@@ -4,18 +4,18 @@ using System.IO;
 using System.Threading;
 using Microsoft.Win32;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
-    // Claude Notch is a single exe. Run from anywhere, it copies itself to
-    // %LOCALAPPDATA%\ClaudeNotch, registers itself to start with Windows (HKCU Run key),
+    // Clawdock is a single exe. Run from anywhere, it copies itself to
+    // %LOCALAPPDATA%\Clawdock, registers itself to start with Windows (HKCU Run key),
     // installs the Claude Code hooks, and starts the installed copy. A running older copy
     // is asked to quit first, so running a new build is also how you update.
     static class Installer
     {
         const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        const string RunValue = "ClaudeNotch";
+        const string RunValue = "Clawdock";
 
-        public static readonly string InstalledExe = Path.Combine(Settings.DataDir, "ClaudeNotch.exe");
+        public static readonly string InstalledExe = Path.Combine(Settings.DataDir, "Clawdock.exe");
 
         public static string CurrentExe
         {
@@ -53,7 +53,7 @@ namespace ClaudeNotch
 
         static string ShortcutPath
         {
-            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Claude Notch.lnk"); }
+            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Clawdock.lnk"); }
         }
 
         // A Start menu entry, so the app can be found and opened (it opens the settings when
@@ -69,7 +69,7 @@ namespace ClaudeNotch
                 var lt = link.GetType();
                 lt.InvokeMember("TargetPath", System.Reflection.BindingFlags.SetProperty, null, link, new object[] { InstalledExe });
                 lt.InvokeMember("WorkingDirectory", System.Reflection.BindingFlags.SetProperty, null, link, new object[] { Settings.DataDir });
-                lt.InvokeMember("Description", System.Reflection.BindingFlags.SetProperty, null, link, new object[] { "Claude Notch" });
+                lt.InvokeMember("Description", System.Reflection.BindingFlags.SetProperty, null, link, new object[] { "Clawdock" });
                 lt.InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, link, null);
             }
             catch (Exception e) { Log.Write("Couldn't add the Start menu entry: " + e.Message); }
@@ -90,7 +90,8 @@ namespace ClaudeNotch
             SetStartWithWindows(false);
             RemoveOldStartupEntries();
             try { File.Delete(ShortcutPath); } catch { }
-            try { if (Directory.Exists(LegacyDir)) Directory.Delete(LegacyDir, true); } catch { }
+            foreach (string old in new[] { "ClaudeNotch", "Wrenlet" })
+                try { if (Directory.Exists(LegacyDir(old))) Directory.Delete(LegacyDir(old), true); } catch { }
             try
             {
                 string dir = Settings.DataDir;
@@ -119,42 +120,66 @@ namespace ClaudeNotch
             catch (Exception e) { Log.Write("Could not change the startup entry: " + e.Message); }
         }
 
-        // ---- for a while the app was called Wrenlet ------------------------
+        // ---- the app's earlier names: Claude Notch, and before that Wrenlet ---
 
-        static string LegacyDir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Wrenlet"); } }
+        static string LegacyDir(string name) { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), name); }
+
+        public static void MigrateLegacy()
+        {
+            MigrateFrom("ClaudeNotch", "Claude Notch.lnk");
+            MigrateFrom("Wrenlet", "Wrenlet.lnk");
+        }
 
         // Moves that install's settings and downloads here and removes its startup entries. Its
         // exe stays for two weeks: sessions already open still run its hook until they restart,
         // and with no notch on its pipe it exits quietly. Its hooks are replaced when these are installed.
-        public static void MigrateLegacy()
+        static void MigrateFrom(string oldName, string shortcut)
         {
+            string dir = LegacyDir(oldName);
             try
             {
-                if (!Directory.Exists(LegacyDir)) return;
-                string marker = Path.Combine(LegacyDir, "moved-to-claudenotch");
+                if (!Directory.Exists(dir)) return;
+                string marker = Path.Combine(dir, "moved-to-clawdock");
+                string markerBefore = Path.Combine(dir, "moved-to-claudenotch");
+                if (File.Exists(markerBefore) && !File.Exists(marker)) marker = markerBefore;
                 if (File.Exists(marker))
                 {
-                    if (DateTime.Now - File.GetLastWriteTime(marker) > TimeSpan.FromDays(14)) Directory.Delete(LegacyDir, true);
+                    if (DateTime.Now - File.GetLastWriteTime(marker) > TimeSpan.FromDays(14)) Directory.Delete(dir, true);
                     return;
                 }
-                foreach (var p in Process.GetProcessesByName("Wrenlet"))
+                foreach (var p in Process.GetProcessesByName(oldName))
                     try { p.Kill(); p.WaitForExit(2000); } catch { }
                 Directory.CreateDirectory(Settings.DataDir);
                 try { File.Delete(Path.Combine(Settings.DataDir, "moved-to-wrenlet")); } catch { }
-                foreach (string entry in Directory.GetFileSystemEntries(LegacyDir))
+                foreach (string entry in Directory.GetFileSystemEntries(dir))
                 {
                     string name = Path.GetFileName(entry);
                     string target = Path.Combine(Settings.DataDir, name);
-                    if (name == "Wrenlet.exe" || name == "Wrenlet.log" || File.Exists(target) || Directory.Exists(target)) continue;
+                    if (name == oldName + ".exe" || name == oldName + ".log" || name == "update" || name.StartsWith(oldName + ".exe.old-") || File.Exists(target) || Directory.Exists(target)) continue;
                     MoveWithRetry(entry, target);
                 }
                 using (var key = Registry.CurrentUser.CreateSubKey(RunKey))
-                    if (key.GetValue("Wrenlet") != null) key.DeleteValue("Wrenlet");
-                try { File.Delete(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Wrenlet.lnk")); } catch { }
+                    if (key.GetValue(oldName) != null) key.DeleteValue(oldName);
+                try { File.Delete(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), shortcut)); } catch { }
+                MoveVoiceHistory(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "projects"), oldName);
                 File.WriteAllText(marker, "");
-                Log.Write("Moved the Wrenlet install here.");
+                Log.Write("Moved the " + oldName + " install here.");
             }
-            catch (Exception e) { Log.Write("Couldn't move the Wrenlet install: " + e.Message); }
+            catch (Exception e) { Log.Write("Couldn't move the " + oldName + " install: " + e.Message); }
+        }
+
+        // Claude Code files a conversation under its folder's path, and quick voice's folder just
+        // moved. Its history moves too, so its saved chat can still be resumed. Only this app's own.
+        internal static void MoveVoiceHistory(string projects, string oldName)
+        {
+            string ending = "-" + oldName + "-voice";
+            if (!Directory.Exists(projects)) return;
+            foreach (string dir in Directory.GetDirectories(projects, "*" + ending))
+            {
+                string target = dir.Substring(0, dir.Length - ending.Length) + "-Clawdock-voice";
+                try { if (!Directory.Exists(target)) MoveWithRetry(dir, target); }
+                catch (Exception e) { Log.Write("Couldn't move quick voice's history: " + e.Message); }
+            }
         }
 
         static void MoveWithRetry(string from, string to)
@@ -190,7 +215,7 @@ namespace ClaudeNotch
             // Still there: end it. This can also end a hook that is waiting on a permission
             // answer; Claude Code then just shows its own prompt.
             int me = Process.GetCurrentProcess().Id;
-            foreach (var p in Process.GetProcessesByName("ClaudeNotch"))
+            foreach (var p in Process.GetProcessesByName("Clawdock"))
                 if (p.Id != me)
                     try { if (!p.WaitForExit(1000)) p.Kill(); } catch { }
         }

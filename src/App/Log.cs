@@ -1,17 +1,17 @@
 using System;
 using System.IO;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
-    // Troubleshooting notes in %LOCALAPPDATA%\ClaudeNotch\ClaudeNotch.log. The file is
+    // Troubleshooting notes in %LOCALAPPDATA%\Clawdock\Clawdock.log. The file is
     // started over once it passes 256 KB so it can't grow without bound.
     static class Log
     {
         static readonly object gate = new object();
 
-        // Set CLAUDE_NOTCH_DEBUG=1 to also record details that can include your session names.
-        public static readonly bool Verbose = Environment.GetEnvironmentVariable("CLAUDE_NOTCH_DEBUG") == "1";
-        public static readonly string FilePath = Path.Combine(Settings.DataDir, "ClaudeNotch.log");
+        // Set CLAWDOCK_DEBUG=1 to also record details that can include your session names.
+        public static readonly bool Verbose = Environment.GetEnvironmentVariable("CLAWDOCK_DEBUG") == "1";
+        public static readonly string FilePath = Path.Combine(Settings.DataDir, "Clawdock.log");
 
         public static void Write(string message)
         {

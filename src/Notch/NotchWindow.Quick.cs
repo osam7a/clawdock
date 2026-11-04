@@ -14,7 +14,7 @@ using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // The notch: the quick voice chat, the minimized bar, and the text box.
     partial class NotchWindow
@@ -144,7 +144,7 @@ namespace ClaudeNotch
                 mini.Margin = new Thickness(0);
             }
             Pulse(mini, pulse);
-            AutomationProperties.SetName(mini, "Claude Notch: " + state.Title);
+            AutomationProperties.SetName(mini, "Clawdock: " + state.Title);
         }
 
 

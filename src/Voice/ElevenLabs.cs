@@ -5,7 +5,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // ElevenLabs, a voice in the cloud, for reading quick voice answers with your own API key.
     // Each sentence is one request (text in, 16-bit PCM out), so it plays while the next one is
@@ -70,7 +70,7 @@ namespace ClaudeNotch
             var req = (HttpWebRequest)WebRequest.Create(Api + path);
             req.Method = method;
             req.Headers["xi-api-key"] = key;
-            req.UserAgent = "ClaudeNotch";
+            req.UserAgent = "Clawdock";
             req.Timeout = 20000;
             req.ReadWriteTimeout = 20000;
             return req;
@@ -131,6 +131,7 @@ namespace ClaudeNotch
             catch { return ""; } // another user's or another PC's settings: the key has to be entered again
         }
 
+        // Keeps the old name: it seals the key already saved, and a new value couldn't open it.
         static readonly byte[] Entropy = Encoding.UTF8.GetBytes("ClaudeNotch ElevenLabs key");
     }
 }

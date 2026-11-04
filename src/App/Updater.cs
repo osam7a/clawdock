@@ -10,7 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Windows.Threading;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // Keeps the installed copy up to date from the project's GitHub releases. A new exe is downloaded
     // and checked in the background, then started when nothing is waiting on you. It replaces
@@ -20,7 +20,7 @@ namespace ClaudeNotch
         public const string Repo = "osam7a/clawdock";
         const string LatestUrl = "https://api.github.com/repos/" + Repo + "/releases/latest";
         const string DownloadPrefix = "https://github.com/" + Repo + "/releases/download/";
-        const string AssetName = "ClaudeNotch.exe";
+        const string AssetName = "Clawdock.exe";
         const long MostBytes = 64 * 1024 * 1024;
         static readonly TimeSpan FirstCheckAfter = TimeSpan.FromMinutes(2), CheckEvery = TimeSpan.FromHours(6);
 
@@ -175,7 +175,7 @@ namespace ClaudeNotch
         {
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
             var r = (HttpWebRequest)WebRequest.Create(url);
-            r.UserAgent = "ClaudeNotch/" + Short(Current);
+            r.UserAgent = "Clawdock/" + Short(Current);
             r.Accept = "application/vnd.github+json, application/octet-stream";
             r.Timeout = 30000;
             r.ReadWriteTimeout = 60000;
@@ -229,7 +229,7 @@ namespace ClaudeNotch
             AssemblyName name;
             try { name = AssemblyName.GetAssemblyName(path); }
             catch (Exception e) { throw new InvalidDataException("the download isn't this app: " + e.Message); }
-            if (name.Name != "ClaudeNotch") throw new InvalidDataException("the download is " + name.Name);
+            if (name.Name != "Clawdock") throw new InvalidDataException("the download is " + name.Name);
             Version want = VersionOf(release.Tag);
             if (want == null || name.Version.Major != want.Major || name.Version.Minor != want.Minor || name.Version.Build != Math.Max(0, want.Build))
                 throw new InvalidDataException("the download is version " + name.Version + ", not " + release.Tag);

@@ -12,7 +12,7 @@ using WBrushes = System.Windows.Media.Brushes;
 using WColor = System.Windows.Media.Color;
 using WBrush = System.Windows.Media.SolidColorBrush;
 
-namespace ClaudeNotch.Tools
+namespace Clawdock.Tools
 {
     // Regenerates docs/screenshots: build.ps1 -Screenshots. Puts the real notch on the real screen with
     // sample data, in front of a plain backdrop that hides your desktop, and captures it.

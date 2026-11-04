@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // Reads the live session files Claude Code keeps in ~/.claude/sessions/<pid>.json, one
     // per running session (desktop app and terminal alike). Each says which process owns it,

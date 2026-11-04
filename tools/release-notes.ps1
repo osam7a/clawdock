@@ -33,14 +33,14 @@ $notes
 
 ## Install
 
-Download ``ClaudeNotch.exe`` and run it. It installs itself. To update, run the new exe the same way.
+Download ``Clawdock.exe`` and run it. It installs itself. To update, run the new exe the same way.
 
 The exe isn't code-signed yet, so if Windows SmartScreen warns you, choose **More info**, then **Run anyway**.
 
 ## SHA-256
 
 ``````text
-$hash  ClaudeNotch.exe
+$hash  Clawdock.exe
 ``````
 "@
 [IO.File]::WriteAllText($Out, ($text -replace "`r`n", "`n") + "`n", (New-Object Text.UTF8Encoding($false)))

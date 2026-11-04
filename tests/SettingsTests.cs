@@ -1,6 +1,6 @@
 using System;
 
-namespace ClaudeNotch.Tests
+namespace Clawdock.Tests
 {
     // Never Load or Save here: those use your real settings file.
     static class SettingsTests

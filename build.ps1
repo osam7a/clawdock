@@ -1,4 +1,4 @@
-# Builds bin\ClaudeNotch.exe with the C# compiler that ships with Windows (.NET Framework 4.x).
+# Builds bin\Clawdock.exe with the C# compiler that ships with Windows (.NET Framework 4.x).
 # No SDK or Visual Studio needed.
 # -Test builds and runs the tests in tests\ instead of the app. -Only picks tests by name.
 # -Screenshots regenerates docs\screenshots. It covers your screen for about a minute.
@@ -38,21 +38,21 @@ $sources = Get-ChildItem (Join-Path $PSScriptRoot 'src') -Filter *.cs -Recurse |
 
 if ($Test) {
     $tests = Get-ChildItem (Join-Path $PSScriptRoot 'tests') -Filter *.cs | ForEach-Object FullName
-    & "$fw\csc.exe" /nologo /codepage:65001 /target:exe /main:ClaudeNotch.Tests.TestRunner "/out:$out\ClaudeNotch.Tests.exe" @refs @sources @tests
+    & "$fw\csc.exe" /nologo /codepage:65001 /target:exe /main:Clawdock.Tests.TestRunner "/out:$out\Clawdock.Tests.exe" @refs @sources @tests
     if ($LASTEXITCODE -ne 0) { throw 'Building the tests failed' }
-    & "$out\ClaudeNotch.Tests.exe" @Only
+    & "$out\Clawdock.Tests.exe" @Only
     if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
     return
 }
 
 if ($Screenshots) {
-    & "$fw\csc.exe" /nologo /codepage:65001 /target:exe /main:ClaudeNotch.Tools.Screenshots "/out:$out\ClaudeNotch.Screenshots.exe" @refs @sources (Join-Path $PSScriptRoot 'tools\Screenshots.cs')
+    & "$fw\csc.exe" /nologo /codepage:65001 /target:exe /main:Clawdock.Tools.Screenshots "/out:$out\Clawdock.Screenshots.exe" @refs @sources (Join-Path $PSScriptRoot 'tools\Screenshots.cs')
     if ($LASTEXITCODE -ne 0) { throw 'Building the screenshot tool failed' }
     # A running notch would sit on top of the shots, so it's stopped for them and started again.
-    $running = Get-Process ClaudeNotch -ErrorAction SilentlyContinue | Select-Object -First 1
+    $running = Get-Process Clawdock -ErrorAction SilentlyContinue | Select-Object -First 1
     $path = if ($running) { $running.Path } else { $null }
     if ($running) { $running | Stop-Process -Force; Start-Sleep -Milliseconds 400 }
-    try { & "$out\ClaudeNotch.Screenshots.exe" (Join-Path $PSScriptRoot 'docs\screenshots') }
+    try { & "$out\Clawdock.Screenshots.exe" (Join-Path $PSScriptRoot 'docs\screenshots') }
     finally { if ($path) { Start-Process $path -WorkingDirectory (Split-Path $path) } }
     return
 }
@@ -74,7 +74,7 @@ $pngs = foreach ($size in 16, 24, 32, 48, 64, 128, 256) {
     $g.Dispose(); $clay.Dispose(); $bmp.Dispose()
     , @($size, $mem.ToArray())
 }
-$icon = Join-Path $out 'ClaudeNotch.ico'
+$icon = Join-Path $out 'Clawdock.ico'
 $w = New-Object IO.BinaryWriter ([IO.File]::Create($icon))
 $w.Write([int16]0); $w.Write([int16]1); $w.Write([int16]$pngs.Count)
 $offset = 6 + 16 * $pngs.Count
@@ -87,6 +87,6 @@ foreach ($p in $pngs) {
 foreach ($p in $pngs) { $w.Write([byte[]]$p[1]) }
 $w.Close()
 
-& "$fw\csc.exe" /nologo /codepage:65001 /target:winexe /optimize "/win32icon:$icon" "/out:$out\ClaudeNotch.exe" @refs @sources
+& "$fw\csc.exe" /nologo /codepage:65001 /target:winexe /optimize "/win32icon:$icon" "/out:$out\Clawdock.exe" @refs @sources
 if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
-Write-Host "Built $out\ClaudeNotch.exe"
+Write-Host "Built $out\Clawdock.exe"

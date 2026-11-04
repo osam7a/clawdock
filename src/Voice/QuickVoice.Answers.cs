@@ -10,7 +10,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Threading;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // Quick voice: turning an answer into what is shown, and its card.
     partial class QuickVoice

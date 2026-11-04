@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // Plays the natural voice's sentences one after another through the plain waveOut API, and
     // knows how loud the moment playing right now is (for the notch's bars).

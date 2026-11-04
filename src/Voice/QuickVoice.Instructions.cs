@@ -10,7 +10,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Threading;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // Quick voice: what the model is told, including the voice-replies skill.
     partial class QuickVoice
@@ -24,7 +24,7 @@ namespace ClaudeNotch
 
         // SHA-256 of earlier default skills (LF line endings): a file still exactly like one of
         // them was never edited, so it gets the new default.
-        static readonly string[] OldDefaultSkills = { "4f7fc8aa5a04e0bdb8b387db594b11cb2e3a97642e9b1c185924d92ab2abefc6", "1354217ac2fa0d0851ab93d3e32715ae88396f4d2defbf61fe71ba6fc5a3ecb6" };
+        static readonly string[] OldDefaultSkills = { "21c4d8579c7ed6c1c8f67da0874260453b2d28a9790359df24902fcb1eafd222", "4f7fc8aa5a04e0bdb8b387db594b11cb2e3a97642e9b1c185924d92ab2abefc6", "1354217ac2fa0d0851ab93d3e32715ae88396f4d2defbf61fe71ba6fc5a3ecb6" };
 
         // Writes the voice-replies skill if it isn't there yet (never over your edits).
         public static void EnsureSkill()
@@ -53,7 +53,7 @@ namespace ClaudeNotch
             // Drop the frontmatter: only the rules matter here.
             var m = Regex.Match(text, @"^\s*---[\s\S]*?\n---\s*\n");
             if (m.Success) text = text.Substring(m.Length);
-            return "You are answering by voice, through Claude Notch. Your reply is read aloud and shown on a panel at the edge of the screen. Today is "
+            return "You are answering by voice, through Clawdock. Your reply is read aloud and shown on a panel at the edge of the screen. Today is "
                 + DateTime.Now.ToString("dddd d MMMM yyyy", CultureInfo.InvariantCulture) + ".\n\n" + CardFormat + "\n\n" + FollowUps + "\n\n" + OtherSessions + (full ? ManualSkills() : "") + "\n\n" + text.Trim();
         }
 
@@ -66,7 +66,7 @@ namespace ClaudeNotch
         {
             if (instructionsSent) return settings.QuickAccess != "web" && ManualSkills() != "" ? CardReminder.Replace("</system-reminder>", " If this falls under one of the skills listed under Skills you load yourself, read it and follow it.</system-reminder>") : CardReminder;
             instructionsSent = true;
-            return "<system-reminder>Claude Notch's current instructions for this conversation. They replace any earlier ones.\n\n"
+            return "<system-reminder>Clawdock's current instructions for this conversation. They replace any earlier ones.\n\n"
                 + VoiceInstructions(settings.QuickAccess != "web") + "</system-reminder>";
         }
 
@@ -95,7 +95,7 @@ message does disturb the session, so never send one to find out something the fi
 show. If only that session can answer, or the user wants it to do something, end your reply with this, once, after your
 spoken words:
 <ask-session id=""the session id"">the exact message to send</ask-session>
-It's not read aloud. Claude Notch then shows the message with Allow and Deny, and nothing is sent without Allow, so say in a few
+It's not read aloud. Clawdock then shows the message with Allow and Deny, and nothing is sent without Allow, so say in a few
 words that you need their OK on the notch, and don't ask for it as a question. You'll be told what came of it at the next
 question. A message can only be typed for them in a Claude app session. For a terminal session it's put on the clipboard.
 
@@ -107,7 +107,7 @@ It's not read aloud. The name becomes a new folder, so keep it short, with no sl
 didn't say what to do first. Choose the model and effort for the size of the work: haiku and low for a tiny throwaway script,
 sonnet and medium for a small project like a basic site or a simple tool, opus and high for a full app or anything they'll keep building,
 opus and xhigh for hard problems like tricky algorithms or complex systems. If they ask for a model or effort, use that. Otherwise never choose
-fable, which spends their usage credits, or max. If they didn't give a name and you can't tell one from what they said, ask for it instead. Claude Notch then
+fable, which spends their usage credits, or max. If they didn't give a name and you can't tell one from what they said, ask for it instead. Clawdock then
 shows the project with Allow and Deny, and nothing is made without Allow, so say in a few words that you need their OK on the notch, and
 don't ask for it as a question. You'll be told what came of it at the next question. For a project that already has
 a running session, use the session instructions above instead.";
@@ -157,7 +157,7 @@ with no closers like ""anything else?"" or ""want more?"".";
         }
 
         const string CardReminder =
-            "<system-reminder>Claude Notch: if this answer has a key fact to see at a glance (a figure, the weather, steps, "
+            "<system-reminder>Clawdock: if this answer has a key fact to see at a glance (a figure, the weather, steps, "
             + "a comparison, a short list), your reply must start with one <card>{json}</card> as described under Cards in your "
             + "instructions, then the spoken answer. The voice-replies rule against markup doesn't apply to the card. "
             + "No card for chat or explanations without one.</system-reminder>";
@@ -204,7 +204,7 @@ at most five): [day, weather, high, low]:
         const string DefaultSkill =
 @"---
 name: voice-replies
-description: How to answer when the reply will be read aloud (voice assistants, dictation, Claude Notch quick voice). Use whenever an answer will be spoken rather than read.
+description: How to answer when the reply will be read aloud (voice assistants, dictation, Clawdock quick voice). Use whenever an answer will be spoken rather than read.
 ---
 
 # Voice replies

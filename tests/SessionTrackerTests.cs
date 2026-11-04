@@ -1,6 +1,6 @@
 using System;
 
-namespace ClaudeNotch.Tests
+namespace Clawdock.Tests
 {
     static class SessionTrackerTests
     {

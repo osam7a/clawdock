@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
-namespace ClaudeNotch.Tests
+namespace Clawdock.Tests
 {
     static class QuickVoiceTests
     {

@@ -10,7 +10,7 @@ using System.Windows.Automation;
 using Microsoft.Win32;
 using System.Windows.Threading;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // Polls the state of the Claude desktop app: whether it has a window open,
     // whether that window is the one in front, whether some other app is
@@ -146,7 +146,7 @@ namespace ClaudeNotch
         // right name can be added to the list above.
         static void LogVoiceControls(AutomationElement win, Condition mic)
         {
-            if (!Log.Verbose) { Log.Write("Could not end voice. Set CLAUDE_NOTCH_DEBUG=1 to record the controls near the mic toggle."); return; }
+            if (!Log.Verbose) { Log.Write("Could not end voice. Set CLAWDOCK_DEBUG=1 to record the controls near the mic toggle."); return; }
             try
             {
                 var toggle = win.FindFirst(TreeScope.Descendants, mic);

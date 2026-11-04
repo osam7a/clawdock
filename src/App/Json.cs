@@ -5,7 +5,7 @@ using System.Globalization;
 using System.Text;
 using System.Web.Script.Serialization;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // Small JSON helpers on top of JavaScriptSerializer: safe parsing into plain
     // dictionaries/lists, readable two-space-indented output (for files people edit by

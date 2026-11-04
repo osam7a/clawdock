@@ -1,16 +1,16 @@
 using System;
 using System.IO;
 
-namespace ClaudeNotch.Tests
+namespace Clawdock.Tests
 {
     // Nothing here touches the network or the installed copy.
     static class UpdaterTests
     {
-        const string Url = "https://github.com/osam7a/clawdock/releases/download/v9.9.9/ClaudeNotch.exe";
+        const string Url = "https://github.com/osam7a/clawdock/releases/download/v9.9.9/Clawdock.exe";
 
         static string ReleaseJson(string url = Url, string digest = "sha256:abc123", string flags = "")
         {
-            return "{'tag_name':'v9.9.9'," + flags + "'assets':[{'name':'notes.txt','browser_download_url':'x'},{'name':'ClaudeNotch.exe','browser_download_url':'" + url + "','digest':'" + digest + "'}]}";
+            return "{'tag_name':'v9.9.9'," + flags + "'assets':[{'name':'notes.txt','browser_download_url':'x'},{'name':'Clawdock.exe','browser_download_url':'" + url + "','digest':'" + digest + "'}]}";
         }
 
         static Updater.Release Parse(string json) { return Updater.ParseRelease(json.Replace('\'', '"')); }
@@ -46,9 +46,9 @@ namespace ClaudeNotch.Tests
 
         public static void A_download_from_anywhere_else_is_refused()
         {
-            Check.Equal(null, Parse(ReleaseJson("https://example.com/ClaudeNotch.exe")));
-            Check.Equal(null, Parse(ReleaseJson("http://github.com/osam7a/clawdock/releases/download/v9.9.9/ClaudeNotch.exe")));
-            Check.Equal(null, Parse(ReleaseJson("https://github.com/someone/else/releases/download/v9.9.9/ClaudeNotch.exe")));
+            Check.Equal(null, Parse(ReleaseJson("https://example.com/Clawdock.exe")));
+            Check.Equal(null, Parse(ReleaseJson("http://github.com/osam7a/clawdock/releases/download/v9.9.9/Clawdock.exe")));
+            Check.Equal(null, Parse(ReleaseJson("https://github.com/someone/else/releases/download/v9.9.9/Clawdock.exe")));
         }
 
         static void Refused(string path, Updater.Release release, string why)
@@ -71,7 +71,7 @@ namespace ClaudeNotch.Tests
 
                 // A real .NET program, but not this app.
                 string other = typeof(UpdaterTests).Assembly.Location;
-                Refused(other, new Updater.Release { Tag = "v9.9.9", Sha256 = "" }, "ClaudeNotch.Tests");
+                Refused(other, new Updater.Release { Tag = "v9.9.9", Sha256 = "" }, "Clawdock.Tests");
             }
             finally { Directory.Delete(dir, true); }
         }

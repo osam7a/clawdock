@@ -20,6 +20,6 @@ jobs:
         run: ./build.ps1
       - uses: actions/upload-artifact@v7
         with:
-          name: ClaudeNotch
-          path: bin/ClaudeNotch.exe
+          name: Clawdock
+          path: bin/Clawdock.exe
           retention-days: 7

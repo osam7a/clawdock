@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace ClaudeNotch.Tests
+namespace Clawdock.Tests
 {
     static class ControllerTests
     {

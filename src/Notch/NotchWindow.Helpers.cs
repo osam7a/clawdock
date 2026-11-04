@@ -14,7 +14,7 @@ using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // The notch: small building blocks for its controls.
     partial class NotchWindow

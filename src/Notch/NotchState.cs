@@ -14,7 +14,7 @@ using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // What the notch should show; built by the Controller every refresh.
     class NotchState

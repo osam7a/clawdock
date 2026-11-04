@@ -2,15 +2,15 @@ using System;
 using System.IO;
 using System.Web.Script.Serialization;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // Everything the settings window can change. Saved as JSON next to the installed exe's
-    // data (%LOCALAPPDATA%\ClaudeNotch\settings.json); unknown or missing keys fall back
+    // data (%LOCALAPPDATA%\Clawdock\settings.json); unknown or missing keys fall back
     // to the defaults below, so older files keep working.
     class Settings
     {
         public static readonly string DataDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClaudeNotch");
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Clawdock");
         static readonly string FilePath = Path.Combine(DataDir, "settings.json");
 
         // Shortcut

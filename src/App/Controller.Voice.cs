@@ -5,7 +5,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Threading;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // What quick voice asks for: messaging sessions and starting new projects.
     partial class Controller
@@ -139,7 +139,7 @@ namespace ClaudeNotch
                     ui.BeginInvoke(new Action(() =>
                     {
                         quick.AddNote("Couldn't start " + name);
-                        quick.TellNext("The project " + name + " couldn't be started. Say so, and that the reason is in Claude Notch's log.");
+                        quick.TellNext("The project " + name + " couldn't be started. Say so, and that the reason is in Clawdock's log.");
                     }));
                     return;
                 }

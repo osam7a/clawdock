@@ -14,7 +14,7 @@ using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // The notch: a black card docked to an edge of the screen.
     //
@@ -109,7 +109,7 @@ namespace ClaudeNotch
             ResizeMode = ResizeMode.NoResize;
             Width = WinW;
             Height = WinH;
-            Title = "Claude Notch";
+            Title = "Clawdock";
 
             title = Text(13, Brushes.White, FontWeights.SemiBold);
             subtitle = Text(12, Theme.Dim, FontWeights.Normal);
@@ -259,7 +259,7 @@ namespace ClaudeNotch
                 Child = new StackPanel { Children = { header, progressTrack, detailScroll, quickScroll, inputBar, actions, list } },
             };
             mini = new Border { Cursor = Cursors.Hand };
-            AutomationProperties.SetName(mini, "Claude Notch");
+            AutomationProperties.SetName(mini, "Clawdock");
 
             endVoiceItem = Item("End voice conversation", () => { if (EndVoice != null) EndVoice(); });
             holder = new Grid { RenderTransform = slide, LayoutTransform = sizing, Opacity = 0, Children = { card, mini }, ContextMenu = BuildMenu() };
@@ -407,7 +407,7 @@ namespace ClaudeNotch
             }));
             menu.Items.Add(new Separator());
             menu.Items.Add(Item("Settings…", () => { if (OpenSettings != null) OpenSettings(); }));
-            menu.Items.Add(Item("Quit Claude Notch", () => { if (Quit != null) Quit(); }));
+            menu.Items.Add(Item("Quit Clawdock", () => { if (Quit != null) Quit(); }));
             return menu;
         }
 

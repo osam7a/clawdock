@@ -5,7 +5,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Threading;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // Ties everything together: watches Claude and the sessions, handles hook events and
     // permission requests, decides what the notch shows and when, and reacts to the shortcut,

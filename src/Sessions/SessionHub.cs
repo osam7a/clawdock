@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // One running Claude Code session as the notch shows it.
     class SessionInfo

@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // A piece of an answer: plain text, or text that links somewhere.
     class TextPart

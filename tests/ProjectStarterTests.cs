@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace ClaudeNotch.Tests
+namespace Clawdock.Tests
 {
     static class ProjectStarterTests
     {

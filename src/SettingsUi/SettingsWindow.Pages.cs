@@ -9,7 +9,7 @@ using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // The settings pages, except the voice page, which has its own file.
     partial class SettingsWindow
@@ -29,7 +29,7 @@ namespace ClaudeNotch
             checkNow.Click += (a, b) => controller.Updater.CheckNow();
             Page("general", "General",
                 Card(
-                    Toggle("Start with Windows", "Claude Notch starts when you sign in.", s.StartWithWindows, v => s.StartWithWindows = v),
+                    Toggle("Start with Windows", "Clawdock starts when you sign in.", s.StartWithWindows, v => s.StartWithWindows = v),
                     Toggle("Answer permission requests", "For Claude app sessions: allow or deny from the notch while you're away. Terminal sessions get a small notice instead and ask in the terminal.", s.ApproveFromNotch, v => s.ApproveFromNotch = v),
                     Toggle("Show Claude's questions", "When a session ends with a question like \"Should I test it?\", answer from the notch. It presses the same button in Claude.", s.ShowQuestions, v => s.ShowQuestions = v)),
                 Section("Updates"),

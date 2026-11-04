@@ -5,7 +5,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // Quick voice's memory of every Claude Code session on this PC, running or finished: a short
     // digest of each transcript and one index of them, in the voice folder, for it to read and
@@ -79,7 +79,7 @@ namespace ClaudeNotch
             if (!Directory.Exists(root)) return list;
             foreach (string dir in Directory.GetDirectories(root))
             {
-                if (dir.EndsWith("-ClaudeNotch-voice", StringComparison.OrdinalIgnoreCase) || dir.EndsWith("-Wrenlet-voice", StringComparison.OrdinalIgnoreCase)) continue;
+                if (dir.EndsWith("-Clawdock-voice", StringComparison.OrdinalIgnoreCase) || dir.EndsWith("-ClaudeNotch-voice", StringComparison.OrdinalIgnoreCase) || dir.EndsWith("-Wrenlet-voice", StringComparison.OrdinalIgnoreCase)) continue;
                 foreach (string f in Directory.GetFiles(dir, "*.jsonl")) list.Add(new FileInfo(f));
             }
             list.Sort((a, b) => b.LastWriteTimeUtc.CompareTo(a.LastWriteTimeUtc));

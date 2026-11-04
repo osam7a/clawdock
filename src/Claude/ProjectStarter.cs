@@ -6,13 +6,13 @@ using System.Text;
 using System.Threading;
 using System.Windows.Automation;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // Starts a new project: a folder of its own and a Claude Code session in it, which then opens
     // in the Claude app. Only ever after you press Allow on the notch.
     static class ProjectStarter
     {
-        const string SetupMessage = "The user just started this project from Claude Notch, and their first request comes next. Reply with just: Ready.";
+        const string SetupMessage = "The user just started this project from Clawdock, and their first request comes next. Reply with just: Ready.";
         const int LongestName = 60;
         static readonly string[] ModeNames = { "Manual", "Accept edits", "Plan", "Bypass permissions" };
         static readonly HashSet<string> Reserved = new HashSet<string>(StringComparer.OrdinalIgnoreCase)

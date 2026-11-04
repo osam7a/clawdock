@@ -10,7 +10,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Threading;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // Quick voice: push to talk, answered on the notch.
     //
@@ -84,7 +84,7 @@ namespace ClaudeNotch
         // How loud you are while it listens, 0..1; -1 when it can't be measured (Windows recognition).
         public double InputLevel { get { return State != Phase.Listening ? 0 : listeningLocal ? Level : -1; } }
         public bool MicReady { get; private set; }  // audio is coming in (the microphone takes a moment to start)
-        public string HookExe { get; set; }         // ClaudeNotch.exe, for approving tools from the notch
+        public string HookExe { get; set; }         // Clawdock.exe, for approving tools from the notch
         public Func<List<SessionBrief.Entry>> LiveSessions { get; set; } // your other sessions, for the snapshot
         public event Action<string, string> SessionMessageWanted;  // session id, message: needs your OK before it's sent
         public event Action<string, string, string, string> NewProjectWanted; // name, model, effort, first message: needs your OK before it's started

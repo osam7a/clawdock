@@ -5,7 +5,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Threading;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // What Claude Code tells the notch, and answering its permission requests.
     partial class Controller

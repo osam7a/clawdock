@@ -8,13 +8,13 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // Speech recognition on this PC with whisper.cpp (MIT licensed, github.com/ggml-org/whisper.cpp)
     // and an English Whisper model. Nothing leaves the computer.
     //
     // The engine and the model are downloaded once, from settings, into
-    // %LOCALAPPDATA%\ClaudeNotch\whisper, and each file is checked against its known SHA-256
+    // %LOCALAPPDATA%\Clawdock\whisper, and each file is checked against its known SHA-256
     // before it's used. A recording is transcribed after you stop talking (about 1 to 2 seconds
     // for a short question with the small model).
     static class LocalSpeech
@@ -82,7 +82,7 @@ namespace ClaudeNotch
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
             string part = path + ".part";
             var request = (HttpWebRequest)WebRequest.Create(url);
-            request.UserAgent = "ClaudeNotch";
+            request.UserAgent = "Clawdock";
             using (var response = request.GetResponse())
             using (var input = response.GetResponseStream())
             using (var output = File.Create(part))
@@ -115,7 +115,7 @@ namespace ClaudeNotch
         // What was said in a WAV recording (16 kHz mono), or "" for nothing.
         public static string Transcribe(byte[] wav, string modelKey)
         {
-            string file = Path.Combine(Path.GetTempPath(), "claude-notch-" + Guid.NewGuid().ToString("N") + ".wav");
+            string file = Path.Combine(Path.GetTempPath(), "clawdock-" + Guid.NewGuid().ToString("N") + ".wav");
             File.WriteAllBytes(file, wav);
             try
             {

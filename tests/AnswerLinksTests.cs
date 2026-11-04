@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 
-namespace ClaudeNotch.Tests
+namespace Clawdock.Tests
 {
     static class AnswerLinksTests
     {

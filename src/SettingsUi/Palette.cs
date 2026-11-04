@@ -9,7 +9,7 @@ using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // Claude's colors, light or dark, and the control styles built from them.
     class Palette

@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 
-namespace ClaudeNotch.Tests
+namespace Clawdock.Tests
 {
     // A test is any public static void method without parameters in a class named *Tests.
     // Pass words on the command line to run only the tests whose names contain one of them.
@@ -14,7 +14,7 @@ namespace ClaudeNotch.Tests
         static int Main(string[] filters)
         {
             var tests = Assembly.GetExecutingAssembly().GetTypes()
-                .Where(t => t.Namespace == "ClaudeNotch.Tests" && t.Name.EndsWith("Tests", StringComparison.Ordinal))
+                .Where(t => t.Namespace == "Clawdock.Tests" && t.Name.EndsWith("Tests", StringComparison.Ordinal))
                 .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Static).Where(m => m.ReturnType == typeof(void) && m.GetParameters().Length == 0))
                 .Where(m => filters.Length == 0 || filters.Any(f => Name(m).IndexOf(f, StringComparison.OrdinalIgnoreCase) >= 0))
                 .OrderBy(Name).ToList();

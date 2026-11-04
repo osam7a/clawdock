@@ -9,7 +9,7 @@ using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // The voice and prompts page of the settings.
     partial class SettingsWindow

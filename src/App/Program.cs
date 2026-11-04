@@ -3,17 +3,17 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Windows;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     static class Program
     {
-        //   ClaudeNotch.exe              install (if needed) and run; if already running, open settings
-        //   ClaudeNotch.exe --here       run from where it is, without installing (for testing builds)
-        //   ClaudeNotch.exe --settings   open the settings of the running copy
-        //   ClaudeNotch.exe --update     install this downloaded update, without any messages (see Updater)
-        //   ClaudeNotch.exe --uninstall  remove the app, its hooks and its startup entry
-        //   ClaudeNotch.exe --hook       what Claude Code's hooks run (see HookServer)
-        //   ClaudeNotch.exe --demo       preview the notch's states without touching Claude (--demo quick: just quick voice; --demo cards: each kind of card)
+        //   Clawdock.exe              install (if needed) and run; if already running, open settings
+        //   Clawdock.exe --here       run from where it is, without installing (for testing builds)
+        //   Clawdock.exe --settings   open the settings of the running copy
+        //   Clawdock.exe --update     install this downloaded update, without any messages (see Updater)
+        //   Clawdock.exe --uninstall  remove the app, its hooks and its startup entry
+        //   Clawdock.exe --hook       what Claude Code's hooks run (see HookServer)
+        //   Clawdock.exe --demo       preview the notch's states without touching Claude (--demo quick: just quick voice; --demo cards: each kind of card)
         [STAThread]
         static void Main(string[] args)
         {
@@ -24,7 +24,7 @@ namespace ClaudeNotch
             if (mode == "--uninstall")
             {
                 Installer.Uninstall();
-                MessageBox.Show("Claude Notch has been removed.", "Claude Notch");
+                MessageBox.Show("Clawdock has been removed.", "Clawdock");
                 return;
             }
 
@@ -35,7 +35,7 @@ namespace ClaudeNotch
             if (mode != "--here" && mode != "--settings" && !Installer.IsInstalledCopy)
             {
                 if (!Installer.InstallAndLaunch(settings) && mode != "--update") // an update just tries again later
-                    MessageBox.Show("Claude Notch couldn't install itself. See " + Log.FilePath, "Claude Notch", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show("Clawdock couldn't install itself. See " + Log.FilePath, "Clawdock", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -71,12 +71,12 @@ namespace ClaudeNotch
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             var notch = new NotchWindow(new Settings { Transient = true });
             var now = DateTime.Now;
-            var working = new SessionInfo { Id = "a", Name = "CoPilot key launcher", Cwd = @"C:\Users\you\Claude-Notch", Desktop = true, Busy = true, Done = 1, Total = 5 };
+            var working = new SessionInfo { Id = "a", Name = "CoPilot key launcher", Cwd = @"C:\Users\you\Clawdock", Desktop = true, Busy = true, Done = 1, Total = 5 };
             var cli = new SessionInfo { Id = "b", Name = "api refactor", Cwd = @"C:\code\api", Busy = true, Done = 0, Total = 3 };
             var idle = new SessionInfo { Id = "c", Name = "docs", Cwd = @"C:\code\docs" };
             var all = new List<SessionInfo> { working, cli, idle };
 
-            var demoPending = new HookServer.Pending { FullDetail = "Command: git push origin main\n\nDescription: Push the commits\n\nFolder: C:\\code\\Claude-Notch" };
+            var demoPending = new HookServer.Pending { FullDetail = "Command: git push origin main\n\nDescription: Push the commits\n\nFolder: C:\\code\\Clawdock" };
             var demoQuestion = new Question();
             int step = quickOnly ? 299 : 0;
             var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
@@ -89,7 +89,7 @@ namespace ClaudeNotch
                 NotchState st = null;
                 if (step < 140) st = new NotchState { Visible = step > 5, Kind = "session", Title = working.Name, Busy = true, Done = working.Done, Total = 5, Detail = "Working " + SessionTracker.Clock(t) + " · " + working.Done + " done · " + (5 - working.Done) + " left", Sessions = all };
                 else if (step < 220) st = new NotchState { Visible = true, Kind = "voice", Muted = step > 175 && step < 195, VoiceStarted = now.AddSeconds(14), Sessions = all };
-                else if (step < 260) st = new NotchState { Visible = true, Kind = "alert", Title = "Allow Bash? · Claude-Notch", Detail = "Bash: git push origin main", Pending = demoPending, Owner = demoPending, Choices = new List<string> { "Deny", "Allow" }, Primary = 1, Sessions = all };
+                else if (step < 260) st = new NotchState { Visible = true, Kind = "alert", Title = "Allow Bash? · Clawdock", Detail = "Bash: git push origin main", Pending = demoPending, Owner = demoPending, Choices = new List<string> { "Deny", "Allow" }, Primary = 1, Sessions = all };
                 else if (step < 300) st = new NotchState { Visible = true, Kind = "question", Title = "Claude asks · " + working.Name, Detail = "Should I test approve-from-notch with a real Claude Code CLI session?", Owner = demoQuestion, Choices = new List<string> { "Not now", "Yes, test it" }, Primary = 1, Sessions = all };
                 else if (cardsOnly && step < 300 + DemoCards.Length * 40) st = DemoCard(step - 300);
                 else if (cardsOnly && step < 310 + DemoCards.Length * 40) st = new NotchState { Visible = false };

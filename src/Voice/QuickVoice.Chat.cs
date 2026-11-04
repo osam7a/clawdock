@@ -10,7 +10,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Threading;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // Quick voice: the typed chat, and moving a chat into the Claude app.
     partial class QuickVoice
@@ -81,7 +81,7 @@ namespace ClaudeNotch
             if (turns.Count == 0) { Notice = "Nothing to open yet."; Raise(); return; }
             if (savedId != null && savedTurns == turns.Count) { VoiceLauncher.OpenLink("claude://resume?session=" + savedId); return; }
 
-            var text = new StringBuilder("This is a conversation I had with you through Claude Notch's quick voice. Keep it as the record: I may ask about it or continue it here. Reply only with: Saved.\n\n");
+            var text = new StringBuilder("This is a conversation I had with you through Clawdock's quick voice. Keep it as the record: I may ask about it or continue it here. Reply only with: Saved.\n\n");
             foreach (var t in turns)
             {
                 text.Append("Me: ").Append(t.Heard).Append("\n\n");

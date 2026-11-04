@@ -9,7 +9,7 @@ using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
-namespace ClaudeNotch
+namespace Clawdock
 {
     // Building blocks for the settings pages.
     partial class SettingsWindow
