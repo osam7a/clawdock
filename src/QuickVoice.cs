@@ -1021,7 +1021,7 @@ namespace ClaudeNotch
 
         // The answer without its card. While a card is still arriving, it (and anything after it)
         // is held back, so its JSON is never shown or read aloud. Only ever grows as text arrives.
-        static string WithoutCard(string s)
+        internal static string WithoutCard(string s)
         {
             s = CardBlock.Replace(s ?? "", "");
             s = AskBlock.Replace(s, "");

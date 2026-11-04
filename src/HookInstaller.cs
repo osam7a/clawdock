@@ -127,7 +127,7 @@ namespace ClaudeNotch
 
         // Removes every handler of ours, drops groups and events that end up empty, then
         // (when adding) appends one canonical group per event.
-        static Dictionary<string, object> Merge(Dictionary<string, object> root, string exePath, bool add)
+        internal static Dictionary<string, object> Merge(Dictionary<string, object> root, string exePath, bool add)
         {
             var hooks = Json.Obj(root, "hooks");
             if (hooks == null)
@@ -184,7 +184,7 @@ namespace ClaudeNotch
             return root;
         }
 
-        static int CountOurs(Dictionary<string, object> root)
+        internal static int CountOurs(Dictionary<string, object> root)
         {
             int n = 0;
             var hooks = Json.Obj(root, "hooks");

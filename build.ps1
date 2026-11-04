@@ -1,5 +1,8 @@
 # Builds bin\ClaudeNotch.exe with the C# compiler that ships with Windows (.NET Framework 4.x).
 # No SDK or Visual Studio needed.
+# -Test builds and runs the tests in tests\ instead of the app. -Only picks tests by name.
+param([switch]$Test, [string[]]$Only = @())
+
 $ErrorActionPreference = 'Stop'
 
 $fw  = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319"
@@ -31,6 +34,15 @@ $refs = @(
 ) | ForEach-Object { "/r:$_" }
 
 $sources = Get-ChildItem (Join-Path $PSScriptRoot 'src') -Filter *.cs | ForEach-Object FullName
+
+if ($Test) {
+    $tests = Get-ChildItem (Join-Path $PSScriptRoot 'tests') -Filter *.cs | ForEach-Object FullName
+    & "$fw\csc.exe" /nologo /codepage:65001 /target:exe /main:ClaudeNotch.Tests.TestRunner "/out:$out\ClaudeNotch.Tests.exe" @refs @sources @tests
+    if ($LASTEXITCODE -ne 0) { throw 'Building the tests failed' }
+    & "$out\ClaudeNotch.Tests.exe" @Only
+    if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
+    return
+}
 
 # The app icon: the mascot (the same shape as TrayIcon.DrawMascot) in clay, pixel-sharp at each size.
 Add-Type -AssemblyName System.Drawing

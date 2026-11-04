@@ -915,7 +915,7 @@ namespace ClaudeNotch
         }
 
         // Everything the tool was given, for the request's details: nothing left out but what's too long to show.
-        static string FullRequest(Dictionary<string, object> input, string cwd)
+        internal static string FullRequest(Dictionary<string, object> input, string cwd)
         {
             var t = new System.Text.StringBuilder();
             if (input != null)
@@ -947,7 +947,7 @@ namespace ClaudeNotch
             }
         }
 
-        static string DescribeTool(string tool, Dictionary<string, object> input)
+        internal static string DescribeTool(string tool, Dictionary<string, object> input)
         {
             string what = Json.Str(input, "command");
             if (what == "") what = Json.Str(input, "file_path");
