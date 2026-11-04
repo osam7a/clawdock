@@ -5,6 +5,23 @@ when it's released.
 
 ## Unreleased
 
+## 0.5.0 - 2026-11-05
+
+### App
+
+- A new install now starts quick voice from the shortcut, with Whisper's 60 MB model and the natural
+  voice Bruno. They download by themselves on first run, about 160 MB. Existing installs keep their
+  settings.
+- Automatic updates now refuse a release that has no checksum.
+- The exe's Properties now show its author and license.
+
+### Project
+
+- Releases can be verified: each one records that GitHub Actions built it from its tag, using
+  `gh attestation verify`.
+- Workflows pin their actions to exact commits and only get the permissions they need.
+- Added `SECURITY.md`, CodeQL scanning and Dependabot for the workflows' actions.
+
 ## 0.4.0 - 2026-11-05
 
 ### App
