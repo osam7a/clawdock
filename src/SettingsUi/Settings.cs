@@ -61,6 +61,7 @@ namespace ClaudeNotch
         public bool ApproveFromNotch { get; set; }
         public bool ShowQuestions { get; set; }       // Claude's end-of-turn questions, with their buttons
         public bool KeepHooksInstalled { get; set; }
+        public bool AutoUpdate { get; set; }           // install new releases from GitHub
 
         public Settings()
         {
@@ -100,6 +101,7 @@ namespace ClaudeNotch
             ApproveFromNotch = true;
             ShowQuestions = true;
             KeepHooksInstalled = true;
+            AutoUpdate = true;
         }
 
         public static Settings Load()

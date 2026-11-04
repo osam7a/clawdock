@@ -10,6 +10,7 @@ namespace ClaudeNotch
         //   ClaudeNotch.exe              install (if needed) and run; if already running, open settings
         //   ClaudeNotch.exe --here       run from where it is, without installing (for testing builds)
         //   ClaudeNotch.exe --settings   open the settings of the running copy
+        //   ClaudeNotch.exe --update     install this downloaded update, without any messages (see Updater)
         //   ClaudeNotch.exe --uninstall  remove the app, its hooks and its startup entry
         //   ClaudeNotch.exe --hook       what Claude Code's hooks run (see HookServer)
         //   ClaudeNotch.exe --demo       preview the notch's states without touching Claude (--demo quick: just quick voice; --demo cards: each kind of card)
@@ -33,7 +34,7 @@ namespace ClaudeNotch
 
             if (mode != "--here" && mode != "--settings" && !Installer.IsInstalledCopy)
             {
-                if (!Installer.InstallAndLaunch(settings))
+                if (!Installer.InstallAndLaunch(settings) && mode != "--update") // an update just tries again later
                     MessageBox.Show("Claude Notch couldn't install itself. See " + Log.FilePath, "Claude Notch", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }

@@ -39,6 +39,7 @@ namespace ClaudeNotch
         DateTime dismissedUntil = DateTime.MinValue, voiceStarted;
         bool wasLooking, wasVoice;
         public string ShortcutError { get; private set; }
+        public Updater Updater { get; private set; }
 
         public Controller(Settings settings)
         {
@@ -48,6 +49,7 @@ namespace ClaudeNotch
             tray = new TrayIcon();
             quick = new QuickVoice(settings) { HookExe = HookExe, KeepOpen = () => notch.Hovering || quick.Typing, Persist = () => settings.QuickMinimized };
             quick.Changed += Refresh;
+            Updater = new Updater(settings, CalmForUpdate);
             notch.ToggleMinimize += ToggleQuickMinimized;
             notch.ClearChat += ClearQuickChat;
             notch.QuickLevel = () => quick.State == QuickVoice.Phase.Listening ? quick.InputLevel : quick.OutputLevel;
@@ -109,7 +111,17 @@ namespace ClaudeNotch
             KeepHooks();
             refreshTimer.Start();
             hookTimer.Start();
+            Updater.Start();
             Refresh();
+        }
+
+        // Restarting loses what's only held in memory, so an update waits. A held request or quick
+        // voice in use always comes first. The rest gives way if you asked, or after a day.
+        bool CalmForUpdate(bool asked, TimeSpan waited)
+        {
+            if (pending.Count > 0 || quick.Active) return false;
+            if (asked || waited > TimeSpan.FromDays(1)) return true;
+            return alerts.Count == 0 && questions.Count == 0 && !notch.Hovering && settingsWindow == null && !sessions.Exists(x => x.Busy);
         }
 
         // ---- settings ------------------------------------------------------

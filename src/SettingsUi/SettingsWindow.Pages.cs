@@ -21,11 +21,21 @@ namespace ClaudeNotch
             var repair = new Button { Content = "Repair hooks", Margin = new Thickness(12, 0, 0, 0) };
             repair.Click += (a, b) => { controller.RepairHooks(); ShowHookState(); };
             ShowHookState();
+            var updateStatus = new TextBlock { Foreground = p.Sub, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxWidth = 300, Text = controller.Updater.Status };
+            Action showUpdate = () => updateStatus.Text = controller.Updater.Status;
+            controller.Updater.Changed += showUpdate;
+            Closed += (a, b) => controller.Updater.Changed -= showUpdate;
+            var checkNow = new Button { Content = "Check now", Margin = new Thickness(12, 0, 0, 0) };
+            checkNow.Click += (a, b) => controller.Updater.CheckNow();
             Page("general", "General",
                 Card(
                     Toggle("Start with Windows", "Claude Notch starts when you sign in.", s.StartWithWindows, v => s.StartWithWindows = v),
                     Toggle("Answer permission requests", "For Claude app sessions: allow or deny from the notch while you're away. Terminal sessions get a small notice instead and ask in the terminal.", s.ApproveFromNotch, v => s.ApproveFromNotch = v),
                     Toggle("Show Claude's questions", "When a session ends with a question like \"Should I test it?\", answer from the notch. It presses the same button in Claude.", s.ShowQuestions, v => s.ShowQuestions = v)),
+                Section("Updates"),
+                Card(
+                    Toggle("Update automatically", "Checks GitHub for a new release every few hours and installs it when nothing's waiting on you.", s.AutoUpdate, v => s.AutoUpdate = v),
+                    Row("Version", null, new StackPanel { Orientation = Orientation.Horizontal, Children = { updateStatus, checkNow } })),
                 Section("Claude Code hooks"),
                 Card(
                     Toggle("Keep hooks installed", "Hooks tell the notch what sessions are doing. They're repaired every 5 minutes if something removes them.", s.KeepHooksInstalled, v => s.KeepHooksInstalled = v),
