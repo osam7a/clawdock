@@ -157,11 +157,11 @@ namespace ClaudeNotch
 
             // A notice (a permission request to answer elsewhere) is a small card with one button.
             bool notice = alert && s.Pending == null;
-            double w = (notice ? (Compact ? 270 : 300) : CardWidth(s.Kind)) + (hover && !Mini && !quick ? 26 : 0); // quick: don't reflow what you're reading
+            double w = (notice ? 300 : CardWidth(s.Kind)) + (hover && !Mini && !quick ? 26 : 0); // quick: don't reflow what you're reading
             if (compactHasTasks) w += 56;
-            if (showDetails) w = Math.Max(w, Compact ? 420 : 460);
-            if (minimized) w = (Compact ? 290 : 320) + (barCard != null ? 90 : 0);
-            if (showList || (showActions && !notice)) w = Math.Max(w, Compact ? 330 : 360);
+            if (showDetails) w = Math.Max(w, 460);
+            if (minimized) w = 320 + (barCard != null ? 90 : 0);
+            if (showList || (showActions && !notice)) w = Math.Max(w, Compact ? 380 : 360);
             Animate(card, WidthProperty, w, 220);
             if (s.Kind == "question" || quick) header.Height = double.NaN; // the text may wrap: fit it
             else header.Height = Compact ? 30 : s.Kind == "session" || alert ? (hasTasks ? 54 : 56) : 38;
@@ -228,7 +228,7 @@ namespace ClaudeNotch
 
         double CardWidth(string kind)
         {
-            if (Compact) return kind == "quick" ? 420 : kind == "alert" || kind == "question" ? 330 : kind == "session" ? 280 : kind == "voice" ? 230 : 110;
+            if (Compact) return kind == "quick" ? 460 : kind == "question" ? 380 : kind == "alert" ? 360 : kind == "session" ? 380 : kind == "voice" ? 280 : 150;
             return kind == "quick" ? 460 : kind == "question" ? 380 : kind == "alert" ? 360 : kind == "session" ? 340 : kind == "voice" ? 280 : 150;
         }
 
