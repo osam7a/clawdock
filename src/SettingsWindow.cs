@@ -323,8 +323,10 @@ namespace ClaudeNotch
                         Combo(new[] { "local", "Built in (Whisper)", "windows", "Windows speech recognition" }, s.QuickEngine, v => { s.QuickEngine = v; showEngineRows(); })),
                     localModelRow,
                     windowsSpeechRow,
-                    Row("What it can use", "With skills and connectors, anything beyond looking things up asks for your OK on the notch first.",
-                        Combo(new[] { "web", "Web search only (fastest)", "full", "Your skills and connectors" }, s.QuickAccess, v => s.QuickAccess = v)),
+                    Row("What it can use", "With skills and connectors, anything beyond looking things up asks for your OK on the notch first. In Auto mode, Claude Code's safety checks decide instead, and it runs on Sonnet if Haiku is picked.",
+                        Combo(new[] { "web", "Web search only (fastest)", "full", "Skills and connectors, ask me", "auto", "Skills and connectors, Auto mode" }, s.QuickAccess, v => s.QuickAccess = v)),
+                    Row("New projects folder", "Ask quick voice to start a new project and it's made here, after you press Allow.", ProjectsFolderBox(s)),
+                    Toggle("Start new projects in Auto mode", "Claude Code's safety checks decide what can run, rather than asking you each time. Otherwise they start in the Claude app's default mode.", s.NewProjectAuto, v => s.NewProjectAuto = v),
                     Row("History", "VOICE_CHATS keeps one ongoing conversation in your Claude Code history, picked up each time.",
                         Combo(new[] { "private", "Private, not saved", "history", "One chat: VOICE_CHATS" }, s.QuickHistory, v => s.QuickHistory = v)),
                     Row("Model", "Haiku answers fastest.",
@@ -672,6 +674,18 @@ namespace ClaudeNotch
         }
 
         // A label (and an optional line of help) on the left, its control on the right.
+        FrameworkElement ProjectsFolderBox(Settings s)
+        {
+            var box = new TextBox { Width = 230, Text = s.ProjectsFolder };
+            box.LostFocus += (a, b) =>
+            {
+                string v = box.Text.Trim();
+                if (v != "" && System.IO.Path.IsPathRooted(v)) s.ProjectsFolder = v;
+                else box.Text = s.ProjectsFolder;
+            };
+            return box;
+        }
+
         FrameworkElement Row(string label, string help, FrameworkElement control)
         {
             var grid = new Grid { Margin = new Thickness(18, 13, 18, 13) };

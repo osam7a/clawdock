@@ -83,6 +83,7 @@ namespace ClaudeNotch
             notch.OpenChat += () => quick.OpenInClaude();
             quick.LiveSessions = LiveSessions;
             quick.SessionMessageWanted += OnSessionMessageWanted;
+            quick.NewProjectWanted += OnNewProjectWanted;
             Hotkeys.Escape += OnEscape;
 
             refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
@@ -299,6 +300,78 @@ namespace ClaudeNotch
                     PromptSender.ToDesktop(message, null);
                     quick.AddNote("Sent to " + name);
                     quick.TellNext("Your message to " + name + " was sent. Its reply will show up in the session snapshot.");
+                }));
+            });
+        }
+
+        // Quick voice wants to start a new project. Nothing is made until you press Allow.
+        void OnNewProjectWanted(string wanted, string first)
+        {
+            string name = ProjectStarter.CleanName(wanted);
+            if (name == "")
+            {
+                quick.AddNote("That name can't be a folder, so nothing was started");
+                quick.TellNext("The project wasn't started: \"" + wanted + "\" can't be used as a folder name.");
+                return;
+            }
+            string folder = System.IO.Path.Combine(settings.ProjectsFolder, name);
+            if (!ProjectStarter.IsFree(folder))
+            {
+                quick.AddNote(name + " already exists, so nothing was started");
+                quick.TellNext("The project wasn't started: " + folder + " already exists and isn't empty. Ask the user for another name.");
+                return;
+            }
+            bool auto = settings.NewProjectAuto;
+            var request = new HookServer.Pending
+            {
+                SessionId = "", Tool = "starting a new project", Cwd = QuickVoice.Folder,
+                Detail = name + (first == "" ? "" : ": " + first.Replace("\r", " ").Replace("\n", " ")),
+                FullDetail = "Project: " + name + "\n\nFolder: " + folder + "\n\nPermission mode: " + (auto ? "Auto" : "the Claude app's default")
+                    + "\n\nFirst message:\n" + (first == "" ? "(none)" : first),
+            };
+            request.Decided = allow =>
+            {
+                if (allow) StartProject(name, folder, first, auto);
+                else quick.TellNext("The user didn't allow the new project " + name + ", so it wasn't started.");
+            };
+            pending.Add(request);
+            Refresh();
+        }
+
+        void StartProject(string name, string folder, string first, bool auto)
+        {
+            quick.AddNote("Starting " + name + "…");
+            var ui = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                string id = ProjectStarter.Create(folder, name);
+                if (id == null)
+                {
+                    ui.BeginInvoke(new Action(() =>
+                    {
+                        quick.AddNote("Couldn't start " + name);
+                        quick.TellNext("The project " + name + " couldn't be started. Say so, and that the reason is in Claude Notch's log.");
+                    }));
+                    return;
+                }
+                VoiceLauncher.OpenLink("claude://resume?session=" + id);
+                // Only into the new chat: unless it's confirmed open, the mode stays and you paste.
+                bool open = false;
+                for (int waited = 0; !open && waited < 15000; waited += 200)
+                {
+                    open = watcher.SessionTitle == name;
+                    if (!open) Thread.Sleep(200);
+                }
+                bool autoOn = open && auto && ProjectStarter.SetAutoMode();
+                ui.BeginInvoke(new Action(() =>
+                {
+                    quick.AddNote("Made " + folder);
+                    if (auto && !autoOn) quick.AddNote("Couldn't turn on Auto mode: choose it under the prompt box");
+                    if (first == "") { quick.TellNext("The project " + name + " was started and opened in the Claude app."); return; }
+                    if (!open) { OnClipboard(name, first); return; }
+                    PromptSender.ToDesktop(first, null);
+                    quick.AddNote("Sent the first message to " + name);
+                    quick.TellNext("The project " + name + " was started in " + folder + " and opened in the Claude app, with the first message sent.");
                 }));
             });
         }

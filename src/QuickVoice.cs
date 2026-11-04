@@ -128,6 +128,7 @@ namespace ClaudeNotch
         public string HookExe { get; set; }         // ClaudeNotch.exe, for approving tools from the notch
         public Func<List<SessionBrief.Entry>> LiveSessions { get; set; } // your other sessions, for the snapshot
         public event Action<string, string> SessionMessageWanted;  // session id, message: needs your OK before it's sent
+        public event Action<string, string> NewProjectWanted;      // name, first message: needs your OK before it's started
 
         public Func<bool> KeepOpen { get; set; }    // the answer stays while this is true (you're reading it)
         public Func<bool> Persist { get; set; }     // and doesn't time out at all while this is true (minimized)
@@ -763,13 +764,19 @@ namespace ClaudeNotch
                 {
                     "-p", "--input-format", "stream-json", "--output-format", "stream-json",
                     "--include-partial-messages", "--verbose",
-                    "--model", settings.QuickModel,
+                    // "haiku" can mean a model too old for auto mode, and then nothing would be allowed to run.
+                    "--model", settings.QuickAccess == "auto" && settings.QuickModel == "haiku" ? "sonnet" : settings.QuickModel,
                 };
                 if (settings.QuickAccess == "full")
                 {
                     // Like a normal session: your settings, skills, plugins and connectors. Tools that
                     // act (not just look things up) wait for Allow on the notch.
                     args.AddRange(new[] { "--setting-sources", "user", "--settings", ApprovalHookFile() });
+                }
+                else if (settings.QuickAccess == "auto")
+                {
+                    // The same, but Claude Code's safety checks decide. What they block doesn't run.
+                    args.AddRange(new[] { "--setting-sources", "user", "--permission-mode", "auto" });
                 }
                 else
                 {
@@ -794,7 +801,7 @@ namespace ClaudeNotch
                     }
                 }
                 else args.Add("--no-session-persistence");
-                args.AddRange(new[] { "--append-system-prompt", VoiceInstructions(settings.QuickAccess == "full") });
+                args.AddRange(new[] { "--append-system-prompt", VoiceInstructions(settings.QuickAccess != "web") });
                 runningConfig = config;
                 var psi = new ProcessStartInfo(exe, JoinArgs(args))
                 {
@@ -898,7 +905,7 @@ namespace ClaudeNotch
                     if (block == "tool_use" || block == "server_tool_use")
                     {
                         string name = Json.Str(Json.Obj(ev, "content_block"), "name");
-                        ui.BeginInvoke(new Action(() => { ThinkingMood = SessionActivity.ForTool(name); OnStatus(name == "Read" && settings.QuickAccess != "full" ? "Checking your sessions…" : ToolStatus(name)); }));
+                        ui.BeginInvoke(new Action(() => { ThinkingMood = SessionActivity.ForTool(name); OnStatus(name == "Read" && settings.QuickAccess == "web" ? "Checking your sessions…" : ToolStatus(name)); }));
                     }
                 }
             }
@@ -967,6 +974,8 @@ namespace ClaudeNotch
             Raise();
             var ask = AskBlock.Match(Answer);
             if (ask.Success && SessionMessageWanted != null) SessionMessageWanted(ask.Groups[1].Value.Trim(), ask.Groups[2].Value.Trim());
+            var project = ProjectBlock.Match(Answer);
+            if (project.Success && NewProjectWanted != null) NewProjectWanted(project.Groups[1].Value.Trim(), project.Groups[2].Value.Trim());
         }
 
         void Fail(string message)
@@ -994,6 +1003,7 @@ namespace ClaudeNotch
 
         static readonly Regex CardBlock = new Regex(@"<card>([\s\S]*?)</card>\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+        static readonly Regex ProjectBlock = new Regex(@"<new-project\s+name=""([^""]*)""\s*>([\s\S]*?)</new-project>\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         static readonly Regex AskBlock = new Regex(@"<ask-session\s+id=""([^""]*)""\s*>([\s\S]*?)</ask-session>\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         // The answer without its card. While a card is still arriving, it (and anything after it)
@@ -1002,13 +1012,17 @@ namespace ClaudeNotch
         {
             s = CardBlock.Replace(s ?? "", "");
             s = AskBlock.Replace(s, "");
+            s = ProjectBlock.Replace(s, "");
             int ask = s.IndexOf("<ask-session", StringComparison.OrdinalIgnoreCase);
             if (ask >= 0) s = s.Substring(0, ask);
+            int project = s.IndexOf("<new-project", StringComparison.OrdinalIgnoreCase);
+            if (project >= 0) s = s.Substring(0, project);
             int open = s.IndexOf("<card", StringComparison.OrdinalIgnoreCase);
             if (open >= 0) s = s.Substring(0, open);
             int lt = s.LastIndexOf('<');
             if (lt >= 0 && ("<card>".StartsWith(s.Substring(lt), StringComparison.OrdinalIgnoreCase)
-                || "<ask-session".StartsWith(s.Substring(lt), StringComparison.OrdinalIgnoreCase))) s = s.Substring(0, lt);
+                || "<ask-session".StartsWith(s.Substring(lt), StringComparison.OrdinalIgnoreCase)
+                || "<new-project".StartsWith(s.Substring(lt), StringComparison.OrdinalIgnoreCase))) s = s.Substring(0, lt);
             return s;
         }
 
@@ -1362,10 +1376,10 @@ namespace ClaudeNotch
 
         string Reminder()
         {
-            if (instructionsSent) return settings.QuickAccess == "full" && ManualSkills() != "" ? CardReminder.Replace("</system-reminder>", " If this falls under one of the skills listed under Skills you load yourself, read it and follow it.</system-reminder>") : CardReminder;
+            if (instructionsSent) return settings.QuickAccess != "web" && ManualSkills() != "" ? CardReminder.Replace("</system-reminder>", " If this falls under one of the skills listed under Skills you load yourself, read it and follow it.</system-reminder>") : CardReminder;
             instructionsSent = true;
             return "<system-reminder>Claude Notch's current instructions for this conversation. They replace any earlier ones.\n\n"
-                + VoiceInstructions(settings.QuickAccess == "full") + "</system-reminder>";
+                + VoiceInstructions(settings.QuickAccess != "web") + "</system-reminder>";
         }
 
         const string TypedReminder = "<system-reminder>The user typed this one and your reply will be read on screen, not spoken: answer as fully as the question needs. It's still plain text, so no markdown. A question at the end doesn't open the microphone this time.</system-reminder>";
@@ -1395,7 +1409,17 @@ spoken words:
 <ask-session id=""the session id"">the exact message to send</ask-session>
 It's not read aloud. Claude Notch then shows the message with Allow and Deny, and nothing is sent without Allow, so say in a few
 words that you need their OK on the notch, and don't ask for it as a question. You'll be told what came of it at the next
-question. A message can only be typed for them in a Claude app session. For a terminal session it's put on the clipboard.";
+question. A message can only be typed for them in a Claude app session. For a terminal session it's put on the clipboard.
+
+## Starting a new project
+When the user wants to start a new project or a new Claude Code session for one, don't do the work yourself. End your reply with
+this, once, after your spoken words:
+<new-project name=""Project Name"">what they want done first, as a message to the new session</new-project>
+It's not read aloud. The name becomes a new folder, so keep it short, with no slashes. Leave the message empty if they
+didn't say what to do first. If they didn't give a name and you can't tell one from what they said, ask for it instead. Claude Notch then
+shows the project with Allow and Deny, and nothing is made without Allow, so say in a few words that you need their OK on the notch, and
+don't ask for it as a question. You'll be told what came of it at the next question. For a project that already has
+a running session, use the session instructions above instead.";
 
         const string FollowUps =
 @"## Follow-ups
@@ -1519,7 +1543,7 @@ sharp, friendly assistant talks.
 
         // ---- finding claude ------------------------------------------------
 
-        static string FindClaude()
+        public static string FindClaude()
         {
             string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -1535,7 +1559,7 @@ sharp, friendly assistant talks.
         }
 
         // Windows command-line quoting (the rules CommandLineToArgvW and the C runtime follow).
-        static string JoinArgs(List<string> args)
+        public static string JoinArgs(List<string> args)
         {
             var sb = new StringBuilder();
             foreach (string a in args)

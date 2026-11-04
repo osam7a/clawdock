@@ -30,7 +30,9 @@ namespace ClaudeNotch
         public int QuickRate { get; set; }            // -5 (slow) .. 5 (fast)
         public string QuickEngine { get; set; }       // speech recognition: "windows" | "local" (whisper.cpp on this PC)
         public string QuickLocalModel { get; set; }   // "small" | "base"
-        public string QuickAccess { get; set; }       // "web": web search only | "full": your skills and connectors
+        public string QuickAccess { get; set; }       // "web": web search only | "full": your skills and connectors, asking on the notch | "auto": the same in Claude Code's auto mode
+        public string ProjectsFolder { get; set; }    // where new projects are made
+        public bool NewProjectAuto { get; set; }      // new projects start in Claude Code's auto mode
         public string QuickHistory { get; set; }      // "private": not saved | "history": one VOICE_CHATS session
         public string QuickTts { get; set; }          // the voice that reads answers: "windows" | "natural" (KittenTTS on this PC) | "elevenlabs"
         public string ElevenLabsKey { get; set; }     // your ElevenLabs API key, encrypted for your Windows user (ElevenLabs.Seal)
@@ -75,6 +77,7 @@ namespace ClaudeNotch
             QuickEngine = "windows";
             QuickLocalModel = "small";
             QuickAccess = "web";
+            NewProjectAuto = true;
             QuickHistory = "private";
             QuickTts = "windows";
             QuickNaturalVoice = 1;
@@ -152,7 +155,8 @@ namespace ClaudeNotch
             if (QuickRate < -5 || QuickRate > 5) QuickRate = 1;
             QuickEngine = OneOf(QuickEngine, "windows", "local");
             QuickLocalModel = OneOf(QuickLocalModel, "small", "base");
-            QuickAccess = OneOf(QuickAccess, "web", "full");
+            QuickAccess = OneOf(QuickAccess, "web", "full", "auto");
+            if (string.IsNullOrWhiteSpace(ProjectsFolder) || !System.IO.Path.IsPathRooted(ProjectsFolder)) ProjectsFolder = ProjectStarter.DefaultRoot;
             QuickHistory = OneOf(QuickHistory, "private", "history");
             QuickTts = OneOf(QuickTts, "windows", "natural", "elevenlabs");
             if (ElevenLabsKey == null) ElevenLabsKey = "";
