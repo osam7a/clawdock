@@ -41,8 +41,8 @@ Claude Code reads hooks when a session starts, so test hook changes in a new ses
 - **C# 5 only.** The Windows compiler stops there, so no `$"..."`, `?.`, `nameof`, or expression
   bodies. The build tells you if you slip.
 - **No dependencies.** The project is one exe, with no NuGet packages and no project file. New files
-  in `src/` are picked up by the build. If you add a framework reference, add it to `build.ps1`.
-- **The UI is built in code.** There's no XAML. Colors and fonts are in `src/Theme.cs`.
+  anywhere in `src/` are picked up by the build. If you add a framework reference, add it to `build.ps1`.
+- **The UI is built in code.** There's no XAML. Colors and fonts are in `src/Notch/Theme.cs`.
 - **Keep PowerShell scripts ASCII.** Windows PowerShell 5.1 misreads other characters in them.
 - **Follow the code around you.** Short comments that say why, and small focused methods.
 - **Never log secrets.** That covers API keys and the contents of chats.
@@ -88,14 +88,24 @@ touched, such as `notch`, `mascot`, `quick-voice`, `hooks`, or `settings`. Each 
 ## Pull requests
 
 1. Branch from `main`.
-2. Make the change, and update the README or guide if behavior changes.
+2. Make the change, add it to `CHANGELOG.md` under Unreleased, and update the README or guide if
+   behavior changes.
 3. Open the pull request with what changed, why, and how you tested it. Add a screenshot for visual
    changes.
 
 ## Releases
 
-Maintainers bump the version in `src/AssemblyInfo.cs`, tag it as `vX.Y.Z`, and attach
-`ClaudeNotch.exe` to a GitHub release.
+1. Bump the version in `src/App/AssemblyInfo.cs`.
+2. Turn Unreleased in `CHANGELOG.md` into `## X.Y.Z - YYYY-MM-DD`, and add a new Unreleased above it.
+3. Commit, then tag and push it: `git tag vX.Y.Z` and `git push origin main vX.Y.Z`.
+
+GitHub Actions then runs the tests, builds the exe, and publishes the release with its checksum. It
+stops without publishing if the tag doesn't match the version or the changelog has no section for it.
+
+## Screenshots
+
+`.\build.ps1 -Screenshots` regenerates `docs/screenshots` with sample data. It covers your screen for
+about a minute and restarts Claude Notch afterwards. Add new shots in `tools/Screenshots.cs`.
 
 ## License
 
