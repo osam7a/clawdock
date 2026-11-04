@@ -87,6 +87,7 @@ namespace ClaudeNotch
             SetStartWithWindows(false);
             RemoveOldStartupEntries();
             try { File.Delete(ShortcutPath); } catch { }
+            try { if (Directory.Exists(LegacyDir)) Directory.Delete(LegacyDir, true); } catch { }
             try
             {
                 string dir = Settings.DataDir;
@@ -113,6 +114,58 @@ namespace ClaudeNotch
                 }
             }
             catch (Exception e) { Log.Write("Could not change the startup entry: " + e.Message); }
+        }
+
+        // ---- for a while the app was called Wrenlet ------------------------
+
+        static string LegacyDir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Wrenlet"); } }
+
+        // Moves that install's settings and downloads here and removes its startup entries. Its
+        // exe stays for two weeks: sessions already open still run its hook until they restart,
+        // and with no notch on its pipe it exits quietly. Its hooks are replaced when these are installed.
+        public static void MigrateLegacy()
+        {
+            try
+            {
+                if (!Directory.Exists(LegacyDir)) return;
+                string marker = Path.Combine(LegacyDir, "moved-to-claudenotch");
+                if (File.Exists(marker))
+                {
+                    if (DateTime.Now - File.GetLastWriteTime(marker) > TimeSpan.FromDays(14)) Directory.Delete(LegacyDir, true);
+                    return;
+                }
+                foreach (var p in Process.GetProcessesByName("Wrenlet"))
+                    try { p.Kill(); p.WaitForExit(2000); } catch { }
+                Directory.CreateDirectory(Settings.DataDir);
+                try { File.Delete(Path.Combine(Settings.DataDir, "moved-to-wrenlet")); } catch { }
+                foreach (string entry in Directory.GetFileSystemEntries(LegacyDir))
+                {
+                    string name = Path.GetFileName(entry);
+                    string target = Path.Combine(Settings.DataDir, name);
+                    if (name == "Wrenlet.exe" || name == "Wrenlet.log" || File.Exists(target) || Directory.Exists(target)) continue;
+                    MoveWithRetry(entry, target);
+                }
+                using (var key = Registry.CurrentUser.CreateSubKey(RunKey))
+                    if (key.GetValue("Wrenlet") != null) key.DeleteValue("Wrenlet");
+                try { File.Delete(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Wrenlet.lnk")); } catch { }
+                File.WriteAllText(marker, "");
+                Log.Write("Moved the Wrenlet install here.");
+            }
+            catch (Exception e) { Log.Write("Couldn't move the Wrenlet install: " + e.Message); }
+        }
+
+        static void MoveWithRetry(string from, string to)
+        {
+            for (int i = 0; ; i++)
+            {
+                try
+                {
+                    if (Directory.Exists(from)) Directory.Move(from, to); else File.Move(from, to);
+                    return;
+                }
+                catch (IOException) { if (i >= 20) throw; Thread.Sleep(250); }
+                catch (UnauthorizedAccessException) { if (i >= 20) throw; Thread.Sleep(250); }
+            }
         }
 
         // The startup-folder shortcuts the old PowerShell installer made.

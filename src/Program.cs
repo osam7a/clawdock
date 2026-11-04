@@ -27,6 +27,7 @@ namespace ClaudeNotch
                 return;
             }
 
+            Installer.MigrateLegacy();
             bool firstRun = !Settings.Exists;
             var settings = Settings.Load();
 

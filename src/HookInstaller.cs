@@ -42,7 +42,7 @@ namespace ClaudeNotch
             var h = handler as IDictionary<string, object>;
             if (h == null) return false;
             string cmd = Json.Str(h, "command");
-            return cmd.IndexOf("ClaudeNotch.exe", StringComparison.OrdinalIgnoreCase) >= 0
+            return (cmd.IndexOf("ClaudeNotch.exe", StringComparison.OrdinalIgnoreCase) >= 0 || cmd.IndexOf("Wrenlet.exe", StringComparison.OrdinalIgnoreCase) >= 0) // its name for a while
                 && cmd.IndexOf("--hook", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
