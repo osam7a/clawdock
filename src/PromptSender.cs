@@ -75,6 +75,25 @@ namespace ClaudeNotch
             t.Start();
         }
 
+        // Several messages to the open chat, one after another. Stops at the first that can't be sent.
+        public static void ToDesktopInOrder(IList<string> messages)
+        {
+            var t = new Thread(() =>
+            {
+                try
+                {
+                    for (int i = 0; i < messages.Count; i++)
+                    {
+                        if (i > 0) Thread.Sleep(1500);
+                        if (!SendToDesktop(messages[i], null)) { Fail("Couldn't find Claude's prompt box. Your text is on the clipboard."); return; }
+                    }
+                }
+                catch (Exception e) { Log.Write("Prompt: " + e.Message); Fail("Couldn't send to Claude."); }
+            }) { IsBackground = true };
+            t.SetApartmentState(ApartmentState.STA); // the clipboard needs STA
+            t.Start();
+        }
+
         static bool SendToDesktop(string text, string newChatLink)
         {
             IntPtr hwnd = Native.FindClaudeWindow();

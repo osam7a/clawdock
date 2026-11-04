@@ -128,7 +128,7 @@ namespace ClaudeNotch
         public string HookExe { get; set; }         // ClaudeNotch.exe, for approving tools from the notch
         public Func<List<SessionBrief.Entry>> LiveSessions { get; set; } // your other sessions, for the snapshot
         public event Action<string, string> SessionMessageWanted;  // session id, message: needs your OK before it's sent
-        public event Action<string, string> NewProjectWanted;      // name, first message: needs your OK before it's started
+        public event Action<string, string, string, string> NewProjectWanted; // name, model, effort, first message: needs your OK before it's started
 
         public Func<bool> KeepOpen { get; set; }    // the answer stays while this is true (you're reading it)
         public Func<bool> Persist { get; set; }     // and doesn't time out at all while this is true (minimized)
@@ -975,7 +975,16 @@ namespace ClaudeNotch
             var ask = AskBlock.Match(Answer);
             if (ask.Success && SessionMessageWanted != null) SessionMessageWanted(ask.Groups[1].Value.Trim(), ask.Groups[2].Value.Trim());
             var project = ProjectBlock.Match(Answer);
-            if (project.Success && NewProjectWanted != null) NewProjectWanted(project.Groups[1].Value.Trim(), project.Groups[2].Value.Trim());
+            if (project.Success && NewProjectWanted != null)
+            {
+                var given = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (Match m in ProjectAttribute.Matches(project.Groups[1].Value)) given[m.Groups[1].Value] = m.Groups[2].Value.Trim();
+                string wantedName, wantedModel, wantedEffort;
+                given.TryGetValue("name", out wantedName);
+                given.TryGetValue("model", out wantedModel);
+                given.TryGetValue("effort", out wantedEffort);
+                NewProjectWanted(wantedName ?? "", wantedModel ?? "", wantedEffort ?? "", project.Groups[2].Value.Trim());
+            }
         }
 
         void Fail(string message)
@@ -1003,7 +1012,8 @@ namespace ClaudeNotch
 
         static readonly Regex CardBlock = new Regex(@"<card>([\s\S]*?)</card>\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-        static readonly Regex ProjectBlock = new Regex(@"<new-project\s+name=""([^""]*)""\s*>([\s\S]*?)</new-project>\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        static readonly Regex ProjectBlock = new Regex(@"<new-project\b([^>]*)>([\s\S]*?)</new-project>\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        static readonly Regex ProjectAttribute = new Regex(@"(\w+)\s*=\s*""([^""]*)""", RegexOptions.Compiled);
         static readonly Regex AskBlock = new Regex(@"<ask-session\s+id=""([^""]*)""\s*>([\s\S]*?)</ask-session>\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         // The answer without its card. While a card is still arriving, it (and anything after it)
@@ -1414,9 +1424,12 @@ question. A message can only be typed for them in a Claude app session. For a te
 ## Starting a new project
 When the user wants to start a new project or a new Claude Code session for one, don't do the work yourself. End your reply with
 this, once, after your spoken words:
-<new-project name=""Project Name"">what they want done first, as a message to the new session</new-project>
+<new-project name=""Project Name"" model=""sonnet"" effort=""medium"">what they want done first, as a clear prompt for the new session</new-project>
 It's not read aloud. The name becomes a new folder, so keep it short, with no slashes. Leave the message empty if they
-didn't say what to do first. If they didn't give a name and you can't tell one from what they said, ask for it instead. Claude Notch then
+didn't say what to do first. Choose the model and effort for the size of the work: haiku and low for a tiny throwaway script,
+sonnet and medium for a small project like a basic site or a simple tool, opus and high for a full app or anything they'll keep building,
+opus and xhigh for hard problems like tricky algorithms or complex systems. If they ask for a model or effort, use that. Otherwise never choose
+fable, which spends their usage credits, or max. If they didn't give a name and you can't tell one from what they said, ask for it instead. Claude Notch then
 shows the project with Allow and Deny, and nothing is made without Allow, so say in a few words that you need their OK on the notch, and
 don't ask for it as a question. You'll be told what came of it at the next question. For a project that already has
 a running session, use the session instructions above instead.";

@@ -21,6 +21,10 @@ namespace ClaudeNotch
             "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
         };
 
+        const string HaikuModel = "claude-haiku-5-5"; // the "haiku" alias can mean an older one, too old for auto mode
+        public static readonly string[] Models = { "opus", "sonnet", "haiku", "fable" };
+        public static readonly string[] Efforts = { "low", "medium", "high", "xhigh", "max" };
+
         public static string DefaultRoot
         {
             get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Claude Projects"); }
@@ -47,9 +51,9 @@ namespace ClaudeNotch
             return Directory.GetFileSystemEntries(folder).Length == 0;
         }
 
-        // Makes the folder and a session in it. Its setup turn has no tools, and uses your default
-        // model, which the session keeps. Returns the session's id, or null. Blocks for seconds.
-        public static string Create(string folder, string name)
+        // Makes the folder and a session in it. Its setup turn has no tools, and uses the model
+        // given (or your default), which the session keeps. Returns the session's id, or null. Blocks for seconds.
+        public static string Create(string folder, string name, string model)
         {
             try
             {
@@ -59,6 +63,7 @@ namespace ClaudeNotch
                 Directory.CreateDirectory(folder);
                 string id = Guid.NewGuid().ToString();
                 var args = new List<string> { "-p", "--session-id", id, "-n", name, "--tools", "", "--strict-mcp-config" };
+                if (model != "") args.AddRange(new[] { "--model", model == "haiku" ? HaikuModel : model });
                 var psi = new ProcessStartInfo(exe, QuickVoice.JoinArgs(args))
                 {
                     UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = folder,

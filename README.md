@@ -137,7 +137,8 @@ it can't be confirmed, the terminal or chat comes forward and the message is on 
 
 **New projects.** Say "start a new project called Lab Tracker and set up a basic site". After you press
 **Allow**, it makes the folder (`Documents\Claude Projects` unless you change it), starts a Claude Code session there, opens it
-in the Claude app, and sends your first message. It won't use a folder that already has something in it. If the chat
+in the Claude app, and sends your first message. Quick voice writes that message as a proper prompt and picks the model and effort for the size of the
+work (never Fable, which spends usage credits, unless you ask), and the Allow card shows what it chose. It won't use a folder that already has something in it. If the chat
 can't be confirmed open, the message goes on your clipboard to paste. New projects start in Auto mode, where Claude Code's safety
 checks decide what can run rather than asking each time. You can turn that off in Settings. The app has no documented way to start a session
 like this, so an app update could stop it working.

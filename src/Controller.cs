@@ -305,8 +305,12 @@ namespace ClaudeNotch
         }
 
         // Quick voice wants to start a new project. Nothing is made until you press Allow.
-        void OnNewProjectWanted(string wanted, string first)
+        void OnNewProjectWanted(string wanted, string model, string effort, string first)
         {
+            model = model.ToLowerInvariant();
+            effort = effort.ToLowerInvariant();
+            if (Array.IndexOf(ProjectStarter.Models, model) < 0) model = "";
+            if (Array.IndexOf(ProjectStarter.Efforts, effort) < 0) effort = "";
             string name = ProjectStarter.CleanName(wanted);
             if (name == "")
             {
@@ -327,24 +331,26 @@ namespace ClaudeNotch
                 SessionId = "", Tool = "starting a new project", Cwd = QuickVoice.Folder,
                 Detail = name + (first == "" ? "" : ": " + first.Replace("\r", " ").Replace("\n", " ")),
                 FullDetail = "Project: " + name + "\n\nFolder: " + folder + "\n\nPermission mode: " + (auto ? "Auto" : "the Claude app's default")
+                    + "\n\nModel: " + (model == "" ? "your default" : model == "fable" ? "fable (uses usage credits)" : model)
+                    + "\n\nEffort: " + (effort == "" ? "the Claude app's default" : effort)
                     + "\n\nFirst message:\n" + (first == "" ? "(none)" : first),
             };
             request.Decided = allow =>
             {
-                if (allow) StartProject(name, folder, first, auto);
+                if (allow) StartProject(name, folder, model, effort, first, auto);
                 else quick.TellNext("The user didn't allow the new project " + name + ", so it wasn't started.");
             };
             pending.Add(request);
             Refresh();
         }
 
-        void StartProject(string name, string folder, string first, bool auto)
+        void StartProject(string name, string folder, string model, string effort, string first, bool auto)
         {
             quick.AddNote("Starting " + name + "…");
             var ui = System.Windows.Threading.Dispatcher.CurrentDispatcher;
             ThreadPool.QueueUserWorkItem(_ =>
             {
-                string id = ProjectStarter.Create(folder, name);
+                string id = ProjectStarter.Create(folder, name, model);
                 if (id == null)
                 {
                     ui.BeginInvoke(new Action(() =>
@@ -367,11 +373,16 @@ namespace ClaudeNotch
                 {
                     quick.AddNote("Made " + folder);
                     if (auto && !autoOn) quick.AddNote("Couldn't turn on Auto mode: choose it under the prompt box");
-                    if (first == "") { quick.TellNext("The project " + name + " was started and opened in the Claude app."); return; }
-                    if (!open) { OnClipboard(name, first); return; }
-                    PromptSender.ToDesktop(first, null);
-                    quick.AddNote("Sent the first message to " + name);
-                    quick.TellNext("The project " + name + " was started in " + folder + " and opened in the Claude app, with the first message sent.");
+                    if (!open && effort != "") quick.AddNote("Couldn't set the effort: use /effort " + effort + " in the chat");
+                    if (!open && first != "") { OnClipboard(name, first); return; }
+                    if (!open) { quick.TellNext("The project " + name + " was started and should be opening in the Claude app."); return; }
+                    // The app only takes the effort as a command in the chat, so it goes first.
+                    var messages = new List<string>();
+                    if (effort != "") messages.Add("/effort " + effort);
+                    if (first != "") messages.Add(first);
+                    if (messages.Count > 0) PromptSender.ToDesktopInOrder(messages);
+                    if (first != "") quick.AddNote("Sent the first message to " + name);
+                    quick.TellNext("The project " + name + " was started in " + folder + " and opened in the Claude app" + (first != "" ? ", with the first message sent." : "."));
                 }));
             });
         }
