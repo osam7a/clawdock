@@ -26,8 +26,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: Claude Notch version
-      description: Right-click ClaudeNotch.exe, then Properties, then Details.
+      label: Clawdock version
+      description: Right-click Clawdock.exe, then Properties, then Details.
     validations:
       required: true
   - type: input
@@ -49,6 +49,6 @@ body:
     attributes:
       label: Log
       description: >-
-        The end of %LOCALAPPDATA%\ClaudeNotch\ClaudeNotch.log, if it has anything useful.
+        The end of %LOCALAPPDATA%\Clawdock\Clawdock.log, if it has anything useful.
         Check it for anything private first.
       render: text

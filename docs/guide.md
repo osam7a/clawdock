@@ -1,4 +1,4 @@
-# Claude Notch guide
+# Clawdock guide
 
 A small Windows companion for Claude: the Claude desktop app and Claude Code in a terminal. A
 notch on the edge of your screen shows what your sessions are doing, lets you answer permission
@@ -6,7 +6,7 @@ requests and questions, and lets you talk or type to Claude from anywhere.
 
 It's a single, small exe with no dependencies. It runs entirely on your PC.
 
-> Claude Notch is an independent community project. It isn't made, endorsed, or supported by
+> Clawdock is an independent community project. It isn't made, endorsed, or supported by
 > Anthropic. "Claude" is a trademark of Anthropic.
 
 ![The mascot acting out each state, one row per mood](screenshots/mascot-moods.png)
@@ -48,17 +48,17 @@ It's a single, small exe with no dependencies. It runs entirely on your PC.
 [Claude Code](https://claude.com/claude-code). Quick voice needs Claude Code, signed in
 (`claude auth login`).
 
-1. Download `ClaudeNotch.exe` from the
+1. Download `Clawdock.exe` from the
    [latest release](https://github.com/osam7a/clawdock/releases/latest).
 2. Run it. The exe isn't code-signed yet, so Windows SmartScreen may warn you: choose
    **More info**, then **Run anyway**. You can also [build it yourself](#build-from-source).
 
 It installs itself:
 
-1. Copies itself to `%LOCALAPPDATA%\ClaudeNotch`.
+1. Copies itself to `%LOCALAPPDATA%\Clawdock`.
 2. Starts with Windows, through the `HKCU\...\Run` key.
 3. Adds its hooks to `~/.claude/settings.json`. The original file is kept as
-   `settings.json.claudenotch-backup`.
+   `settings.json.clawdock-backup`.
 4. Starts.
 
 Running a newer exe the same way also updates it. Running it while it's already running opens the
@@ -167,7 +167,7 @@ finds nothing.
 | Weather | The temperature and its sign, and up to five days ahead. |
 
 Claude sends a card as `<card>{json}</card>` before the spoken answer. To see them, run
-`ClaudeNotch.exe --demo cards`, or `--demo quick` for a whole conversation.
+`Clawdock.exe --demo cards`, or `--demo quick` for a whole conversation.
 
 **Minimized.** The − button shrinks quick voice to a small bar that stays up, with bars for your
 voice and for the answer, and the answer's key figure. The shortcut works as usual, and clicking the
@@ -248,10 +248,10 @@ open.
 
 | Command | What it does |
 | --- | --- |
-| `ClaudeNotch.exe --here` | Run from where it is, without installing. |
-| `ClaudeNotch.exe --demo` | Preview the notch's states without touching Claude (about a minute). `--demo quick` shows only quick voice, `--demo cards` each kind of card. |
-| `ClaudeNotch.exe --settings` | Open the settings of the running copy. |
-| `ClaudeNotch.exe --uninstall` | Remove the app, its hooks, and its startup entry. |
+| `Clawdock.exe --here` | Run from where it is, without installing. |
+| `Clawdock.exe --demo` | Preview the notch's states without touching Claude (about a minute). `--demo quick` shows only quick voice, `--demo cards` each kind of card. |
+| `Clawdock.exe --settings` | Open the settings of the running copy. |
+| `Clawdock.exe --uninstall` | Remove the app, its hooks, and its startup entry. |
 
 The tray icon has Settings, Type to Claude, Repair Claude Code hooks, and Quit.
 
@@ -265,16 +265,16 @@ The tray icon has Settings, Type to Claude, Repair Claude Code hooks, and Quit.
 | Notch | Style, size when collapsed, size when open, screen edge, display, position along the edge, whether to list sessions on hover. |
 | When it shows | Only when something's going on (or Claude is minimized), whenever you're away from Claude, or only for permission requests and voice. How long × hides it. How long "Done" stays. Whether to show over fullscreen apps. |
 
-Settings are saved in `%LOCALAPPDATA%\ClaudeNotch\settings.json`. Problems are written to
-`ClaudeNotch.log` in the same folder.
+Settings are saved in `%LOCALAPPDATA%\Clawdock\settings.json`. Problems are written to
+`Clawdock.log` in the same folder.
 
 ## Privacy
 
-Claude Notch has no account, server, or telemetry. It talks to other services only in these cases:
+Clawdock has no account, server, or telemetry. It talks to other services only in these cases:
 
 - **Claude.** Quick voice sends your questions to Claude through your own Claude Code. When you ask
   about your sessions, that includes parts of their transcripts: recent requests, replies, and tool
-  descriptions. Those snapshots are kept in `%LOCALAPPDATA%\ClaudeNotch\voice` until the next question, and digests of each
+  descriptions. Those snapshots are kept in `%LOCALAPPDATA%\Clawdock\voice` until the next question, and digests of each
   session's requests and replies stay there until you uninstall.
 - **Downloads.** The speech recognition model and the natural voice are downloaded when you choose
   them in the settings.
@@ -286,8 +286,8 @@ Claude Notch has no account, server, or telemetry. It talks to other services on
 
 ## Uninstall
 
-Use **Settings → Uninstall…**, or run `ClaudeNotch.exe --uninstall`, or `uninstall.ps1` from this
-repository. Only Claude Notch's own hooks are removed from `~/.claude/settings.json`. Everything
+Use **Settings → Uninstall…**, or run `Clawdock.exe --uninstall`, or `uninstall.ps1` from this
+repository. Only Clawdock's own hooks are removed from `~/.claude/settings.json`. Everything
 else in that file stays as it is.
 
 ## Build from source
@@ -296,21 +296,21 @@ No SDK or Visual Studio is needed. It compiles with the C# compiler that ships w
 Framework 4.x).
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\build.ps1     # -> bin\ClaudeNotch.exe
+powershell -ExecutionPolicy Bypass -File .\build.ps1     # -> bin\Clawdock.exe
 powershell -ExecutionPolicy Bypass -File .\install.ps1   # build, then run it (installs/updates)
 ```
 
 ## How it works
 
 ```
-Claude Code hooks ──stdin──> ClaudeNotch.exe --hook ──named pipe──> running notch
+Claude Code hooks ──stdin──> Clawdock.exe --hook ──named pipe──> running notch
                    <─stdout── (allow / deny for PermissionRequest)
 ~/.claude/sessions/*.json ──polled every second──> session list
 Claude window ──UI Automation──> voice, mute, current session title, prompt box
 ```
 
-- **The pipe** is `\\.\pipe\ClaudeNotch-<your user SID>`. Only your Windows user can open it, and
-  network clients are refused. The hook checks that the process on the other end is Claude Notch
+- **The pipe** is `\\.\pipe\Clawdock-<your user SID>`. Only your Windows user can open it, and
+  network clients are refused. The hook checks that the process on the other end is Clawdock
   before sending anything. If the notch isn't running, the hook prints nothing and exits, so Claude
   Code behaves as if there were no hook.
 - **Permission requests** are held for at most 9 minutes (the hook's timeout is 10). They are handed
@@ -335,7 +335,7 @@ Bug reports and pull requests are welcome. See [CONTRIBUTING.md](../CONTRIBUTING
 
 ## Credits and license
 
-Claude Notch is released under the [MIT License](../LICENSE).
+Clawdock is released under the [MIT License](../LICENSE).
 
 It downloads these separately, only if you choose them in the settings. They aren't part of the exe:
 

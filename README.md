@@ -1,4 +1,4 @@
-# Claude Notch
+# Clawdock
 
 A small notch on the edge of your Windows screen for Claude. See what your sessions are doing,
 answer permission requests and questions, and talk or type to Claude from anywhere.
@@ -7,7 +7,7 @@ It's one small exe with no dependencies, and it works with the Claude desktop ap
 
 ![The notch showing a session at work, and the list of sessions](docs/screenshots/sessions.png)
 
-> Claude Notch is an independent community project. It isn't made, endorsed, or supported by
+> Clawdock is an independent community project. It isn't made, endorsed, or supported by
 > Anthropic. "Claude" is a trademark of Anthropic.
 
 ## Install
@@ -15,7 +15,7 @@ It's one small exe with no dependencies, and it works with the Claude desktop ap
 You need Windows 10 or 11, and the [Claude desktop app](https://claude.ai/download) or
 [Claude Code](https://claude.com/claude-code). Quick voice needs Claude Code, signed in.
 
-**From a release:** download `ClaudeNotch.exe` from the
+**From a release:** download `Clawdock.exe` from the
 [latest release](https://github.com/osam7a/clawdock/releases/latest) and run it. The exe isn't
 code-signed yet, so if Windows SmartScreen warns you, choose **More info**, then **Run anyway**.
 
@@ -27,7 +27,7 @@ cd clawdock
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-Either way it installs itself to `%LOCALAPPDATA%\ClaudeNotch`, starts with Windows, and adds its
+Either way it installs itself to `%LOCALAPPDATA%\Clawdock`, starts with Windows, and adds its
 hooks to `~/.claude/settings.json`, keeping a backup of that file. It updates itself from GitHub
 releases, or you can run a newer exe the same way. Sessions that were already open report task counts and permission requests after they
 restart.
@@ -128,7 +128,7 @@ only used if you add your own key. It checks GitHub for new releases unless you 
 
 ## Uninstall
 
-Use **Settings → Uninstall…**, or run `ClaudeNotch.exe --uninstall`. Only Claude Notch's own hooks
+Use **Settings → Uninstall…**, or run `Clawdock.exe --uninstall`. Only Clawdock's own hooks
 are removed from `~/.claude/settings.json`.
 
 ## More

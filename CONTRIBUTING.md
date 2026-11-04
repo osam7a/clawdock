@@ -1,4 +1,4 @@
-# Contributing to Claude Notch
+# Contributing to Clawdock
 
 Thanks for helping out. Bug reports, fixes, and ideas are all welcome.
 
@@ -8,7 +8,7 @@ Open an issue with:
 
 - What you did, what you expected, and what happened.
 - Your Windows version, and whether it was a session in the Claude app or a terminal.
-- The relevant lines of `%LOCALAPPDATA%\ClaudeNotch\ClaudeNotch.log`. Check them for anything
+- The relevant lines of `%LOCALAPPDATA%\Clawdock\Clawdock.log`. Check them for anything
   private first, such as project names or paths.
 
 For a security problem, please don't open a public issue. Use
@@ -24,14 +24,14 @@ cd clawdock
 powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
-That produces `bin\ClaudeNotch.exe`.
+That produces `bin\Clawdock.exe`.
 
 ## Running your build
 
 | Command | Use it for |
 | --- | --- |
-| `bin\ClaudeNotch.exe --here` | Running your build without installing it. Only one copy runs at a time, so quit the installed one first (tray icon → Quit). |
-| `bin\ClaudeNotch.exe --demo` | Going through the notch's states without Claude. `--demo quick` and `--demo cards` show parts of it. |
+| `bin\Clawdock.exe --here` | Running your build without installing it. Only one copy runs at a time, so quit the installed one first (tray icon → Quit). |
+| `bin\Clawdock.exe --demo` | Going through the notch's states without Claude. `--demo quick` and `--demo cards` show parts of it. |
 | `install.ps1` | Building and installing, replacing the installed copy. |
 
 Claude Code reads hooks when a session starts, so test hook changes in a new session.
@@ -47,7 +47,7 @@ Claude Code reads hooks when a session starts, so test hook changes in a new ses
 - **Follow the code around you.** Short comments that say why, and small focused methods.
 - **Never log secrets.** That covers API keys and the contents of chats.
 - **Be careful with the user's files.** `~/.claude/settings.json` belongs to the user, so only touch
-  Claude Notch's own hooks. Anything downloaded has to be checked against a pinned SHA-256.
+  Clawdock's own hooks. Anything downloaded has to be checked against a pinned SHA-256.
 
 The file table in the [guide](docs/guide.md#how-it-works) shows where things are.
 
@@ -105,7 +105,7 @@ stops without publishing if the tag doesn't match the version or the changelog h
 ## Screenshots
 
 `.\build.ps1 -Screenshots` regenerates `docs/screenshots` with sample data. It covers your screen for
-about a minute and restarts Claude Notch afterwards. Add new shots in `tools/Screenshots.cs`.
+about a minute and restarts Clawdock afterwards. Add new shots in `tools/Screenshots.cs`.
 
 ## License
 
