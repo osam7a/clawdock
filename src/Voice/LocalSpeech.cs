@@ -13,7 +13,7 @@ namespace Clawdock
     // Speech recognition on this PC with whisper.cpp (MIT licensed, github.com/ggml-org/whisper.cpp)
     // and an English Whisper model. Nothing leaves the computer.
     //
-    // The engine and the model are downloaded once, from settings, into
+    // The engine and the model are downloaded once, on first run or from settings, into
     // %LOCALAPPDATA%\Clawdock\whisper, and each file is checked against its known SHA-256
     // before it's used. A recording is transcribed after you stop talking (about 1 to 2 seconds
     // for a short question with the small model).
@@ -57,6 +57,13 @@ namespace Clawdock
 
         // Downloads whatever is missing. progress: 0..1. Runs on the calling thread.
         public static void Install(string modelKey, Action<double> progress, Func<bool> cancelled)
+        {
+            lock (Installing) InstallNow(modelKey, progress, cancelled);
+        }
+
+        static readonly object Installing = new object();
+
+        static void InstallNow(string modelKey, Action<double> progress, Func<bool> cancelled)
         {
             Directory.CreateDirectory(Folder);
             var model = Find(modelKey);

@@ -13,7 +13,7 @@ namespace Clawdock
     // six times faster than real time on a laptop CPU, so a sentence is ready well before the one
     // before it has been read out.
     //
-    // Downloaded once, from settings, into %LOCALAPPDATA%\Clawdock\kitten, and checked against
+    // Downloaded once, on first run or from settings, into %LOCALAPPDATA%\Clawdock\kitten, and checked against
     // known SHA-256s. The engine build has its C runtime built in and needs only Windows' own DLLs,
     // so it works on any 64-bit x64 PC. The model stays loaded (in this process) after first use.
     static class NaturalVoice
@@ -69,6 +69,13 @@ namespace Clawdock
 
         // Downloads whatever is missing. progress: 0..1. Runs on the calling thread.
         public static void Install(Action<double> progress, Func<bool> cancelled)
+        {
+            lock (Installing) InstallNow(progress, cancelled);
+        }
+
+        static readonly object Installing = new object();
+
+        static void InstallNow(Action<double> progress, Func<bool> cancelled)
         {
             Directory.CreateDirectory(Folder);
             long total = DownloadBytes, done = 0;

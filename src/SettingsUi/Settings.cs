@@ -61,6 +61,7 @@ namespace Clawdock
         public bool ApproveFromNotch { get; set; }
         public bool ShowQuestions { get; set; }       // Claude's end-of-turn questions, with their buttons
         public bool KeepHooksInstalled { get; set; }
+        public bool FetchVoices { get; set; }          // a new install: download speech and voice (see VoiceSetup)
         public bool AutoUpdate { get; set; }           // install new releases from GitHub
 
         public Settings()
@@ -68,24 +69,24 @@ namespace Clawdock
             Shortcut = "copilot";
             CustomModifiers = 2 | 4;   // Ctrl+Shift (Ctrl+Alt+Space is Claude's own quick entry)
             CustomKey = 0x20;          // Space
-            VoiceMode = "voice-or-type";
+            VoiceMode = "quick";
             NewChatLink = "claude://claude.ai/new";
             QuickModel = "haiku";
             QuickSpeak = true;
             QuickFollowUp = true;
             QuickVoiceName = "";
             QuickRate = 1;
-            QuickEngine = "windows";
-            QuickLocalModel = "small";
+            QuickEngine = "local";
+            QuickLocalModel = "base";
             QuickAccess = "web";
             ProjectsFolder = ProjectStarter.DefaultRoot;
             NewProjectAuto = true;
             QuickHistory = "private";
-            QuickTts = "windows";
+            QuickTts = "natural";
             ElevenLabsKey = "";
             ElevenLabsVoice = "";
             ElevenLabsVoiceName = "";
-            QuickNaturalVoice = 1;
+            QuickNaturalVoice = 2;
             Style = "classic";
             Edge = "top";
             EdgeOffset = 0.5;

@@ -47,6 +47,7 @@ namespace Clawdock
                     HookServer.SendCommand("settings"); // already running: show its settings instead
                     return;
                 }
+                if (firstRun) settings.FetchVoices = true;
                 if (mode == "--settings") firstRun = true;
                 if (firstRun) settings.Save();
                 if (Installer.IsInstalledCopy) Installer.EnsureShortcut();

@@ -112,6 +112,13 @@ namespace Clawdock
             refreshTimer.Start();
             hookTimer.Start();
             Updater.Start();
+            if (settings.FetchVoices && Installer.IsInstalledCopy)
+                VoiceSetup.Start(settings, ok =>
+                {
+                    if (!ok) return;
+                    settings.FetchVoices = false;
+                    settings.Save();
+                });
             Refresh();
         }
 
