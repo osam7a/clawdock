@@ -28,6 +28,8 @@ It's a single, small exe with no dependencies.
 
 - **Live sessions.** See every running Claude Code session, in the app or a terminal, and jump to
   any of them with a click.
+- **Ask about your sessions.** Ask by voice what a session is doing, its task list, or its model,
+  without interrupting it. Messaging a session always needs your OK.
 - **Permission requests.** Allow or deny from the notch while you're away from the chat.
 - **Claude's questions.** The question and its buttons appear on the notch.
 - **Quick voice.** Push to talk to Claude without opening it, with answers read aloud in a natural
@@ -118,6 +120,16 @@ questions above it. It stays open while the pointer is on it. **Esc** closes it,
 
 **Open in Claude.** Hover the panel and click the open button to see the chat in the Claude app. A
 private chat is saved to your Claude Code history at that moment, and not before.
+
+**Your other sessions.** Ask about the sessions you have running: "Which sessions are working on
+CinemaCAD?", "What's each one doing?", "Check the task list for Agent C", "Which model is Agent B on?" Quick
+voice answers from a snapshot of their transcripts, taken just before each question, so those sessions
+aren't messaged or interrupted and don't spend anything.
+
+If only the session itself can answer, or you ask quick voice to tell it something, the notch shows the
+exact message with **Allow** and **Deny**, and nothing is sent without Allow. In the Claude app, Allow opens
+that chat and sends the message, and only if that chat is confirmed open. For a terminal session, or if
+it can't be confirmed, the terminal or chat comes forward and the message is on your clipboard to paste.
 
 **Cards.** When an answer has a key fact, it's shown as a card first, and never read aloud:
 
@@ -235,7 +247,9 @@ Settings are saved in `%LOCALAPPDATA%\Wrenlet\settings.json`. Problems are writt
 
 Wrenlet has no account, server, or telemetry. It talks to other services only in these cases:
 
-- **Claude.** Quick voice sends your questions to Claude through your own Claude Code.
+- **Claude.** Quick voice sends your questions to Claude through your own Claude Code. When you ask
+  about your sessions, that includes parts of their transcripts: recent requests, replies, and tool
+  descriptions. Those snapshots are kept in `%LOCALAPPDATA%Wrenletvoice` until the next question.
 - **Downloads.** The speech recognition model and the natural voice are downloaded when you choose
   them in the settings.
 - **ElevenLabs.** Answers are sent there only if you choose that voice and add your key.
@@ -286,6 +300,7 @@ Claude window ──UI Automation──> voice, mute, current session title, pro
 | `src/SessionScanner.cs` | Reads the live session files and checks each session's process is really alive. |
 | `src/SessionTracker.cs` | Task lists and turn timing from hook events. |
 | `src/SessionActivity.cs` | What a session is doing right now, from the end of its transcript. Drives the mascot. |
+| `src/SessionBrief.cs` | The read-only snapshot of your sessions that quick voice answers from. |
 | `src/SessionHub.cs` | Merges these into one session list. |
 | `src/ClaudeWatcher.cs` | Claude's window: open, minimized, in front, voice, mute, current session, fullscreen apps. |
 | `src/VoiceLauncher.cs` | Starts voice mode; microphone detection. |
