@@ -28,8 +28,9 @@ It's a single, small exe with no dependencies. It runs entirely on your PC.
 
 - **Live sessions.** See every running Claude Code session, in the app or a terminal, and jump to
   any of them with a click.
-- **Ask about your sessions.** Ask by voice what a session is doing, its task list, or its model,
-  without interrupting it. Messaging a session always needs your OK.
+- **Ask about your sessions.** Ask by voice what a session is doing, its task list, its model, or
+  whether a finished one got done, without interrupting anything. Messaging a session always needs
+  your OK.
 - **Permission requests.** Allow or deny from the notch while you're away from the chat.
 - **Claude's questions.** The question and its buttons appear on the notch.
 - **Quick voice.** Push to talk to Claude without opening it, with answers read aloud in a natural
@@ -130,6 +131,12 @@ If only the session itself can answer, or you ask quick voice to tell it somethi
 exact message with **Allow** and **Deny**, and nothing is sent without Allow. In the Claude app, Allow opens
 that chat and sends the message, and only if that chat is confirmed open. For a terminal session, or if
 it can't be confirmed, the terminal or chat comes forward and the message is on your clipboard to paste.
+
+**Finished sessions.** It can also search every Claude Code session on your PC, running or finished: "Did you
+finish pushing those screenshots?" Each transcript is read once in the background into a short digest of what was
+asked and said, and again only when it changes. It answers from those, going by the session's last words and
+task list. Regular chats in the Claude app aren't on your PC, so it can't see them, and it says so when it
+finds nothing.
 
 **Cards.** When an answer has a key fact, it's shown as a card first, and never read aloud:
 
@@ -249,7 +256,8 @@ Claude Notch has no account, server, or telemetry. It talks to other services on
 
 - **Claude.** Quick voice sends your questions to Claude through your own Claude Code. When you ask
   about your sessions, that includes parts of their transcripts: recent requests, replies, and tool
-  descriptions. Those snapshots are kept in `%LOCALAPPDATA%ClaudeNotchvoice` until the next question.
+  descriptions. Those snapshots are kept in `%LOCALAPPDATA%ClaudeNotchvoice` until the next question, and digests of each
+  session's requests and replies stay there until you uninstall.
 - **Downloads.** The speech recognition model and the natural voice are downloaded when you choose
   them in the settings.
 - **ElevenLabs.** Answers are sent there only if you choose that voice and add your key.
@@ -301,6 +309,7 @@ Claude window ──UI Automation──> voice, mute, current session title, pro
 | `src/SessionTracker.cs` | Task lists and turn timing from hook events. |
 | `src/SessionActivity.cs` | What a session is doing right now, from the end of its transcript. Drives the mascot. |
 | `src/SessionBrief.cs` | The read-only snapshot of your sessions that quick voice answers from. |
+| `src/SessionArchive.cs` | Digests of every Claude Code session on your PC, for quick voice to search. |
 | `src/SessionHub.cs` | Merges these into one session list. |
 | `src/ClaudeWatcher.cs` | Claude's window: open, minimized, in front, voice, mute, current session, fullscreen apps. |
 | `src/VoiceLauncher.cs` | Starts voice mode; microphone detection. |
