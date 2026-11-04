@@ -1117,8 +1117,7 @@ namespace ClaudeNotch
         {
             if (on == typing) return;
             typing = on;
-            var hwnd = new WindowInteropHelper(this).Handle;
-            if (hwnd == IntPtr.Zero) return;
+            var hwnd = new WindowInteropHelper(this).EnsureHandle();
             int ex = GetWindowLong(hwnd, GWL_EXSTYLE);
             SetWindowLong(hwnd, GWL_EXSTYLE, on ? ex & ~WS_EX_NOACTIVATE : ex | WS_EX_NOACTIVATE);
             if (on)
