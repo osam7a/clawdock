@@ -243,13 +243,6 @@ namespace ClaudeNotch
             Raise();
         }
 
-        public void CloseTyping()
-        {
-            if (!Typing) return;
-            Typing = false;
-            Raise();
-        }
-
         public void SendTyped(string text)
         {
             text = (text ?? "").Trim();

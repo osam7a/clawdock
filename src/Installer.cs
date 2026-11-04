@@ -115,16 +115,6 @@ namespace ClaudeNotch
             catch (Exception e) { Log.Write("Could not change the startup entry: " + e.Message); }
         }
 
-        public static bool StartsWithWindows()
-        {
-            try
-            {
-                using (var key = Registry.CurrentUser.OpenSubKey(RunKey))
-                    return key != null && key.GetValue(RunValue) != null;
-            }
-            catch { return false; }
-        }
-
         // The startup-folder shortcuts the old PowerShell installer made.
         static void RemoveOldStartupEntries()
         {
