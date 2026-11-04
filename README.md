@@ -89,7 +89,7 @@ the notch. Several wait behind each other ("+1 more").
 ### Claude's questions
 
 When a Claude app session ends its turn with a question and buttons, the notch shows the same
-question with the same buttons, the recommended one in accent. Clicking one presses that button in
+question with the same buttons, the recommended one in clay. Clicking one presses that button in
 Claude. If it can't be pressed, a reply button's text is sent to the session as your answer, and an
 app action (Commit, Create PR, …) opens Claude so you can press it there. The question goes away
 once you answer, in the notch or in Claude.

@@ -16,8 +16,8 @@ namespace ClaudeNotch
     // the body is x 0..13, y 1..8; there's room for 4 rows above it and a few columns each side.
     class Mascot : Canvas
     {
-        static readonly Brush Accent = Frozen(Color.FromRgb(0x8F, 0x7B, 0xF0));
-        static readonly Brush AccentDark = Frozen(Color.FromRgb(0x5E, 0x4F, 0xB8));
+        static readonly Brush Clay = Frozen(Color.FromRgb(0xD9, 0x77, 0x57));
+        static readonly Brush ClayDark = Frozen(Color.FromRgb(0x9E, 0x4F, 0x38));
         static readonly Brush Ink = Frozen(Color.FromRgb(0x14, 0x14, 0x14));
         static readonly Brush Cloud = Frozen(Color.FromRgb(0xE6, 0xE6, 0xE6));
         static readonly Brush CloudDim = Frozen(Color.FromRgb(0x8C, 0x8C, 0x8C));
@@ -34,14 +34,14 @@ namespace ClaudeNotch
         // 14 x 6 body; legs and eyes are drawn separately so they can move.
         static readonly string[] Body =
         {
-            "...########...",
             "..##########..",
-            ".############.",
-            ".############.",
             "..##########..",
-            "...########...",
+            "##############",
+            "##############",
+            "..##########..",
+            "..##########..",
         };
-        static readonly int[] LegColumns = { 4, 5, 8, 9 };
+        static readonly int[] LegColumns = { 2, 4, 9, 11 };
 
         readonly double px;
         readonly Canvas sprite = new Canvas();
@@ -75,13 +75,12 @@ namespace ClaudeNotch
                     if (filled && start < 0) start = col;
                     if (!filled && start >= 0)
                     {
-                        AddRect(Accent, start, row + 1, col - start, 1);
+                        AddRect(Clay, start, row + 1, col - start, 1);
                         start = -1;
                     }
                 }
             }
-            for (int i = 0; i < 4; i++) legs[i] = AddRect(Accent, LegColumns[i], 7, 1, 2);
-            AddRect(Amber, 6, 4, 2, 1); // the beak
+            for (int i = 0; i < 4; i++) legs[i] = AddRect(Clay, LegColumns[i], 7, 1, 2);
             eyeL = AddRect(Ink, 4, 2, 1, 2);
             eyeR = AddRect(Ink, 9, 2, 1, 2);
             sprite.Children.Add(gear);
@@ -239,8 +238,8 @@ namespace ClaudeNotch
                 "#...#",
                 "#...#",
                 ".###.");
-            Dot(air, AccentDark, gx + 4, 0);
-            Dot(air, AccentDark, gx + 5, 1);
+            Dot(air, ClayDark, gx + 4, 0);
+            Dot(air, ClayDark, gx + 5, 1);
         }
 
         // Reading: a book held up, its pages turning.
@@ -248,7 +247,7 @@ namespace ClaudeNotch
         {
             Dot(gear, Paper, 2, 4, 5, 3);
             Dot(gear, Paper, 7, 4, 5, 3);
-            Dot(gear, AccentDark, 6.75, 4, 0.5, 3);
+            Dot(gear, ClayDark, 6.75, 4, 0.5, 3);
             for (int line = 0; line < 2; line++)
             {
                 Dot(gear, CloudDim, 3, 4.75 + line, 3, 0.4);
@@ -265,8 +264,8 @@ namespace ClaudeNotch
             {
                 double h = 4 - i;
                 double top = 4.5 - h / 2;
-                Dot(air, i == t ? Accent : AccentDark, -2 - i * 1.5, top, 1, h);
-                Dot(air, i == t ? Accent : AccentDark, 15 + i * 1.5, top, 1, h);
+                Dot(air, i == t ? Clay : ClayDark, -2 - i * 1.5, top, 1, h);
+                Dot(air, i == t ? Clay : ClayDark, 15 + i * 1.5, top, 1, h);
             }
         }
 

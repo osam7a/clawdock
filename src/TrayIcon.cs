@@ -49,28 +49,28 @@ namespace ClaudeNotch
 
         static void Raise(Action a) { if (a != null) a(); }
 
-        // The mascot's body, drawn in accent on a transparent 32x32 square.
+        // The mascot's body, drawn in clay on a transparent 32x32 square.
         static Icon DrawMascot()
         {
             string[] body =
             {
-                "...########...",
-                "..##.####.##..",
-                ".############.",
-                ".############.",
                 "..##########..",
-                "....#....#....",
+                "..##.####.##..",
+                "##############",
+                "##############",
+                "..##########..",
+                "..#.#....#.#..",
             };
             using (var bmp = new Bitmap(32, 32))
             {
                 using (var g = Graphics.FromImage(bmp))
-                using (var accent = new SolidBrush(Color.FromArgb(0x8F, 0x7B, 0xF0)))
+                using (var clay = new SolidBrush(Color.FromArgb(0xD9, 0x77, 0x57)))
                 {
                     g.Clear(Color.Transparent);
                     const int px = 2, ox = 2, oy = 4;
                     for (int r = 0; r < body.Length; r++)
                         for (int c = 0; c < body[r].Length; c++)
-                            if (body[r][c] == '#') g.FillRectangle(accent, ox + c * px, oy + r * px * 2, px, px * 2);
+                            if (body[r][c] == '#') g.FillRectangle(clay, ox + c * px, oy + r * px * 2, px, px * 2);
                 }
                 IntPtr h = bmp.GetHicon();
                 var icon = (Icon)Icon.FromHandle(h).Clone();

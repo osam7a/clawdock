@@ -36,7 +36,7 @@ namespace ClaudeNotch
         public HookServer.Pending Pending;  // a request waiting for Allow / Deny
         public int MorePending;
         // Buttons under the text: Deny / Allow for a permission request, or the choices of a
-        // question Claude asked. Owner is what they answer; Primary is drawn in accent.
+        // question Claude asked. Owner is what they answer; Primary is drawn in clay.
         public object Owner;
         public List<string> Choices = new List<string>();
         public int Primary = -1;
@@ -50,7 +50,7 @@ namespace ClaudeNotch
     //   compact  one slim line: mascot and title
     //   line     a thin colored bar on the edge; hover to see the card (it opens by itself when Claude needs you)
     //   dot      a small colored dot; hover to see the card (likewise)
-    // Bar and dot colors: gray idle, accent pulsing while working, green in voice (or just
+    // Bar and dot colors: gray idle, clay pulsing while working, green in voice (or just
     // finished), amber pulsing when Claude needs permission.
     //
     // Hovering the card lists every running session (click one to jump to it). A permission
@@ -146,7 +146,7 @@ namespace ClaudeNotch
             {
                 bars[i] = new Rectangle
                 {
-                    Width = 3, Height = 4, RadiusX = 1.5, RadiusY = 1.5, Fill = Theme.Accent,
+                    Width = 3, Height = 4, RadiusX = 1.5, RadiusY = 1.5, Fill = Theme.Clay,
                     Margin = new Thickness(1.5, 0, 1.5, 0), VerticalAlignment = VerticalAlignment.Center,
                 };
                 voicePanel.Children.Add(bars[i]);
@@ -186,7 +186,7 @@ namespace ClaudeNotch
             var miniGrid = new Grid();
             miniGrid.ColumnDefinitions.Add(miniDone);
             miniGrid.ColumnDefinitions.Add(miniLeft);
-            miniGrid.Children.Add(new Rectangle { Fill = Theme.Accent });
+            miniGrid.Children.Add(new Rectangle { Fill = Theme.Clay });
             var miniBar = new Border { Width = 34, Height = 4, CornerRadius = new CornerRadius(2), Background = Theme.Chip, ClipToBounds = true, VerticalAlignment = VerticalAlignment.Center, Child = miniGrid };
             compactCount = Text(11, Theme.Dim, FontWeights.SemiBold);
             compactCount.Margin = new Thickness(6, 0, 0, 0);
@@ -199,7 +199,7 @@ namespace ClaudeNotch
             header.Children.Add(right);
             header.Children.Add(text);
 
-            var fill = new Rectangle { Fill = Theme.Accent };
+            var fill = new Rectangle { Fill = Theme.Clay };
             var progressGrid = new Grid();
             progressGrid.ColumnDefinitions.Add(progressDone);
             progressGrid.ColumnDefinitions.Add(progressLeft);
@@ -446,7 +446,7 @@ namespace ClaudeNotch
                 else title.Inlines.Add(new Run(barCard.Label));
             }
             bool speakingBars = quick && s.Speaking && !listening;
-            foreach (var b in bars) b.Fill = speakingBars ? Theme.Accent : quick ? Theme.Green : Theme.Accent;
+            foreach (var b in bars) b.Fill = speakingBars ? Theme.Clay : quick ? Theme.Green : Theme.Clay;
             minGlyph.Text = minimized ? "" : ""; // FullScreen / ChromeMinimize
             minButton.ToolTip = minimized ? "Show the whole conversation" : "Minimize to a small bar (keeps listening for the shortcut)";
             AutomationProperties.SetName(minButton, minimized ? "Expand" : "Minimize");
@@ -465,7 +465,7 @@ namespace ClaudeNotch
                 progressLeft.Width = new GridLength(Math.Max(s.Total - s.Done, 0), GridUnitType.Star);
             }
             micGlyph.Text = s.Muted ? "" : ""; // MicOff / Microphone
-            micButton.Background = s.Muted ? Theme.Accent : Theme.Chip;
+            micButton.Background = s.Muted ? Theme.Clay : Theme.Chip;
             closeButton.ToolTip = s.Kind == "voice" ? "End voice and hide" : quick ? "Stop and hide" : "Hide for now";
             endVoiceItem.Visibility = s.Kind == "voice" ? Visibility.Visible : Visibility.Collapsed;
             moreText.Text = s.MorePending > 0 ? "+" + s.MorePending + " more" : "";
@@ -674,7 +674,7 @@ namespace ClaudeNotch
                 var back = new Border { Background = Theme.Line, CornerRadius = new CornerRadius(3) };
                 Grid.SetColumnSpan(back, 2);
                 track.Children.Add(back);
-                track.Children.Add(new Border { Background = c.Progress >= 1 ? Theme.Green : Theme.Accent, CornerRadius = new CornerRadius(3) });
+                track.Children.Add(new Border { Background = c.Progress >= 1 ? Theme.Green : Theme.Clay, CornerRadius = new CornerRadius(3) });
                 stack.Children.Add(track);
             }
         }
@@ -722,7 +722,7 @@ namespace ClaudeNotch
             More(stack, c.Items.Count - rows);
         }
 
-        // Numbered steps, each number in a small circle (the first in accent).
+        // Numbered steps, each number in a small circle (the first in clay).
         static void StepsCard(StackPanel stack, QuickCard c, bool small)
         {
             CardTitle(stack, c.Title, small);
@@ -732,7 +732,7 @@ namespace ClaudeNotch
                 double d = small ? 16 : 22;
                 var number = new Border
                 {
-                    Width = d, Height = d, CornerRadius = new CornerRadius(d / 2), Background = i == 0 ? Theme.Accent : Theme.Chip,
+                    Width = d, Height = d, CornerRadius = new CornerRadius(d / 2), Background = i == 0 ? Theme.Clay : Theme.Chip,
                     VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, small ? 8 : 10, 0),
                     Child = new TextBlock
                     {
@@ -855,7 +855,7 @@ namespace ClaudeNotch
                 : s.Kind == "question" ? Theme.Blue
                 : s.Kind == "voice" ? (s.Muted ? Theme.Dim : Theme.Green)
                 : s.Kind == "quick" ? (s.Listening ? Theme.Green : Theme.Blue)
-                : s.Busy ? Theme.Accent
+                : s.Busy ? Theme.Clay
                 : s.JustFinished ? Theme.Green
                 : Theme.Idle;
             bool pulse = s.Kind == "alert" || s.Kind == "question" || s.Kind == "quick" || s.Busy;
@@ -922,7 +922,7 @@ namespace ClaudeNotch
                 FontFamily = Theme.Icons, FontSize = 13, Width = 16, TextAlignment = TextAlignment.Center,
                 Margin = new Thickness(3, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center,
                 Text = s.Desktop ? "" : "", // Laptop / CommandPrompt
-                Foreground = s.Busy ? Theme.Accent : s.JustFinished ? Theme.Green : Theme.Idle,
+                Foreground = s.Busy ? Theme.Clay : s.JustFinished ? Theme.Green : Theme.Idle,
             };
             var name = Text(12, Brushes.White, FontWeights.Normal);
             name.Text = s.DisplayName;
@@ -967,7 +967,7 @@ namespace ClaudeNotch
             return t;
         }
 
-        // The buttons for the current request or question, the primary one in accent.
+        // The buttons for the current request or question, the primary one in clay.
         void BuildChoices(NotchState s)
         {
             while (actions.Children.Count > 1) actions.Children.RemoveAt(1); // keep the "+N more" text
@@ -975,7 +975,7 @@ namespace ClaudeNotch
             for (int i = 0; i < s.Choices.Count; i++)
             {
                 int index = i;
-                actions.Children.Add(PillButton(s.Choices[i], i == s.Primary ? Theme.Accent : Theme.Chip, () => Pick(owner, index)));
+                actions.Children.Add(PillButton(s.Choices[i], i == s.Primary ? Theme.Clay : Theme.Chip, () => Pick(owner, index)));
             }
         }
 

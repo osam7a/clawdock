@@ -32,21 +32,21 @@ $refs = @(
 
 $sources = Get-ChildItem (Join-Path $PSScriptRoot 'src') -Filter *.cs | ForEach-Object FullName
 
-# The app icon: the mascot (the same shape as TrayIcon.DrawMascot) in accent, pixel-sharp at each size.
+# The app icon: the mascot (the same shape as TrayIcon.DrawMascot) in clay, pixel-sharp at each size.
 Add-Type -AssemblyName System.Drawing
-$body = '...########...', '..##.####.##..', '.############.', '.############.', '..##########..', '....#....#....'
+$body = '..##########..', '..##.####.##..', '##############', '##############', '..##########..', '..#.#....#.#..'
 $pngs = foreach ($size in 16, 24, 32, 48, 64, 128, 256) {
     $bmp = New-Object System.Drawing.Bitmap $size, $size
     $g = [System.Drawing.Graphics]::FromImage($bmp)
-    $accent = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(0x8F, 0x7B, 0xF0))
+    $clay = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(0xD9, 0x77, 0x57))
     $px = [Math]::Floor($size / 14)
     $ox = [Math]::Floor(($size - 14 * $px) / 2); $oy = [Math]::Floor(($size - 12 * $px) / 2)
     for ($r = 0; $r -lt 6; $r++) { for ($c = 0; $c -lt 14; $c++) {
-        if ($body[$r][$c] -eq '#') { $g.FillRectangle($accent, [int]($ox + $c * $px), [int]($oy + $r * 2 * $px), [int]$px, [int](2 * $px)) }
+        if ($body[$r][$c] -eq '#') { $g.FillRectangle($clay, [int]($ox + $c * $px), [int]($oy + $r * 2 * $px), [int]$px, [int](2 * $px)) }
     } }
     $mem = New-Object IO.MemoryStream
     $bmp.Save($mem, [System.Drawing.Imaging.ImageFormat]::Png)
-    $g.Dispose(); $accent.Dispose(); $bmp.Dispose()
+    $g.Dispose(); $clay.Dispose(); $bmp.Dispose()
     , @($size, $mem.ToArray())
 }
 $icon = Join-Path $out 'ClaudeNotch.ico'
