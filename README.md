@@ -1,17 +1,51 @@
 # Clawdock
 
-Run Claude in the background without having to keep checking on it.
+**Press the Copilot key and talk to Claude, from any app.**
 
-Clawdock is a small notch at the edge of your Windows screen. It shows what your Claude sessions are
-doing and lets you answer them from wherever you are. You can also press a key and ask Claude
-something out loud, without opening a window.
+Clawdock turns your keyboard's Copilot key into a Claude key for Windows. Hold it, ask out loud, and let
+go. The answer is read aloud and appears in a small notch at the edge of your screen, without opening a
+window. No Copilot key? [Use any shortcut you like](#no-copilot-key-use-your-own-shortcut).
 
-![The notch showing a session at work, with a list of the other sessions](docs/screenshots/sessions.png)
+![Quick voice answering a question about the weather, with a card](docs/screenshots/quick-weather.png)
 
 > Clawdock is an independent community project. It isn't made, endorsed, or supported by
 > Anthropic. "Claude" is a trademark of Anthropic.
 
-## What you can do with it
+## How the key works
+
+| Do this | What happens |
+| --- | --- |
+| **Hold** the key, speak, let go | Your question goes to Claude and the answer is read aloud |
+| **Press** the key once, then speak | Same thing, without holding it. It sends when you stop talking |
+| **Press** it during an answer | Cuts the answer off so you can ask something else |
+| **Double-press** it | Opens a small box to type in instead |
+| Press **Esc** | Cancels |
+
+## No Copilot key? Use your own shortcut
+
+If your keyboard doesn't have a Copilot key, it takes about 30 seconds to pick another shortcut:
+
+1. Right-click the Clawdock icon in the system tray and choose **Settings**. They also open by
+   themselves the first time you run it.
+2. Click **Shortcut** on the left.
+3. Set **Start talking to Claude with** to **My own shortcut**.
+4. Click the **My own shortcut** box and press the keys you want. It starts as `Ctrl+Shift+Space`, so
+   if that suits you, skip this step.
+5. Click **Save**.
+
+Your shortcut works right away, and everything in the table above works the same with it.
+
+- **Which keys work:** use Ctrl, Alt, Shift or Win plus another key, or a function key such as `F9` by
+  itself.
+- **If you see a message that it's already used by another app,** pick a different combination.
+- **Avoid `Ctrl+Alt+Space`,** because that's the Claude app's own shortcut.
+
+## What else it does
+
+The notch also keeps an eye on your Claude sessions, so you can leave them running and get on with
+something else.
+
+![The notch showing a session at work, with a list of the other sessions](docs/screenshots/sessions.png)
 
 - **See your sessions at a glance.** Each session in the Claude app or a terminal shows its progress
   and working time. Hover to list them all, and click one to jump to it.
@@ -20,30 +54,27 @@ something out loud, without opening a window.
   ask in the terminal, and the notch tells you and takes you there.
 - **Answer Claude's questions.** When an app session ends on a question, its buttons appear on the
   notch, and clicking one presses that button in Claude.
-- **Talk or type to Claude from any app.** Hold the shortcut and ask. The answer is read aloud, with
-  the key fact shown as a card. Double-press it to type instead.
 - **Ask about your sessions.** Ask by voice what one is doing or whether it finished, without
   interrupting it. Sending a session a message always needs your OK.
 - **Start a new project by asking.** Claude suggests a name, model and first prompt, and nothing starts
   until you press Allow.
 
-![Quick voice answering a question about the weather, with a card](docs/screenshots/quick-weather.png)
-
 ## Get started
 
-**You need** Windows 10 or 11, plus the [Claude desktop app](https://claude.ai/download) or
-[Claude Code](https://claude.com/claude-code). Talking and typing to Claude need Claude Code, signed in.
+**You need** Windows 10 or 11 and [Claude Code](https://claude.com/claude-code), signed in. Talking and
+typing to Claude run through it. For just the session features, the
+[Claude desktop app](https://claude.ai/download) is enough.
 
 1. Download `Clawdock.exe` from the
    [latest release](https://github.com/osam7a/clawdock/releases/latest). There's nothing else to
    install.
 2. Run it. The exe isn't code-signed yet, so Windows SmartScreen may warn you. Choose **More info**,
    then **Run anyway**, or [check the download first](SECURITY.md#checking-a-download).
-3. The settings open. If your keyboard has no Copilot key, go to **Shortcut** and pick your own, because
-   the Copilot key is the default.
+3. The settings open. If your keyboard has no Copilot key,
+   [choose your own shortcut](#no-copilot-key-use-your-own-shortcut) now.
 4. Restart any Claude sessions that are already open, so they start reporting to the notch.
 
-To try it, hold your shortcut and ask a question, or start a Claude session and move to another window.
+To try it, hold the Copilot key or your shortcut and ask, "What's the capital of Japan?"
 
 ## Good to know
 
