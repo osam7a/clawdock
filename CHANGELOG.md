@@ -5,6 +5,13 @@ when it's released.
 
 ## Unreleased
 
+## 0.5.1 - 2026-11-05
+
+### App
+
+- Your own shortcut now has a **Record** button. Click it and press the keys, and you see them as you
+  hold them. Esc cancels.
+
 ## 0.5.0 - 2026-11-05
 
 ### App
