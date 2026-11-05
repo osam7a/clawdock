@@ -5,6 +5,8 @@ when it's released.
 
 ## Unreleased
 
+## 0.5.2 - 2026-11-05
+
 ### App
 
 - Settings now shows "Based on Clawdock by Ousama Alhennawi" in the sidebar.
