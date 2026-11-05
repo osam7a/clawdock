@@ -77,7 +77,7 @@ namespace Clawdock
                 }
             });
 
-            var uninstall = new Button { Content = "Uninstall Clawdock…", Style = (Style)Resources["Link"], HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(18, 0, 12, 16) };
+            var uninstall = new Button { Content = "Uninstall Clawdock…", Style = (Style)Resources["Link"], HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(18, 0, 12, 8) };
             uninstall.Click += (a, b) =>
             {
                 if (MessageBox.Show(this, "Remove Clawdock, its Claude Code hooks and its startup entry?\n\nYour other Claude Code settings are left as they are.",
@@ -88,10 +88,15 @@ namespace Clawdock
                 }
             };
 
+            // LICENSE requires this exact text to stay visible in every copy and fork.
+            var credit = new TextBlock { Text = "Based on Clawdock by Ousama Alhennawi", FontSize = 12, Foreground = p.Sub, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(22, 0, 12, 16) };
+
             var side = new DockPanel { Background = p.Side, Width = 230 };
             DockPanel.SetDock(brand, Dock.Top);
+            DockPanel.SetDock(credit, Dock.Bottom);
             DockPanel.SetDock(uninstall, Dock.Bottom);
             side.Children.Add(brand);
+            side.Children.Add(credit);
             side.Children.Add(uninstall);
             side.Children.Add(nav);
 
