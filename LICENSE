@@ -1,4 +1,4 @@
-MIT License
+MIT License with an attribution requirement
 
 Copyright (c) 2026 Ousama Alhennawi
 
@@ -11,6 +11,17 @@ furnished to do so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
+
+Any copy, fork, modified version, or other work that includes the Software or a
+substantial portion of it, and that is distributed or made available to others,
+must show this exact text where its users can readily see it:
+
+    Based on Clawdock by Ousama Alhennawi
+
+If the work has a settings or about screen, the text must appear there without
+the user having to turn anything on. If it has no user interface, the text must
+appear in its README or main documentation. The text must not be removed,
+changed, or hidden.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,

@@ -338,7 +338,8 @@ Bug reports and pull requests are welcome. See [CONTRIBUTING.md](../CONTRIBUTING
 
 ## Credits and license
 
-Clawdock is released under the [MIT License](../LICENSE).
+Clawdock is released under the [MIT License with an attribution requirement](../LICENSE): forks and
+copies must show "Based on Clawdock by Ousama Alhennawi" in their settings or about screen.
 
 It downloads these separately on first run. They aren't part of the exe:
 

@@ -5,6 +5,15 @@ when it's released.
 
 ## Unreleased
 
+### App
+
+- Settings now shows "Based on Clawdock by Ousama Alhennawi" in the sidebar.
+
+### Project
+
+- The license now adds one condition to MIT: forks and copies must show that same line in their
+  settings or about screen.
+
 ## 0.5.1 - 2026-11-05
 
 ### App

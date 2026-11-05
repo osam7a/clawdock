@@ -111,4 +111,4 @@ about a minute and restarts Clawdock afterwards. Add new shots in `tools/Screens
 
 ## License
 
-By contributing, you agree that your contributions are licensed under the [MIT License](LICENSE).
+By contributing, you agree that your contributions are licensed under the project's [license](LICENSE).
