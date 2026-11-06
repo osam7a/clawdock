@@ -172,7 +172,14 @@ namespace Clawdock
 
         void OnClipboard(string name, string message)
         {
-            try { System.Windows.Clipboard.SetText(message); } catch { }
+            try { System.Windows.Clipboard.SetText(message); }
+            catch (Exception e)
+            {
+                Log.Write("Couldn't use the clipboard: " + e.Message);
+                quick.AddNote("Not sent to " + name + ", and it couldn't go on your clipboard");
+                quick.TellNext("Your message to " + name + " wasn't sent, and it couldn't be put on the clipboard. Tell the user what it said.");
+                return;
+            }
             quick.AddNote("On your clipboard: paste it into " + name);
             quick.TellNext("Your message to " + name + " couldn't be typed for the user. It's on their clipboard for them to paste, so it hasn't been sent yet.");
         }

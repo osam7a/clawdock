@@ -17,6 +17,11 @@ namespace Clawdock.Tests
             Check.Equal(60, (int)System.Math.Round(LocalSpeech.Find("base").Bytes / 1000000.0));
         }
 
+        public static void Claude_cant_see_the_screen_unless_you_turn_it_on()
+        {
+            Check.That(!new Settings().QuickSeeScreen, "off by default");
+        }
+
         public static void Only_a_new_install_downloads_by_itself()
         {
             Check.That(!new Settings().FetchVoices, "not unless it's the first run");

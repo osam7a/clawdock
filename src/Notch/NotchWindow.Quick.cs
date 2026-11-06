@@ -47,8 +47,8 @@ namespace Clawdock
             quickNotes.Text = string.Join("\n", now.Notes);
             quickNotes.Visibility = now.Notes.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
             // Only when it changes: rebuilding a link under the mouse would lose the click.
-            if (now.Text != answerKey) { answerKey = now.Text; ShowWithLinks(answerText, now.Text, ""); }
-            answerText.Visibility = now.Text != "" ? Visibility.Visible : Visibility.Collapsed;
+            if (now.Text != answerKey) { answerKey = now.Text; ShowFormatted(answerBody, now.Text); }
+            answerBody.Visibility = now.Text != "" ? Visibility.Visible : Visibility.Collapsed;
             quickStatus.Text = s.QuickStatus;
             quickStatus.Visibility = s.QuickStatus != "" ? Visibility.Visible : Visibility.Collapsed;
 
@@ -56,11 +56,68 @@ namespace Clawdock
             if (follow) Dispatcher.BeginInvoke(new Action(() => quickScroll.ScrollToEnd()), DispatcherPriority.Loaded);
         }
 
-        static void ShowWithLinks(TextBlock box, string text, string after)
+        // The answer in full, line by line, so that list items wrap under their own text.
+        static void ShowFormatted(StackPanel body, string text)
+        {
+            body.Children.Clear();
+            foreach (var line in AnswerFormat.Parse(text))
+            {
+                var view = LineView(line);
+                view.Margin = new Thickness(line.Indent * 14, body.Children.Count == 0 ? 0 : line.Gap ? 9 : line.Marker != "" ? 3 : 2, 0, 0);
+                body.Children.Add(view);
+            }
+        }
+
+        static FrameworkElement LineView(AnswerLine line)
+        {
+            if (line.Kind == "rule") return new Border { Height = 1, Background = Theme.Line };
+            if (line.Kind == "code")
+            {
+                var code = Wrapped(12.5, Brushes.White);
+                code.FontFamily = Theme.Mono;
+                code.Text = line.Code;
+                return new Border { Background = Theme.Raised, CornerRadius = new CornerRadius(6), Padding = new Thickness(9, 6, 9, 7), Child = code };
+            }
+            var words = Wrapped(line.Kind == "heading" ? 15.5 : 14.5, line.Kind == "quote" ? Theme.Dim : Brushes.White);
+            words.LineHeight = line.Kind == "heading" ? 22 : 21;
+            if (line.Kind == "heading") words.FontWeight = FontWeights.SemiBold;
+            AddParts(words, line.Parts);
+            if (line.Kind == "quote") return new Border { BorderBrush = Theme.Line, BorderThickness = new Thickness(2, 0, 0, 0), Padding = new Thickness(9, 0, 0, 0), Child = words };
+            if (line.Marker == "") return words;
+
+            var marker = Wrapped(14.5, Theme.Dim);
+            marker.LineHeight = 21;
+            marker.Text = line.Marker;
+            marker.Width = line.Kind == "number" ? 22 : 14;
+            DockPanel.SetDock(marker, Dock.Left);
+            return new DockPanel { Children = { marker, words } };
+        }
+
+        static void AddParts(TextBlock box, List<TextPart> parts)
+        {
+            foreach (var part in parts)
+            {
+                Inline inline = part.Url == null ? (Inline)new Run(part.Text) : LinkTo(part, box.Foreground);
+                if (part.Bold) inline.FontWeight = FontWeights.SemiBold;
+                if (part.Italic) inline.FontStyle = FontStyles.Italic;
+                if (part.Strike) inline.TextDecorations = TextDecorations.Strikethrough;
+                if (part.Code) { inline.FontFamily = Theme.Mono; inline.Background = Theme.Chip; }
+                box.Inlines.Add(inline);
+            }
+        }
+
+        // An earlier answer in one block, so that it can be cut off after a few lines.
+        static void ShowFlattened(TextBlock box, string text, string after)
         {
             box.Inlines.Clear();
-            foreach (var part in AnswerLinks.Split(text))
-                box.Inlines.Add(part.Url == null ? (Inline)new Run(part.Text) : LinkTo(part, box.Foreground));
+            foreach (var line in AnswerFormat.Parse(text))
+            {
+                if (box.Inlines.Count > 0) box.Inlines.Add(new LineBreak());
+                if (line.Kind == "rule") continue;
+                if (line.Marker != "") box.Inlines.Add(new Run(line.Marker + " "));
+                if (line.Kind == "code") box.Inlines.Add(new Run(line.Code) { FontFamily = Theme.Mono });
+                else AddParts(box, line.Parts);
+            }
             if (after != "") box.Inlines.Add(new Run(after));
         }
 
@@ -96,7 +153,7 @@ namespace Clawdock
             if (t.Text != "")
             {
                 var a = Wrapped(12.5, Theme.Dim);
-                ShowWithLinks(a, t.Text, t.Cut ? " …" : "");
+                ShowFlattened(a, t.Text, t.Cut ? " …" : "");
                 a.LineHeight = 18;
                 a.MaxHeight = 54; // three lines
                 a.TextTrimming = TextTrimming.WordEllipsis;
@@ -157,6 +214,13 @@ namespace Clawdock
             if (text.Trim() == "") return;
             input.Clear();
             if (SendTyped != null) SendTyped(text);
+        }
+
+        // The screen you're on, without the notch. While the text box has focus, that's the screen
+        // of the window you were in.
+        public byte[] CaptureFocusedScreen()
+        {
+            return ScreenCapture.Jpeg(beforeTyping != IntPtr.Zero ? beforeTyping : Native.GetForegroundWindow(), new WindowInteropHelper(this).Handle);
         }
 
         // The notch never takes focus, except while its text box is open. Then it goes back to

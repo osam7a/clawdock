@@ -17,7 +17,7 @@ namespace Clawdock
             // During quick voice a click is about the conversation: the small bar opens up again.
             if (quick.Active && pending.Count == 0 && shownKind != "alert")
             {
-                if (settings.QuickMinimized) ToggleQuickMinimized();
+                if (QuickSmall) ToggleQuickMinimized();
                 return;
             }
             var s = Primary();
@@ -73,15 +73,25 @@ namespace Clawdock
             });
         }
 
+        // ×: not wanting to answer this doesn't mean not wanting to see your sessions, so a request
+        // or a question closes by itself, the same as Esc. Only "Hide for now" hides the notch.
         void Dismiss()
         {
-            // A request from one of your chats is up, over quick voice: × closes only that.
-            if (shownKind == "alert" && quick.Active && (pending.Count == 0 || !QuickVoice.IsVoiceFolder(pending[0].Cwd)))
-            {
-                CloseShownRequest();
-                Refresh();
-                return;
-            }
+            bool voiceRequest = pending.Count > 0 && QuickVoice.IsVoiceFolder(pending[0].Cwd);
+            if (!XClosesOnlyThat(shownKind, quick.Active, voiceRequest)) { HideForNow(); return; }
+            if (shownKind == "alert") CloseShownRequest();
+            else if (questions.Count > 0) questions.RemoveAt(questions.Count - 1);
+            Refresh();
+        }
+
+        // Quick voice's own request is part of what it's doing, so × there still stops quick voice.
+        internal static bool XClosesOnlyThat(string shown, bool quickActive, bool voiceRequest)
+        {
+            return shown == "question" || (shown == "alert" && !(quickActive && voiceRequest));
+        }
+
+        void HideForNow()
+        {
             if (quick.Active)
             {
                 // Stop quick voice, and say no to anything it was waiting to do.
@@ -118,7 +128,7 @@ namespace Clawdock
             {
                 if (quick.FollowingUp) quick.CancelFollowUp();
                 else if (quick.Typing) Dismiss();
-                else if (settings.QuickMinimized && !quick.InTurn) quick.Hush();
+                else if (QuickSmall && !quick.InTurn) quick.Hush();
                 else Dismiss();
             }
             else if (shownKind == "alert") CloseShownRequest();
@@ -134,19 +144,20 @@ namespace Clawdock
 
         void OnShortcut()
         {
-            if (settings.VoiceMode == "quick")
+            if (settings.UsesQuickSession)
             {
                 // This cuts off the question that's waiting, so say so before its turn moves up.
                 if (quick.State == QuickVoice.Phase.Thinking || quick.State == QuickVoice.Phase.Answering)
                     foreach (var p in pending.ToArray())
                         if (QuickVoice.IsVoiceFolder(p.Cwd)) Decline(p, "Stopped before you answered");
-                quick.Press();
+                if (settings.VoiceMode == "quick") quick.Press();
+                else if (quick.Typing && !quick.InTurn) Dismiss(); // pressed again: close the box
+                else quick.OpenTyping();
                 return;
             }
             if (watcher.InVoice) return; // already talking
-            string mode = settings.VoiceMode;
-            // Typing goes to Claude's own quick entry (Ctrl+Alt+Space).
-            if (mode == "type" || (mode == "voice-or-type" && !VoiceLauncher.HasMicrophone())) PromptSender.OpenQuickEntry(settings.NewChatLink);
+            // Without a microphone, Claude's own quick entry (Ctrl+Alt+Space).
+            if (!VoiceLauncher.HasMicrophone()) PromptSender.OpenQuickEntry(settings.NewChatLink);
             else VoiceLauncher.StartAsync(settings.NewChatLink);
         }
     }

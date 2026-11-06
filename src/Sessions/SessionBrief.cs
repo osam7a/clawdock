@@ -124,9 +124,24 @@ namespace Clawdock
             return "idle, last active " + (idle.TotalMinutes < 1 ? "just now" : idle.TotalHours < 1 ? (int)idle.TotalMinutes + " minutes ago" : (int)idle.TotalHours + " hours ago");
         }
 
+        // Keys that turn up in chats don't need to reach quick voice, or sit in its digests.
+        // By their usual shapes, so it can't catch everything.
+        static readonly Regex[] SecretShapes =
+        {
+            new Regex(@"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----|$)", RegexOptions.Compiled),
+            new Regex(@"\b(sk-[A-Za-z0-9_\-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[a-z]-[A-Za-z0-9\-]{10,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_\-]{30,}|eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{5,})", RegexOptions.Compiled),
+        };
+        static readonly Regex SecretAfterName = new Regex(@"\b(bearer\s+|(?:password|passwd|pwd|secret|api[_-]?key|token|access[_-]?key)[""']?\s*[:=]\s*[""']?)[^\s""',;]{6,}", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        internal static string Redact(string s)
+        {
+            foreach (var shape in SecretShapes) s = shape.Replace(s, "[hidden]");
+            return SecretAfterName.Replace(s, "$1[hidden]");
+        }
+
         public static string Short(string s, int most)
         {
-            s = Regex.Replace(s ?? "", @"\s+", " ").Trim();
+            s = Regex.Replace(Redact(s ?? ""), @"\s+", " ").Trim();
             return s.Length <= most ? s : s.Substring(0, most) + "…";
         }
 

@@ -58,8 +58,8 @@ The file table in the [guide](docs/guide.md#how-it-works) shows where things are
 Run the tests, which also run on every push:
 
 ```powershell
-.uild.ps1 -Test
-.uild.ps1 -Test -Only Json,Settings   # only tests with these words in their names
+.\build.ps1 -Test
+.\build.ps1 -Test -Only Json,Settings   # only tests with these words in their names
 ```
 
 A test is a public static method in a `*Tests` class in `tests`. Tests must not touch your real

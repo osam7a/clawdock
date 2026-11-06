@@ -10,6 +10,7 @@ namespace Clawdock
     class TextPart
     {
         public string Text, Url;
+        public bool Bold, Italic, Strike, Code;
     }
 
     // Finding the links in an answer, and opening them. Answers can repeat what a web page says, so

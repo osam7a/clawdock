@@ -264,8 +264,15 @@ namespace Clawdock
             if (!GetWindowRect(h, out r)) return false;
             var mi = new MONITORINFO { cbSize = Marshal.SizeOf(typeof(MONITORINFO)) };
             if (!GetMonitorInfo(MonitorFromWindow(h, 2), ref mi)) return false;
-            return r.Left <= mi.rcMonitor.Left && r.Top <= mi.rcMonitor.Top
-                && r.Right >= mi.rcMonitor.Right && r.Bottom >= mi.rcMonitor.Bottom;
+            return CoversMonitor(r.Left, r.Top, r.Right, r.Bottom, mi.rcMonitor.Left, mi.rcMonitor.Top, mi.rcMonitor.Right, mi.rcMonitor.Bottom, IsZoomed(h));
+        }
+
+        // With the taskbar set to auto-hide, an ordinary maximized window covers the monitor too. It
+        // hangs a few pixels over each edge, though, and a fullscreen one fits exactly.
+        internal static bool CoversMonitor(int left, int top, int right, int bottom, int monitorLeft, int monitorTop, int monitorRight, int monitorBottom, bool maximized)
+        {
+            if (left > monitorLeft || top > monitorTop || right < monitorRight || bottom < monitorBottom) return false;
+            return !maximized || (left == monitorLeft && top == monitorTop && right == monitorRight && bottom == monitorBottom);
         }
 
         // Windows records, per app, when it last started and stopped using the mic.
@@ -311,6 +318,7 @@ namespace Clawdock
         [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowsProc fn, IntPtr l);
         [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
         [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+        [DllImport("user32.dll")] static extern bool IsZoomed(IntPtr h);
         [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr h, uint cmd);
         [DllImport("user32.dll")] static extern int GetWindowTextLength(IntPtr h);
         [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);

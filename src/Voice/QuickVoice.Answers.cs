@@ -37,6 +37,9 @@ namespace Clawdock
             s = CardBlock.Replace(s ?? "", "");
             s = AskBlock.Replace(s, "");
             s = ProjectBlock.Replace(s, "");
+            s = ScreenRequest.Replace(s, "");
+            int screen = s.IndexOf("<see-screen", StringComparison.OrdinalIgnoreCase);
+            if (screen >= 0) s = s.Substring(0, screen);
             int ask = s.IndexOf("<ask-session", StringComparison.OrdinalIgnoreCase);
             if (ask >= 0) s = s.Substring(0, ask);
             int project = s.IndexOf("<new-project", StringComparison.OrdinalIgnoreCase);
@@ -46,7 +49,8 @@ namespace Clawdock
             int lt = s.LastIndexOf('<');
             if (lt >= 0 && ("<card>".StartsWith(s.Substring(lt), StringComparison.OrdinalIgnoreCase)
                 || "<ask-session".StartsWith(s.Substring(lt), StringComparison.OrdinalIgnoreCase)
-                || "<new-project".StartsWith(s.Substring(lt), StringComparison.OrdinalIgnoreCase))) s = s.Substring(0, lt);
+                || "<new-project".StartsWith(s.Substring(lt), StringComparison.OrdinalIgnoreCase)
+                || "<see-screen".StartsWith(s.Substring(lt), StringComparison.OrdinalIgnoreCase))) s = s.Substring(0, lt);
             return s;
         }
 
@@ -74,6 +78,14 @@ namespace Clawdock
             s = Regex.Replace(s, @"(?m)^\s*#+\s+", "");
             s = Regex.Replace(s, @"[ \t]+", " ");
             s = Regex.Replace(s, "(\\d+)", m => kept[int.Parse(m.Groups[1].Value)]);
+            return Regex.Replace(s, @"\n{3,}", "\n\n").Trim();
+        }
+
+        // The answer with its formatting, for the notch to lay out (see AnswerFormat). No card or sources.
+        public static string ForScreen(string s)
+        {
+            s = WithoutSources(WithoutCard(s));
+            s = Regex.Replace(s, @"\[([^\]\n]*)\]\([^)\n]*$", "$1"); // a link still arriving
             return Regex.Replace(s, @"\n{3,}", "\n\n").Trim();
         }
 

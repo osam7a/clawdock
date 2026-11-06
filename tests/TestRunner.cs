@@ -62,6 +62,8 @@ namespace Clawdock.Tests
             if ((text ?? "").IndexOf(part, StringComparison.Ordinal) >= 0) throw new Exception("did not expect [" + part + "] in [" + text + "]");
         }
 
+        public static Dictionary<string, object> With(this Dictionary<string, object> d, string key, object value) { d[key] = value; return d; }
+
         // JSON written with single quotes, so tests stay readable.
         public static Dictionary<string, object> Obj(string json) { return Json.ParseObject(json.Replace('\'', '"')); }
     }

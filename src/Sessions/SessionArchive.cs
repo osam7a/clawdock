@@ -39,6 +39,13 @@ namespace Clawdock
         {
             string digests = Path.Combine(folder, DigestFolder);
             Directory.CreateDirectory(digests);
+            // Digests from before keys were hidden are written again.
+            string scrubbed = Path.Combine(digests, ".scrubbed-1");
+            if (!File.Exists(scrubbed))
+            {
+                foreach (string f in Directory.GetFiles(digests, "*.md")) File.Delete(f);
+                File.WriteAllText(scrubbed, "");
+            }
             var known = ReadAppSessions();
             var files = Transcripts();
             var keep = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

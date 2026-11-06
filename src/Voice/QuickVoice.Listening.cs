@@ -22,6 +22,7 @@ namespace Clawdock
             if (!VoiceLauncher.HasMicrophone()) { Fail("No microphone found."); return; }
 
             heardParts.Clear();
+            shrunk = false;
             followUp = followUpDue = false;
             Notice = "";
             turnNotes.Clear();
@@ -100,7 +101,7 @@ namespace Clawdock
         void FinishLocal()
         {
             byte[] wav = mic.Stop();
-            if (!voiced || MicRecorder.Seconds(wav) < 0.3) { Fail("Didn't catch that."); return; }
+            if (!voiced || MicRecorder.Seconds(wav) < 0.3) { NothingCaught(); return; }
             State = Phase.Thinking;
             Status = "Transcribing…";
             transcribing = true;
@@ -118,7 +119,8 @@ namespace Clawdock
                 {
                     if (id != listenId || !transcribing) return; // cut off meanwhile
                     transcribing = false;
-                    if (string.IsNullOrEmpty(text)) { Fail(text == null ? "Couldn't transcribe that." : "Didn't catch that."); return; }
+                    if (text == null) { Fail("Couldn't transcribe that."); return; }
+                    if (text == "") { NothingCaught(); return; }
                     Heard = text;
                     Ask(text);
                 }));
@@ -200,7 +202,11 @@ namespace Clawdock
             if (State == Phase.Done && KeepOpen != null && KeepOpen()) FinishedAt = now;
             // Minimized, the bar stays until you close it (or the conversation times out).
             if (State == Phase.Done && Persist != null && Persist() && now - lastUsed < IdleExit) FinishedAt = now;
-            if (State == Phase.Done && !Speaking && now - FinishedAt > Linger) { SaveTurn(false); State = Phase.Idle; Raise(); }
+            if (State == Phase.Done && !Speaking && now - FinishedAt > Linger)
+            {
+                if (now - lastUsed >= IdleExit) { shrunk = false; SaveTurn(false); State = Phase.Idle; Raise(); }
+                else if (!shrunk) { shrunk = true; Raise(); }
+            }
             if (State == Phase.Error && now - FinishedAt > TimeSpan.FromSeconds(8)) { State = Typing ? Phase.Done : Phase.Idle; Status = Typing ? "" : Status; Raise(); }
             if (State == Phase.Idle) tick.Stop();
         }
@@ -233,6 +239,11 @@ namespace Clawdock
             if (!FollowingUp) return;
             stopping = true;
             StopRecognizer();
+            BackToAnswer();
+        }
+
+        void BackToAnswer()
+        {
             followUp = false;
             if (history.Count > 0) { turnNotes = history[history.Count - 1].Notes; history.RemoveAt(history.Count - 1); }
             Heard = followUpHeard;
@@ -273,9 +284,17 @@ namespace Clawdock
             string text = string.Join(" ", heardParts.ToArray()).Trim();
             if (text == "") text = Partial.Trim();
             Partial = "";
-            if (text == "") { Fail("Didn't catch that."); return; }
+            if (text == "") { NothingCaught(); return; }
             Heard = text;
             Ask(text);
+        }
+
+        // Noise can open a reply with no words in it. The answer stays up then: an error here
+        // would close the panel after a few seconds.
+        void NothingCaught()
+        {
+            if (followUp) BackToAnswer();
+            else Fail("Didn't catch that.");
         }
 
         void StopRecognizer()

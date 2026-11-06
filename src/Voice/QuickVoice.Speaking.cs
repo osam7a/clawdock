@@ -208,8 +208,11 @@ namespace Clawdock
             s = Regex.Replace(s, @"\[([^\]]*)\]\([^)]*\)", "$1");   // [text](link) -> text
             s = Regex.Replace(s, @"https?://\S+", "");
             s = Regex.Replace(s, @"```[\s\S]*?```", " ");
-            s = Regex.Replace(s, @"(?m)^\s*(#+|[-*•]|\d+[.)])\s+", "");
-            s = s.Replace("**", "").Replace("__", "").Replace("`", "").Replace("*", "");
+            s = Regex.Replace(s, @"(?m)^\s*\|.*$", " ");               // a table doesn't read well
+            s = Regex.Replace(s, @"(?m)^\s*(-{3,}|\*{3,}|_{3,})\s*$", " ");
+            s = Regex.Replace(s, @"(?m)^\s*(#+|[-*+•>]|\d+[.)])\s+", "");
+            s = Regex.Replace(s, @"(?<![A-Za-z0-9_])_(?=\S)(.+?)(?<=\S)_(?![A-Za-z0-9_])", "$1");
+            s = s.Replace("**", "").Replace("__", "").Replace("~~", "").Replace("`", "").Replace("*", "");
             return Regex.Replace(s, @"\s+", " ").Trim();
         }
 

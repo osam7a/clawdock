@@ -3,7 +3,7 @@
 [![Latest release](https://img.shields.io/github/v/release/osam7a/clawdock)](https://github.com/osam7a/clawdock/releases/latest)
 [![Build](https://img.shields.io/github/actions/workflow/status/osam7a/clawdock/ci.yml?branch=main&label=build)](https://github.com/osam7a/clawdock/actions/workflows/ci.yml)
 [![Downloads](https://img.shields.io/github/downloads/osam7a/clawdock/total)](https://github.com/osam7a/clawdock/releases)
-[![License: MIT with attribution](https://img.shields.io/badge/license-MIT%20with%20attribution-blue)](LICENSE)
+[![License: custom, MIT terms plus attribution](https://img.shields.io/badge/license-custom%3A%20MIT%20%2B%20attribution-blue)](LICENSE)
 ![Windows 10 and 11](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-FFDD00?logo=buymeacoffee&logoColor=000000)](https://buymeacoffee.com/ousama)
 
@@ -63,6 +63,8 @@ something else.
   notch, and clicking one presses that button in Claude.
 - **Ask about your sessions.** Ask by voice what one is doing or whether it finished, without
   interrupting it. Sending a session a message always needs your OK.
+- **Show Claude your screen.** Turn this on in the settings and ask "what's the answer to this question?".
+  Claude takes a screenshot of the screen you're on only when your question needs one.
 - **Start a new project by asking.** Claude suggests a name, model and first prompt, and nothing starts
   until you press Allow.
 
@@ -104,6 +106,7 @@ with your own key.
   It never asks for administrator rights.
 - **Adds hooks to `~/.claude/settings.json`,** which is how sessions report to it. It backs the file up
   first, and only ever changes its own hooks.
+- **Adds a `voice-replies` skill to `~/.claude/skills`,** which sets how quick voice answers. You can edit it.
 - **Downloads about 160 MB on first run,** for speech recognition and the voice, which then run on your
   PC. Until they finish, Windows' own speech and voices are used.
 - **Updates itself from this repo's releases.** You can turn this off in **Settings → General**.
@@ -114,7 +117,8 @@ and how to verify a release.
 ## Uninstall
 
 Use **Settings → Uninstall…**, or run `Clawdock.exe --uninstall`. This removes the app, its downloads,
-its startup entry and its hooks. Your other hooks stay as they are.
+its startup entry, its hooks and the backup of your settings file. The `voice-replies` skill goes too, unless you've edited it.
+Your other hooks stay as they are. If you used the VOICE_CHATS history, that chat stays in your Claude Code history.
 
 ## Build it yourself
 
@@ -131,6 +135,6 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 - [The guide](docs/guide.md): every feature, setting and voice, and how it works.
 - [Contributing](CONTRIBUTING.md): building, testing and pull requests.
 - [Changelog](CHANGELOG.md): what changed in each release.
-- [License](LICENSE): MIT, plus one condition. Forks and copies must show "Based on Clawdock by Ousama Alhennawi" in their settings or about screen.
+- [License](LICENSE): a custom license, MIT's terms plus one condition, so it isn't standard MIT and license tools won't detect it as MIT. Forks and copies must show "Based on Clawdock by Ousama Alhennawi" in their settings or about screen.
 
 If Clawdock saves you time, you can [buy me a coffee](https://buymeacoffee.com/ousama).

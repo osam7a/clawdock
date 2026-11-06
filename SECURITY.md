@@ -38,8 +38,12 @@ It runs as you and never asks for administrator rights. It:
   user only.
 - Adds its hooks to `~/.claude/settings.json`, after keeping a backup of that file. It only ever
   changes its own hooks.
+- Adds a `voice-replies` skill to `~/.claude/skills`. Uninstalling removes it unless you've edited it.
 - Uses a keyboard hook to catch the Copilot key, and reads and presses controls in the Claude app.
 - Uses the microphone while quick voice is listening.
+- Takes a screenshot of the screen you're on when a question needs one, only if you turn on **Let Claude
+  see my screen when it needs to**. It's sent to Anthropic through your Claude Code and not saved by Clawdock, and each
+  one is recorded in the log.
 
 **Settings → Uninstall** removes all of this.
 
@@ -63,7 +67,25 @@ An update only installs if all of these hold:
 - Its SHA-256 matches the one GitHub reports for the release file.
 - It's a .NET program named Clawdock, at exactly the release's version, and newer than the one running.
 
+If an update doesn't start and stay up, the version before it is put back and that update isn't tried
+again unless you ask. This can only help if the new version's installer itself runs.
+
 The speech and voice downloads are checked against SHA-256 values written into the code.
+
+## Web pages and private data
+
+A web page Claude reads could contain instructions meant for it, such as sending your files to an address.
+Quick voice limits what that can do:
+
+- Once Claude has read a file, a session or your screen in a conversation, each page it wants to fetch waits for
+  **Allow** on the notch, showing the address. So does a connector that's given a web address.
+- Files that usually hold keys (`.ssh`, `.aws`, `.env`, `.pem` and the like) always wait for **Allow**.
+- Keys in their usual shapes are hidden from the session summaries it reads. This goes by pattern, so it can miss some.
+- Web searches aren't held back, so text from a page could still end up in a search query.
+- With skills and connectors in **Auto mode**, fetching pages, shell commands and tools that can see the screen or camera
+  go through the notch. Claude Code's own safety checks decide everything else.
+- A command you press **Allow** on can do anything you can, including take a screenshot, whatever the screen setting says.
+  **Web search only** is the mode with no commands at all.
 
 All of this trusts this GitHub repo. Anyone who could publish a release here could ship code to every
 install, so turn off **Update automatically** in the settings if you'd rather update by hand.

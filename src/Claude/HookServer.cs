@@ -155,7 +155,7 @@ namespace Clawdock
                     else if (pending != null) pending.Respond(NoDecision);
                 }));
             }
-            catch { }
+            catch (Exception e) { if (Log.Verbose) Log.Write("Hook pipe: " + e.Message); }
             finally { if (!keepOpen) try { pipe.Dispose(); } catch { } }
         }
 
@@ -241,6 +241,7 @@ namespace Clawdock
             try
             {
                 pipe.Connect(timeoutMs);
+                if (!OwnedByCurrentUser(pipe)) throw new IOException("the pipe belongs to someone else");
                 uint pid;
                 if (!GetNamedPipeServerProcessId(pipe.SafePipeHandle.DangerousGetHandle(), out pid)) throw new IOException();
                 using (var server = Process.GetProcessById((int)pid))
@@ -253,6 +254,14 @@ namespace Clawdock
                 pipe.Dispose();
                 return null;
             }
+        }
+
+        // A process name proves nothing: another user on this PC could call a program Clawdock and
+        // get to the name first, then answer permission requests. They can't make the pipe yours.
+        internal static bool OwnedByCurrentUser(PipeStream pipe)
+        {
+            var owner = pipe.GetAccessControl().GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
+            return owner != null && (owner == WindowsIdentity.GetCurrent().User || owner.IsWellKnown(WellKnownSidType.BuiltinAdministratorsSid));
         }
 
         static string ReadStdin(int limit)

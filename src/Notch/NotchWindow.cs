@@ -43,7 +43,7 @@ namespace Clawdock
         readonly ScaleTransform sizing = new ScaleTransform(1, 1);
         double sizeNow = 1;
 
-        public event Action OpenPrimary, ToggleMute, EndVoice, OpenSettings, Quit, Dismiss, ToggleMinimize, ClearChat;
+        public event Action OpenPrimary, ToggleMute, EndVoice, OpenSettings, Quit, Dismiss, HideForNow, ToggleMinimize, ClearChat;
         public Func<double> QuickLevel; // quick voice: how loud you are, or the answer being read (0..1; -1 unknown)
         public event Action<SessionInfo> OpenSession;
         public event Action<object, int> Choose; // owner, index into Choices
@@ -78,7 +78,8 @@ namespace Clawdock
         bool typing;
         IntPtr beforeTyping; // the window you were in, to go back to
         readonly Border youBubble, cardHost;
-        readonly TextBlock youText, answerText, quickStatus;
+        readonly TextBlock youText, quickStatus;
+        readonly StackPanel answerBody;
         string answerKey = "";
         string historyKey = "", cardKey = "", turnKey = "";
         readonly MenuItem endVoiceItem;
@@ -204,16 +205,14 @@ namespace Clawdock
                 HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(48, 0, 0, 0), Child = youText,
             };
             cardHost = new Border { Margin = new Thickness(0, 10, 0, 0) };
-            answerText = Wrapped(14.5, Brushes.White);
-            answerText.LineHeight = 21;
-            answerText.Margin = new Thickness(2, 10, 2, 0);
+            answerBody = new StackPanel { Margin = new Thickness(2, 10, 2, 0) };
             quickStatus = Wrapped(12.5, Theme.Dim);
             quickStatus.Margin = new Thickness(2, 10, 2, 0);
             quickNotes = Wrapped(12, Theme.Dim);
             quickNotes.Margin = new Thickness(2, 10, 2, 0);
             quickScroll = new ScrollViewer
             {
-                Content = new StackPanel { Margin = new Thickness(16, 2, 16, 14), Children = { quickHistory, youBubble, cardHost, quickNotes, answerText, quickStatus } },
+                Content = new StackPanel { Margin = new Thickness(16, 2, 16, 14), Children = { quickHistory, youBubble, cardHost, quickNotes, answerBody, quickStatus } },
                 VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, // the wheel still scrolls
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
                 Focusable = false, Visibility = Visibility.Collapsed,
@@ -398,7 +397,7 @@ namespace Clawdock
             var menu = new ContextMenu();
             menu.Items.Add(Item("Open Claude", () => { if (OpenPrimary != null) OpenPrimary(); }));
             menu.Items.Add(endVoiceItem);
-            menu.Items.Add(Item("Hide for now", () => { if (Dismiss != null) Dismiss(); }));
+            menu.Items.Add(Item("Hide for now", () => { if (HideForNow != null) HideForNow(); }));
             menu.Items.Add(Item("Move back to top center", () =>
             {
                 settings.Edge = "top"; settings.EdgeOffset = 0.5; settings.Monitor = "";

@@ -65,7 +65,7 @@ namespace Clawdock
                 st.Choices = new List<string> { "Deny", "Allow" };
                 st.Primary = 1;
             }
-            else if (quick.Active && (alert == null || quick.InUse)) ShowQuick(st); // the minimized bar doesn't hide a request
+            else if (quick.Active && !quick.Shrunk && (alert == null || quick.InUse)) ShowQuick(st); // the minimized bar doesn't hide a request
             else if (alert != null)
             {
                 st.Kind = "alert";
@@ -117,6 +117,7 @@ namespace Clawdock
                 st.Short = SessionTracker.Clock(now - watcher.WorkingSince);
                 st.Mood = MascotMood.Thinking;
             }
+            else if (quick.Active) ShowQuick(st); // a finished answer's bar: anything else comes first
 
             bool alertOn = st.Kind == "alert";
             bool fullscreenBlock = watcher.FullscreenApp && !settings.ShowOverFullscreen;
@@ -124,7 +125,7 @@ namespace Clawdock
             // wait (still held) and appear when you leave it, unless you allowed fullscreen.
             // Quick voice's show anyway, like its panel: you just asked for it.
             if (alertOn) st.Visible = !fullscreenBlock || (st.Pending != null && QuickVoice.IsVoiceFolder(st.Pending.Cwd));
-            else if (st.Kind == "quick") st.Visible = true; // you just asked for it
+            else if (st.Kind == "quick") st.Visible = !quick.Shrunk || !fullscreenBlock; // you just asked for it
             else if (now < dismissedUntil || fullscreenBlock || looking) st.Visible = false;
             else if (voice || st.Kind == "question") st.Visible = true;
             else if (settings.ShowWhen == "alerts") st.Visible = false;
@@ -133,13 +134,16 @@ namespace Clawdock
 
             notch.Render(st);
             shownKind = st.Visible ? st.Kind : "";
-            Hotkeys.WatchEscape = shownKind == "quick" ? !settings.QuickMinimized || quick.Speaking || quick.FollowingUp || quick.Typing || quick.InTurn : shownKind == "alert" || shownKind == "question";
+            Hotkeys.WatchEscape = shownKind == "quick" ? !QuickSmall || quick.Speaking || quick.FollowingUp || quick.Typing || quick.InTurn : shownKind == "alert" || shownKind == "question";
             tray.SetStatus(st.Kind == "alert" ? "Needs permission" : st.Kind == "quick" ? "Quick voice" : st.Kind == "question" ? "Claude asked you something" : voice ? "Voice conversation" : primary != null && primary.Busy ? "Working: " + primary.DisplayName : "Idle");
         }
+
+        bool QuickSmall { get { return settings.QuickMinimized || quick.Shrunk; } }
 
         // Quick voice as a small bar (remembered for next time), or the whole conversation.
         void ToggleQuickMinimized()
         {
+            if (quick.Shrunk) { quick.Unshrink(); return; } // only this answer's bar: your setting stays
             settings.QuickMinimized = !settings.QuickMinimized;
             settings.Save();
             Refresh();
@@ -162,7 +166,7 @@ namespace Clawdock
             st.QuickNow = quick.Current;
             st.QuickHistory = quick.History;
             st.QuickTyping = quick.Typing;
-            st.QuickMinimized = settings.QuickMinimized && !quick.Typing;
+            st.QuickMinimized = QuickSmall && !quick.Typing;
             st.Speaking = quick.Speaking;
             switch (quick.State)
             {
@@ -183,7 +187,7 @@ namespace Clawdock
                     st.Mood = quick.Speaking || quick.State == QuickVoice.Phase.Answering ? MascotMood.Speaking
                         : quick.State == QuickVoice.Phase.Thinking ? quick.ThinkingMood
                         : MascotMood.Idle;
-                    st.Title = quick.State == QuickVoice.Phase.Thinking ? (quick.Status != "" ? quick.Status : "Thinking…") : quick.Speaking ? "Speaking" : settings.QuickMinimized ? "Ready" : "Claude";
+                    st.Title = quick.State == QuickVoice.Phase.Thinking ? (quick.Status != "" ? quick.Status : "Thinking…") : quick.Speaking ? "Speaking" : QuickSmall ? "Ready" : "Claude";
                     st.QuickStatus = quick.State == QuickVoice.Phase.Thinking ? quick.Status : quick.Notice;
                     break;
             }

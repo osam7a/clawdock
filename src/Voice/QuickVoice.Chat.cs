@@ -24,6 +24,7 @@ namespace Clawdock
         public void OpenTyping()
         {
             CutOffForNewTurn();
+            shrunk = false;
             Typing = true;
             lastUsed = DateTime.Now;
             State = Phase.Done;

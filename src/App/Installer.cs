@@ -28,17 +28,19 @@ namespace Clawdock
         }
 
         // Copies this exe into place and starts it. Returns false if the copy failed.
-        public static bool InstallAndLaunch(Settings settings)
+        public static bool InstallAndLaunch(Settings settings, bool update)
         {
             try
             {
                 StopRunningCopy();
                 Directory.CreateDirectory(Settings.DataDir);
+                if (update && File.Exists(InstalledExe)) File.Copy(InstalledExe, PreviousExe, true);
                 ReplaceFile(CurrentExe, InstalledExe);
                 RemoveOldStartupEntries();
                 SetStartWithWindows(settings.StartWithWindows);
                 if (settings.KeepHooksInstalled) HookInstaller.Install(InstalledExe);
-                Process.Start(new ProcessStartInfo(InstalledExe) { UseShellExecute = false, WorkingDirectory = Settings.DataDir });
+                var started = Process.Start(new ProcessStartInfo(InstalledExe) { UseShellExecute = false, WorkingDirectory = Settings.DataDir });
+                if (update) KeepIfItRuns(started);
                 return true;
             }
             catch (Exception e)
@@ -49,6 +51,30 @@ namespace Clawdock
                 catch (Exception e2) { Log.Write("Couldn't restart: " + e2.Message); }
                 return false;
             }
+        }
+
+        static string PreviousExe { get { return InstalledExe + ".previous"; } }
+        static string SkipFile { get { return Path.Combine(Settings.DataDir, "update-skip.txt"); } }
+
+        // The version that had to be undone, so it isn't downloaded again. "" if there's none.
+        public static string SkippedVersion
+        {
+            get { try { return File.Exists(SkipFile) ? File.ReadAllText(SkipFile).Trim() : ""; } catch { return ""; } }
+        }
+
+        // An update that can't start and stay up goes back to the version before it.
+        static void KeepIfItRuns(Process started)
+        {
+            if (!File.Exists(PreviousExe)) return;
+            var clock = Stopwatch.StartNew();
+            while (clock.Elapsed < TimeSpan.FromSeconds(15) && !started.HasExited && !HookServer.IsRunning()) Thread.Sleep(200);
+            if (HookServer.IsRunning() && !started.WaitForExit(10000)) return;
+
+            Log.Write("Version " + Updater.Short(Updater.Current) + " didn't stay up, so going back.");
+            try { if (!started.HasExited) started.Kill(); started.WaitForExit(2000); } catch { }
+            ReplaceFile(PreviousExe, InstalledExe);
+            File.WriteAllText(SkipFile, Updater.Short(Updater.Current));
+            Process.Start(new ProcessStartInfo(InstalledExe) { UseShellExecute = false, WorkingDirectory = Settings.DataDir });
         }
 
         static string ShortcutPath
@@ -86,12 +112,13 @@ namespace Clawdock
         // process has exited (a running exe can't delete itself).
         public static void RemoveEverything()
         {
-            HookInstaller.Uninstall();
+            if (HookInstaller.Uninstall()) HookInstaller.RemoveBackup();
+            QuickVoice.RemoveSkill();
             SetStartWithWindows(false);
             RemoveOldStartupEntries();
             try { File.Delete(ShortcutPath); } catch { }
             foreach (string old in new[] { "ClaudeNotch", "Wrenlet" })
-                try { if (Directory.Exists(LegacyDir(old))) Directory.Delete(LegacyDir(old), true); } catch { }
+                try { if (IsOurLegacyInstall(LegacyDir(old), old)) Directory.Delete(LegacyDir(old), true); } catch { }
             try
             {
                 string dir = Settings.DataDir;
@@ -124,6 +151,18 @@ namespace Clawdock
 
         static string LegacyDir(string name) { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), name); }
 
+        // Another app could use those names too, and this moves and deletes what it finds. So the
+        // folder has to have our marker, or a .NET program of that name with a settings file beside it.
+        internal static bool IsOurLegacyInstall(string dir, string oldName)
+        {
+            if (!Directory.Exists(dir)) return false;
+            if (File.Exists(Path.Combine(dir, "moved-to-clawdock")) || File.Exists(Path.Combine(dir, "moved-to-claudenotch"))) return true;
+            string exe = Path.Combine(dir, oldName + ".exe");
+            if (!File.Exists(exe) || !File.Exists(Path.Combine(dir, "settings.json"))) return false;
+            try { return System.Reflection.AssemblyName.GetAssemblyName(exe).Name == oldName; }
+            catch { return false; } // not a .NET program
+        }
+
         public static void MigrateLegacy()
         {
             MigrateFrom("ClaudeNotch", "Claude Notch.lnk");
@@ -138,7 +177,7 @@ namespace Clawdock
             string dir = LegacyDir(oldName);
             try
             {
-                if (!Directory.Exists(dir)) return;
+                if (!IsOurLegacyInstall(dir, oldName)) return;
                 string marker = Path.Combine(dir, "moved-to-clawdock");
                 string markerBefore = Path.Combine(dir, "moved-to-claudenotch");
                 if (File.Exists(markerBefore) && !File.Exists(marker)) marker = markerBefore;
@@ -148,7 +187,7 @@ namespace Clawdock
                     return;
                 }
                 foreach (var p in Process.GetProcessesByName(oldName))
-                    try { p.Kill(); p.WaitForExit(2000); } catch { }
+                    try { if (string.Equals(p.MainModule.FileName, Path.Combine(dir, oldName + ".exe"), StringComparison.OrdinalIgnoreCase)) { p.Kill(); p.WaitForExit(2000); } } catch { }
                 Directory.CreateDirectory(Settings.DataDir);
                 try { File.Delete(Path.Combine(Settings.DataDir, "moved-to-wrenlet")); } catch { }
                 foreach (string entry in Directory.GetFileSystemEntries(dir))
@@ -249,6 +288,7 @@ namespace Clawdock
             {
                 foreach (string old in Directory.GetFiles(Settings.DataDir, Path.GetFileName(InstalledExe) + ".old-*"))
                     try { File.Delete(old); } catch { }
+                try { File.Delete(PreviousExe); } catch { }
             }
             catch { }
         }

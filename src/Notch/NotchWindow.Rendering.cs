@@ -120,7 +120,8 @@ namespace Clawdock
             }
             micGlyph.Text = s.Muted ? "" : ""; // MicOff / Microphone
             micButton.Background = s.Muted ? Theme.Clay : Theme.Chip;
-            closeButton.ToolTip = s.Kind == "voice" ? "End voice and hide" : quick ? "Stop and hide" : "Hide for now";
+            closeButton.ToolTip = s.Kind == "voice" ? "End voice and hide" : quick ? "Stop and hide" : s.Kind == "alert" || s.Kind == "question" ? "Close this" : "Hide for now";
+            AutomationProperties.SetName(closeButton, s.Kind == "alert" || s.Kind == "question" ? "Close" : "Hide");
             endVoiceItem.Visibility = s.Kind == "voice" ? Visibility.Visible : Visibility.Collapsed;
             UpdateActionsText();
             if (s.Kind == "voice" || listening || speakingBars) TickVoice();

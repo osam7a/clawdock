@@ -22,6 +22,19 @@ namespace Clawdock.Tests
                 if (p.CanRead && p.CanWrite) Check.Equal(p.GetValue(d, null), p.GetValue(s, null), p.Name);
         }
 
+        public static void Shortcut_choices_from_earlier_versions_are_moved()
+        {
+            Check.Equal("voice", Fixed(x => x.VoiceMode = "voice-or-type").VoiceMode);
+            Check.Equal("prompt", Fixed(x => x.VoiceMode = "type").VoiceMode);
+            Check.Equal("quick", Fixed(x => x.VoiceMode = "nonsense").VoiceMode);
+        }
+
+        public static void Quick_prompt_uses_the_quick_session_and_Claude_voice_does_not()
+        {
+            Check.That(Fixed(x => x.VoiceMode = "prompt").UsesQuickSession, "prompt");
+            Check.That(!Fixed(x => x.VoiceMode = "voice").UsesQuickSession, "voice");
+        }
+
         public static void Unknown_choices_fall_back()
         {
             var s = Fixed(x => { x.Style = "huge"; x.Edge = "middle"; x.QuickAccess = "everything"; x.Shortcut = null; x.QuickTts = ""; });

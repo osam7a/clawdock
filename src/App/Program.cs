@@ -17,6 +17,7 @@ namespace Clawdock
         [STAThread]
         static void Main(string[] args)
         {
+            AppDomain.CurrentDomain.UnhandledException += (s, e) => Log.Write("Crashed: " + e.ExceptionObject);
             string mode = args.Length > 0 ? args[0].ToLowerInvariant() : "";
             if (mode == "--hook") { HookServer.RunHookClient(false); return; }
             if (mode == "--voice-hook") { HookServer.RunHookClient(true); return; }
@@ -34,7 +35,7 @@ namespace Clawdock
 
             if (mode != "--here" && mode != "--settings" && !Installer.IsInstalledCopy)
             {
-                if (!Installer.InstallAndLaunch(settings) && mode != "--update") // an update just tries again later
+                if (!Installer.InstallAndLaunch(settings, mode == "--update") && mode != "--update") // an update just tries again later
                     MessageBox.Show("Clawdock couldn't install itself. See " + Log.FilePath, "Clawdock", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }

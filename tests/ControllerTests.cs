@@ -4,6 +4,25 @@ namespace Clawdock.Tests
 {
     static class ControllerTests
     {
+        public static void The_x_on_a_request_or_question_closes_only_that()
+        {
+            Check.That(Controller.XClosesOnlyThat("alert", false, false), "a permission request");
+            Check.That(Controller.XClosesOnlyThat("question", false, false), "a question");
+            Check.That(Controller.XClosesOnlyThat("alert", true, false), "a session's request over quick voice");
+            Check.That(!Controller.XClosesOnlyThat("alert", true, true), "quick voice's own request stops it");
+            Check.That(!Controller.XClosesOnlyThat("session", false, false), "a session's card hides the notch");
+            Check.That(!Controller.XClosesOnlyThat("quick", true, false), "quick voice stops");
+        }
+
+        public static void A_maximized_window_isnt_fullscreen_even_with_the_taskbar_hidden()
+        {
+            Check.That(!ClaudeWatcher.CoversMonitor(-8, -8, 1928, 1088, 0, 0, 1920, 1080, true), "maximized, hanging over the edges");
+            Check.That(ClaudeWatcher.CoversMonitor(0, 0, 1920, 1080, 0, 0, 1920, 1080, true), "maximized, but fits exactly");
+            Check.That(ClaudeWatcher.CoversMonitor(0, 0, 1920, 1080, 0, 0, 1920, 1080, false), "fullscreen");
+            Check.That(ClaudeWatcher.CoversMonitor(-1, -1, 1921, 1081, 0, 0, 1920, 1080, false), "a game a little past the edges");
+            Check.That(!ClaudeWatcher.CoversMonitor(100, 100, 900, 700, 0, 0, 1920, 1080, false), "an ordinary window");
+        }
+
         // ---- the one-line summary on the card -------------------------------
 
         public static void Summary_prefers_the_command_then_file_then_url()

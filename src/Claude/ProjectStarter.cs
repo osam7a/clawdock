@@ -61,9 +61,20 @@ namespace Clawdock
                 if (exe == null) { Log.Write("New project: Claude Code wasn't found"); return null; }
                 if (!IsFree(folder)) { Log.Write("New project: the folder isn't empty"); return null; }
                 Directory.CreateDirectory(folder);
+                string made = RunSetup(exe, folder, name, model == "haiku" ? HaikuModel : model);
+                // That model name won't last forever, and the alias may still work when it's gone.
+                return made == null && model == "haiku" ? RunSetup(exe, folder, name, model) : made;
+            }
+            catch (Exception e) { Log.Write("New project: " + e.Message); return null; }
+        }
+
+        static string RunSetup(string exe, string folder, string name, string model)
+        {
+            try
+            {
                 string id = Guid.NewGuid().ToString();
                 var args = new List<string> { "-p", "--session-id", id, "-n", name, "--tools", "", "--strict-mcp-config" };
-                if (model != "") args.AddRange(new[] { "--model", model == "haiku" ? HaikuModel : model });
+                if (model != "") args.AddRange(new[] { "--model", model });
                 var psi = new ProcessStartInfo(exe, QuickVoice.JoinArgs(args))
                 {
                     UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = folder,

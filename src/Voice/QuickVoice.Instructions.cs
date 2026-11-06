@@ -33,11 +33,7 @@ namespace Clawdock
             {
                 if (File.Exists(SkillFile))
                 {
-                    string old = File.ReadAllText(SkillFile, Encoding.UTF8).Replace("\r\n", "\n");
-                    string hash;
-                    using (var sha = System.Security.Cryptography.SHA256.Create())
-                        hash = BitConverter.ToString(sha.ComputeHash(new UTF8Encoding(false).GetBytes(old))).Replace("-", "").ToLowerInvariant();
-                    if (Array.IndexOf(OldDefaultSkills, hash) < 0) return;
+                    if (Array.IndexOf(OldDefaultSkills, SkillHash(File.ReadAllText(SkillFile, Encoding.UTF8))) < 0) return;
                 }
                 Directory.CreateDirectory(Path.GetDirectoryName(SkillFile));
                 File.WriteAllText(SkillFile, DefaultSkill, new UTF8Encoding(false));
@@ -45,7 +41,33 @@ namespace Clawdock
             catch (Exception e) { Log.Write("Quick voice: couldn't write " + SkillFile + ": " + e.Message); }
         }
 
-        static string VoiceInstructions(bool full)
+        static string SkillHash(string text)
+        {
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+                return BitConverter.ToString(sha.ComputeHash(new UTF8Encoding(false).GetBytes(text.Replace("\r\n", "\n")))).Replace("-", "").ToLowerInvariant();
+        }
+
+        // One of the versions this app wrote, never changed since.
+        internal static bool SkillIsUnedited(string text)
+        {
+            string hash = SkillHash(text);
+            return hash == SkillHash(DefaultSkill) || Array.IndexOf(OldDefaultSkills, hash) >= 0;
+        }
+
+        // On uninstalling: the skill goes, unless you've made it your own.
+        public static void RemoveSkill()
+        {
+            try
+            {
+                if (!File.Exists(SkillFile) || !SkillIsUnedited(File.ReadAllText(SkillFile, Encoding.UTF8))) return;
+                File.Delete(SkillFile);
+                string dir = Path.GetDirectoryName(SkillFile);
+                if (Directory.GetFileSystemEntries(dir).Length == 0) Directory.Delete(dir);
+            }
+            catch (Exception e) { Log.Write("Couldn't remove " + SkillFile + ": " + e.Message); }
+        }
+
+        static string VoiceInstructions(bool full, bool screen)
         {
             EnsureSkill();
             string text = DefaultSkill;
@@ -54,7 +76,7 @@ namespace Clawdock
             var m = Regex.Match(text, @"^\s*---[\s\S]*?\n---\s*\n");
             if (m.Success) text = text.Substring(m.Length);
             return "You are answering by voice, through Clawdock. Your reply is read aloud and shown on a panel at the edge of the screen. Today is "
-                + DateTime.Now.ToString("dddd d MMMM yyyy", CultureInfo.InvariantCulture) + ".\n\n" + CardFormat + "\n\n" + FollowUps + "\n\n" + OtherSessions + (full ? ManualSkills() : "") + "\n\n" + text.Trim();
+                + DateTime.Now.ToString("dddd d MMMM yyyy", CultureInfo.InvariantCulture) + ".\n\n" + CardFormat + "\n\n" + Formatting + "\n\n" + FollowUps + "\n\n" + OtherSessions + "\n\n" + (screen ? ScreenInstructions : NoScreenInstructions) + (full ? ManualSkills() : "") + "\n\n" + text.Trim();
         }
 
         // A resumed conversation (VOICE_CHATS) keeps the system prompt it was started with, so new
@@ -64,13 +86,17 @@ namespace Clawdock
 
         string Reminder()
         {
-            if (instructionsSent) return settings.QuickAccess != "web" && ManualSkills() != "" ? CardReminder.Replace("</system-reminder>", " If this falls under one of the skills listed under Skills you load yourself, read it and follow it.</system-reminder>") : CardReminder;
+            if (instructionsSent)
+            {
+                string reminder = settings.QuickAccess != "web" && ManualSkills() != "" ? CardReminder.Replace("</system-reminder>", " If this falls under one of the skills listed under Skills you load yourself, read it and follow it.</system-reminder>") : CardReminder;
+                return settings.QuickSeeScreen ? reminder.Replace("</system-reminder>", " " + ScreenReminder + "</system-reminder>") : reminder;
+            }
             instructionsSent = true;
             return "<system-reminder>Clawdock's current instructions for this conversation. They replace any earlier ones.\n\n"
-                + VoiceInstructions(settings.QuickAccess != "web") + "</system-reminder>";
+                + VoiceInstructions(settings.QuickAccess != "web", settings.QuickSeeScreen) + "</system-reminder>";
         }
 
-        const string TypedReminder = "<system-reminder>The user typed this one and your reply will be read on screen, not spoken: answer as fully as the question needs. It's still plain text, so no markdown, but full https:// addresses show as links they can click. A question at the end doesn't open the microphone this time.</system-reminder>";
+        const string TypedReminder = "<system-reminder>The user typed this one and your reply will be read on screen, not spoken: answer as fully as the question needs. Use markdown where it helps, and full https:// addresses show as links they can click. A question at the end doesn't open the microphone this time.</system-reminder>";
 
         const string OtherSessions =
 @"## The user's other Claude sessions
@@ -111,6 +137,13 @@ fable, which spends their usage credits, or max. If they didn't give a name and 
 shows the project with Allow and Deny, and nothing is made without Allow, so say in a few words that you need their OK on the notch, and
 don't ask for it as a question. You'll be told what came of it at the next question. For a project that already has
 a running session, use the session instructions above instead.";
+
+        const string Formatting =
+@"## Formatting
+The panel shows markdown properly: **bold**, *italic*, ~~strikethrough~~, `code`, lists, headings, quotes, code blocks and tables.
+None of the marks are read aloud, and neither are code blocks or tables. This replaces the voice-replies rule against markdown.
+A spoken reply still has to sound natural read straight through, so use them sparingly there: bold for the thing that matters, a
+list when there really are several items. Don't let a list or a table carry something the spoken words need to say.";
 
         const string FollowUps =
 @"## Follow-ups

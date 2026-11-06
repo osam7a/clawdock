@@ -100,12 +100,23 @@ namespace Clawdock
             get
             {
                 string heard = State == Phase.Listening ? (Heard + " " + Partial).Trim() : Heard;
-                return new QuickTurn { Heard = heard, Text = Display(Answer), Card = ParseCard(Answer), Notes = new List<string>(turnNotes) };
+                return new QuickTurn { Heard = heard, Text = ForScreen(Answer), Card = ParseCard(Answer), Notes = new List<string>(turnNotes) };
             }
         }
 
         // Claude is using this, or you're talking to it, rather than an answer just sitting there.
         public bool InUse { get { return Speaking || State == Phase.Listening || State == Phase.Thinking || State == Phase.Answering; } }
+
+        // The answer's time on the panel is up: a small bar until you use it again, or it times out.
+        bool shrunk;
+        public bool Shrunk { get { return shrunk && State == Phase.Done && !Typing; } }
+
+        public void Unshrink()
+        {
+            shrunk = false;
+            FinishedAt = DateTime.Now;
+            Raise();
+        }
 
         List<string> turnNotes = new List<string>();
 
@@ -140,11 +151,66 @@ namespace Clawdock
                     return true;
             }
             if (!tool.StartsWith("mcp__", StringComparison.Ordinal)) return false;
-            string action = tool.Substring(tool.LastIndexOf("__", StringComparison.Ordinal) + 2).ToLowerInvariant();
-            foreach (string verb in new[] { "get", "list", "search", "read", "query", "fetch", "find", "describe", "lookup", "show" })
-                if (action.StartsWith(verb)) return true;
-            return false;
+            // By the words in its name, so get_or_create and fetch_and_delete still ask.
+            string action = tool.Substring(tool.LastIndexOf("__", StringComparison.Ordinal) + 2);
+            // Looking at the screen or through a camera is never just looking something up.
+            if (Regex.IsMatch(tool, "screen|computer|capture|camera", RegexOptions.IgnoreCase)) return false;
+            var words = Regex.Split(action, @"[_\-]+|(?<=[a-z0-9])(?=[A-Z])");
+            if (Array.IndexOf(LookUpVerbs, words[0].ToLowerInvariant()) < 0) return false;
+            foreach (string word in words)
+                if (Array.IndexOf(ActingWords, word.ToLowerInvariant()) >= 0) return false;
+            return true;
         }
+
+        // What goes through the notch in Auto mode. Everything else is left to Claude Code's checks.
+        internal const string AutoAsksFor = "WebFetch|Bash|PowerShell|.*([Ss]creen|[Cc]omputer|[Cc]apture|[Cc]amera).*";
+
+        static readonly string[] LookUpVerbs = { "get", "list", "search", "read", "query", "fetch", "find", "describe", "lookup", "show" };
+        static readonly string[] ActingWords =
+        {
+            "create", "delete", "update", "send", "write", "remove", "set", "post", "publish", "archive", "trash", "merge", "add", "mark", "move",
+            "edit", "modify", "rename", "cancel", "approve", "reject", "submit", "upload", "execute", "run", "apply", "pay", "buy", "share", "invite",
+        };
+
+        // What goes ahead without asking. A web page's text could tell Claude to send something
+        // it has read to an address of its choosing. So once it has seen anything private in this
+        // conversation, each request to an address waits for Allow, and so do files that hold keys.
+        public static bool AutoApproves(string tool, Dictionary<string, object> input, bool privateSeen)
+        {
+            if (!SafeTool(tool)) return false;
+            if (tool == "WebFetch") return !privateSeen;
+            if (tool == "Read" || tool == "Glob" || tool == "Grep" || tool == "LS")
+            {
+                foreach (string key in new[] { "file_path", "path", "pattern", "glob" })
+                    if (SensitivePath(Json.Str(input, key))) return false;
+                return true;
+            }
+            if (privateSeen && tool.StartsWith("mcp__", StringComparison.Ordinal) && input != null)
+                foreach (object value in input.Values)
+                    if (value is string && Regex.IsMatch((string)value, @"^\s*https?://", RegexOptions.IgnoreCase)) return false;
+            return true;
+        }
+
+        static readonly Regex Sensitive = new Regex(
+            @"(^|[\\/])\.(ssh|aws|gnupg|azure|kube|docker)([\\/]|$)|(^|[\\/*])\.env(\.[^\\/]*)?$|\.credentials|\.git-credentials|\.netrc|\.npmrc|\.pypirc|(^|[\\/])credentials(\.[a-z]+)?$|(^|[\\/])id_(rsa|ed25519|ecdsa|dsa)|\.(pem|pfx|p12|key|kdbx)$|[\\/](Login Data|Cookies)$",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        internal static bool SensitivePath(string path) { return !string.IsNullOrEmpty(path) && Sensitive.IsMatch(path); }
+
+        // Using this tool brings something private into the conversation. Web results aren't private.
+        internal static bool TouchesPrivateData(string tool)
+        {
+            switch (tool)
+            {
+                case "WebSearch": case "web_search": case "WebFetch": case "web_fetch": case "ToolSearch": case "Skill":
+                case "TodoWrite": case "TaskCreate": case "TaskUpdate": case "TaskList": case "TaskGet":
+                    return false;
+            }
+            return !string.IsNullOrEmpty(tool);
+        }
+
+        volatile bool privateSeen; // set on the reader thread
+        public bool PrivateSeen { get { return privateSeen; } }
 
         // A tool is waiting for Allow / Deny on the notch.
         public void ApprovalNeeded()
@@ -174,7 +240,7 @@ namespace Clawdock
         void SaveTurn(bool cut)
         {
             if (Heard == "" || (Answer == "" && turnNotes.Count == 0)) return;
-            history.Add(new QuickTurn { Heard = Heard, Text = Display(Answer), Card = ParseCard(Answer), Cut = cut, Notes = turnNotes });
+            history.Add(new QuickTurn { Heard = Heard, Text = ForScreen(Answer), Card = ParseCard(Answer), Cut = cut, Notes = turnNotes });
             turnNotes = new List<string>();
             if (history.Count > 200) history.RemoveAt(0);
             Heard = Answer = "";

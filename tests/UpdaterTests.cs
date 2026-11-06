@@ -15,6 +15,41 @@ namespace Clawdock.Tests
 
         static Updater.Release Parse(string json) { return Updater.ParseRelease(json.Replace('\'', '"')); }
 
+        public static void A_version_that_was_undone_is_skipped()
+        {
+            Check.That(Updater.IsSkipped("v0.6.0", "0.6.0"), "the same one");
+            Check.That(!Updater.IsSkipped("v0.6.1", "0.6.0"), "a newer one");
+            Check.That(!Updater.IsSkipped("v0.6.0", ""), "nothing undone");
+        }
+
+        public static void Only_a_folder_of_ours_counts_as_an_old_install()
+        {
+            string dir = Path.Combine(Path.GetTempPath(), "clawdock-test-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                Check.That(!Installer.IsOurLegacyInstall(Path.Combine(dir, "missing"), "Wrenlet"), "no folder");
+                Check.That(!Installer.IsOurLegacyInstall(dir, "Wrenlet"), "someone else's empty folder");
+                File.WriteAllText(Path.Combine(dir, "Wrenlet.exe"), "not a .NET program");
+                File.WriteAllText(Path.Combine(dir, "settings.json"), "{}");
+                Check.That(!Installer.IsOurLegacyInstall(dir, "Wrenlet"), "another app with that name");
+                File.WriteAllText(Path.Combine(dir, "moved-to-clawdock"), "");
+                Check.That(Installer.IsOurLegacyInstall(dir, "Wrenlet"), "our marker");
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        public static void A_pipe_you_made_is_yours()
+        {
+            string name = "clawdock-test-" + Guid.NewGuid().ToString("N");
+            using (var server = new System.IO.Pipes.NamedPipeServerStream(name))
+            using (var client = new System.IO.Pipes.NamedPipeClientStream(".", name, System.IO.Pipes.PipeDirection.InOut))
+            {
+                client.Connect(2000);
+                Check.That(HookServer.OwnedByCurrentUser(client), "owned by this user");
+            }
+        }
+
         public static void Only_a_higher_version_is_newer()
         {
             var now = new Version(0, 3, 0, 0);

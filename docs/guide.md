@@ -113,9 +113,9 @@ default. What it does depends on **Voice and prompts** in the settings:
 
 | Mode | What the shortcut does |
 | --- | --- |
-| Quick voice | Push to talk: see below. Double-press it to type instead. |
-| Claude voice | Starts a Claude voice conversation in the open chat and minimizes Claude, so you talk through the notch, with a timer, a mute button, and live bars. |
-| Quick entry | Opens the Claude app's own quick entry (it presses Ctrl+Alt+Space). |
+| Quick Voice | Push to talk: see below. Double-press it to type instead. |
+| Quick Prompt | Opens the text box on the notch, in the same conversation as Quick Voice. Answers aren't read aloud. Press it again to close the box. |
+| Claude Voice | Starts a Claude voice conversation in the open chat and minimizes Claude, so you talk through the notch, with a timer, a mute button, and live bars. Without a microphone it opens the Claude app's own quick entry instead. |
 
 ### Quick voice
 
@@ -170,6 +170,13 @@ finds nothing.
 Claude sends a card as `<card>{json}</card>` before the spoken answer. To see them, run
 `Clawdock.exe --demo cards`, or `--demo quick` for a whole conversation.
 
+**Formatting.** Answers can use bold, italic, strikethrough, inline code, lists, headings, quotes, code
+blocks and tables. The marks are never read aloud, and neither are code blocks or tables. Cards stay as they are.
+
+**After an answer.** An answer stays on the panel for 20 seconds after it's read, or while you hover
+over it, then shrinks to the small bar. The bar steps aside for sessions, questions and fullscreen apps. Click it
+to bring the conversation back, or close it with its ×. It goes away by itself after 15 minutes unused.
+
 **Minimized.** The − button shrinks quick voice to a small bar that stays up, with bars for your
 voice and for the answer, and the answer's key figure. The shortcut works as usual, and clicking the
 bar brings the conversation back. The bar goes away with its × or after 15 minutes unused.
@@ -199,6 +206,19 @@ or from the settings, checked against its SHA-256. It
 session. Then anything beyond looking things up (sending, creating, running commands) waits for
 **Allow** on the notch. Skills marked `disable-model-invocation` are listed for Claude with their
 paths, so it reads one when your question falls under it or you name it.
+
+In **Auto mode**, Claude Code's safety checks decide what runs, except that shell commands and any tool that can see your screen or camera always wait for **Allow**. Read a command before allowing it, because it can do anything you can, including take a screenshot.
+
+In every mode, once Claude has read a file, a session or your screen in a conversation, each web page it wants
+to fetch waits for **Allow** on the notch, because a page's text could try to talk it into sending that data
+somewhere. See [SECURITY.md](../SECURITY.md#web-pages-and-private-data).
+
+**Seeing your screen.** Clawdock takes no screenshot until you turn on **Let Claude see my screen when it needs to**, and Claude is told not to look while it's off. That instruction isn't a hard limit, which is why commands ask first in every mode that has them. Once it's on, when
+a question can't be answered without it ("what's the answer to this question?"), Claude asks for a
+screenshot of the screen you're on and answers from that. Questions that don't need it never take one.
+The notch says when it's looking, and notes it in the chat. Screenshots aren't saved by Clawdock, but
+they do go to Anthropic through Claude Code, and with *One chat, VOICE_CHATS* they stay in your Claude
+Code history. Whatever is on that screen goes with it, so turn this off around anything private.
 
 **Answer style.** Answers follow the `voice-replies` skill
 (`~/.claude/skills/voice-replies/SKILL.md`): short, plain spoken sentences with no markdown or
@@ -231,7 +251,7 @@ keeps everything in your Claude Code history and picks it up again each time.
 ### Staying out of the way
 
 The notch hides while you're looking at Claude (the app, or the terminal running the session) and
-over fullscreen apps. Its **×** hides it until you go back to Claude, or for 15 minutes or an hour.
+over fullscreen apps. Its **×** hides it until you go back to Claude, or for 15 minutes or an hour. On a permission request or a question, **×** closes only that, nothing is allowed or denied, and your sessions stay on the notch. To hide the notch from there, right-click it and choose **Hide for now**.
 
 **Esc** closes what just came up, one at a time. A permission request or a question goes back to
 Claude's own prompt, with nothing allowed or denied. Quick voice has no prompt, so there it's a no,
@@ -264,7 +284,7 @@ The tray icon has Settings, Type to Claude, Repair Claude Code hooks, and Quit.
 | --- | --- |
 | General | Start with Windows. Answer permission requests from the notch. Show Claude's questions with their choices. Keep the hooks installed (repaired automatically every 5 minutes if something removes them). |
 | Shortcut | Copilot key, your own key combination, or none. |
-| Voice and prompts | Quick voice, Claude voice (with Claude's quick entry as the fallback without a mic), or always Claude's quick entry. Quick voice: speech recognition, what it can use, history, model, reading answers aloud, listening for your reply, the reading voice and its speed, and the answer style. |
+| Voice and prompts | Quick Voice, Quick Prompt, or Claude Voice (with Claude's quick entry as the fallback without a mic). Quick voice: speech recognition, what it can use, history, model, reading answers aloud, listening for your reply, the reading voice and its speed, and the answer style. |
 | Notch | Style, size when collapsed, size when open, screen edge, display, position along the edge, whether to list sessions on hover. |
 | When it shows | Only when something's going on (or Claude is minimized), whenever you're away from Claude, or only for permission requests and voice. How long × hides it. How long "Done" stays. Whether to show over fullscreen apps. |
 
@@ -279,6 +299,8 @@ Clawdock has no account, server, or telemetry. It talks to other services only i
   about your sessions, that includes parts of their transcripts: recent requests, replies, and tool
   descriptions. Those snapshots are kept in `%LOCALAPPDATA%\Clawdock\voice` until the next question, and digests of each
   session's requests and replies stay there until you uninstall.
+- **Your screen.** If you turn on **Let Claude see my screen when it needs to**, a screenshot of the screen
+  you're on goes to Claude through Claude Code when a question needs one.
 - **Downloads.** On first run it downloads the speech recognition model and the natural voice from
   GitHub and Hugging Face, about 160 MB. Other models and voices are downloaded when you choose them.
 - **Updates.** It asks GitHub for the latest release every 6 hours and downloads it if it's newer,
@@ -286,6 +308,19 @@ Clawdock has no account, server, or telemetry. It talks to other services only i
 - **ElevenLabs.** Answers are sent there only if you choose that voice and add your key.
 - **Windows speech.** Its online engine sends your voice to Microsoft if you've turned it on in
   Windows and picked the Windows engine.
+
+## What a Claude update can break
+
+Clawdock has no official API for some of what it does, so a new version of the Claude app or Claude Code can
+stop these from working until Clawdock catches up:
+
+- **Button labels.** Pressing Claude's buttons, starting voice and setting Auto mode go by the labels on screen, in
+  English. If it can't find one, it usually opens Claude for you or puts your message on the clipboard. Ending voice is the exception: it tries a list of likely names, including Cancel and Stop.
+- **Tool and transcript names.** Questions and task progress in the Claude app come from its own tool names and
+  transcript files. If those change, the notch shows less, and sessions themselves aren't affected.
+- **Model names.** New projects on Haiku ask for a specific model first, then fall back to the `haiku` alias.
+
+Set `CLAWDOCK_DEBUG=1` to record more about what it sees in `%LOCALAPPDATA%\Clawdock\Clawdock.log`.
 
 ## Uninstall
 

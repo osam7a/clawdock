@@ -47,7 +47,7 @@ namespace Clawdock
             hub.FinishedFor = TimeSpan.FromSeconds(settings.FinishedSeconds);
             notch = new NotchWindow(settings);
             tray = new TrayIcon();
-            quick = new QuickVoice(settings) { HookExe = HookExe, KeepOpen = () => notch.Hovering || quick.Typing, Persist = () => settings.QuickMinimized };
+            quick = new QuickVoice(settings) { HookExe = HookExe, KeepOpen = () => notch.Hovering || quick.Typing, Persist = () => settings.QuickMinimized, CaptureScreen = notch.CaptureFocusedScreen };
             quick.Changed += Refresh;
             Updater = new Updater(settings, CalmForUpdate);
             notch.ToggleMinimize += ToggleQuickMinimized;
@@ -61,6 +61,7 @@ namespace Clawdock
             notch.ToggleMute += watcher.ToggleMute;
             notch.EndVoice += watcher.EndVoice;
             notch.Dismiss += Dismiss;
+            notch.HideForNow += HideForNow;
             notch.OpenSettings += OpenSettings;
             notch.Quit += Quit;
 
@@ -107,7 +108,7 @@ namespace Clawdock
             watcher.Start();
             ShortcutError = Hotkeys.Apply(settings);
             if (ShortcutError != null) tray.Balloon(ShortcutError);
-            if (settings.VoiceMode == "quick") { QuickVoice.EnsureSkill(); SessionArchive.RefreshSoon(QuickVoice.Folder); }
+            if (settings.UsesQuickSession) { QuickVoice.EnsureSkill(); SessionArchive.RefreshSoon(QuickVoice.Folder); }
             KeepHooks();
             refreshTimer.Start();
             hookTimer.Start();
@@ -157,7 +158,7 @@ namespace Clawdock
             if (!settings.ApproveFromNotch)
                 foreach (var p in pending.ToArray())
                     if (!QuickVoice.IsVoiceFolder(p.Cwd)) HandBack(p);
-            if (settings.VoiceMode == "quick") QuickVoice.EnsureSkill();
+            if (settings.UsesQuickSession) QuickVoice.EnsureSkill();
             if (settings.VoiceMode == "quick" && settings.QuickEngine == "local") MicRecorder.WarmUp();
             quick.SettingsChanged();
             Refresh();

@@ -115,7 +115,7 @@ namespace Clawdock
             string tool = Json.Str(d, "tool_name");
             // A saved quick voice chat opened in Claude asks in its own window.
             if (Json.Str(d, "hook_event_name") != "PreToolUse") { p.Respond(HookServer.NoDecision); return; }
-            if (QuickVoice.SafeTool(tool)) { p.Respond(HookServer.PreAllow); return; }
+            if (QuickVoice.AutoApproves(tool, Json.Obj(d, "tool_input"), quick.PrivateSeen)) { p.Respond(HookServer.PreAllow); return; }
             p.Detail = DescribeTool(tool, Json.Obj(d, "tool_input"));
             p.FullDetail = FullRequest(Json.Obj(d, "tool_input"), "");
             p.AllowReply = HookServer.PreAllow;
@@ -176,6 +176,7 @@ namespace Clawdock
         {
             p.Respond(p.DenyReply);
             pending.Remove(p);
+            Log.Write("Quick voice: " + p.Tool + " wasn't allowed (" + why + ")");
             quick.AddNote(why + ": " + p.Detail);
             if (p.Decided != null) p.Decided(false);
         }
@@ -184,7 +185,7 @@ namespace Clawdock
         {
             if (!pending.Contains(p)) return; // already handed back to Claude
             if (!allow && QuickVoice.IsVoiceFolder(p.Cwd)) { Decline(p, "Not allowed"); Refresh(); return; }
-            if (QuickVoice.IsVoiceFolder(p.Cwd)) quick.AddNote("Allowed: " + p.Detail);
+            if (QuickVoice.IsVoiceFolder(p.Cwd)) { Log.Write("Quick voice: you allowed " + p.Tool); quick.AddNote("Allowed: " + p.Detail); }
             p.Respond(allow ? p.AllowReply : p.DenyReply);
             pending.Remove(p);
             if (allow && p.Decided != null) p.Decided(true);

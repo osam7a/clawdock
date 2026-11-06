@@ -80,7 +80,8 @@ namespace Clawdock
                 try
                 {
                     var release = ParseRelease(Fetch(LatestUrl));
-                    if (release == null || !IsNewer(release.Tag, Current)) result = "Version " + Short(Current) + " is the latest.";
+                    // One that had to be undone is only tried again if you ask for it.
+                    if (release == null || !IsNewer(release.Tag, Current) || (!asked && IsSkipped(release.Tag, Installer.SkippedVersion))) result = "Version " + Short(Current) + " is the latest.";
                     else
                     {
                         exe = Download(release);
@@ -161,6 +162,12 @@ namespace Clawdock
             Version v = VersionOf(tag);
             if (v == null) return false;
             return new Version(v.Major, v.Minor, Math.Max(0, v.Build)) > new Version(current.Major, current.Minor, Math.Max(0, current.Build));
+        }
+
+        internal static bool IsSkipped(string tag, string skipped)
+        {
+            Version v = VersionOf(tag);
+            return v != null && skipped != "" && Short(v) == skipped;
         }
 
         static Version VersionOf(string tag)

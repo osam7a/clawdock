@@ -249,16 +249,16 @@ namespace Clawdock
 
             Page("voice", "Voice and prompts",
                 Card(
-                    Row("When I press the shortcut", VoiceLauncher.HasMicrophone() ? "A microphone is available." : "No microphone found right now, so voice choices open Claude's quick entry instead.",
-                        Combo(new[] { "quick", "Quick voice: answer on the notch", "voice-or-type", "Claude voice, or type without a mic", "voice", "Claude voice", "type", "Claude quick entry (Ctrl+Alt+Space)" }, s.VoiceMode, v => s.VoiceMode = v))),
-                Hint("Quick voice is push to talk: hold the shortcut while you speak (or press it and talk), and Claude's answer appears on the notch and is read aloud. Press again to cut it off. It runs Claude Code in the background, so you don't need the app open."),
+                    Row("When I press the shortcut", VoiceLauncher.HasMicrophone() ? "A microphone is available." : "No microphone found right now, so Quick Voice can't listen and Claude Voice opens Claude's quick entry instead.",
+                        Combo(new[] { "quick", "Quick Voice: answer on the notch", "prompt", "Quick Prompt: answer on the notch", "voice", "Claude Voice" }, s.VoiceMode, v => s.VoiceMode = v))),
+                Hint("Quick voice is push to talk: hold the shortcut while you speak (or press it and talk), and Claude's answer appears on the notch and is read aloud. Press again to cut it off. Quick Prompt opens a text box on the notch instead, and the answer isn't read aloud. Both run Claude Code in the background, so you don't need the app open."),
                 Section("Quick voice"),
                 Card(
                     Row("Speech recognition", "Built in runs Whisper on this PC: accurate, and nothing leaves your computer.",
                         Combo(new[] { "local", "Built in (Whisper)", "windows", "Windows speech recognition" }, s.QuickEngine, v => { s.QuickEngine = v; showEngineRows(); })),
                     localModelRow,
                     windowsSpeechRow,
-                    Row("What it can use", "With skills and connectors, anything beyond looking things up asks for your OK on the notch first. In Auto mode, Claude Code's safety checks decide instead, and it runs on Sonnet if Haiku is picked.",
+                    Row("What it can use", "With skills and connectors, anything beyond looking things up asks for your OK on the notch first. In Auto mode, Claude Code's safety checks decide instead, except that commands and anything that can see your screen still ask. It runs on Sonnet if Haiku is picked.",
                         Combo(new[] { "web", "Web search only (fastest)", "full", "Skills and connectors, ask me", "auto", "Skills and connectors, Auto mode" }, s.QuickAccess, v => s.QuickAccess = v)),
                     Row("New projects folder", "Ask quick voice to start a new project and it's made here, after you press Allow.", ProjectsFolderBox(s)),
                     Toggle("Start new projects in Auto mode", "Claude Code's safety checks decide what can run, rather than asking you each time. Otherwise they start in the Claude app's default mode.", s.NewProjectAuto, v => s.NewProjectAuto = v),
@@ -268,6 +268,7 @@ namespace Clawdock
                         Combo(new[] { "haiku", "Haiku", "sonnet", "Sonnet", "opus", "Opus" }, s.QuickModel, v => s.QuickModel = v)),
                     Toggle("Read answers aloud", "Otherwise answers only appear on the notch.", s.QuickSpeak, v => s.QuickSpeak = v),
                     Toggle("Listen for my reply", "When Claude ends on a question, the mic opens by itself once it's read. It closes again if you say nothing.", s.QuickFollowUp, v => s.QuickFollowUp = v),
+                    Toggle("Let Claude see my screen when it needs to", "For a question like \"what's the answer to this?\", Claude can ask for a screenshot of the screen you're on, sent to Anthropic through Claude Code. Each one is noted in the chat, and with VOICE_CHATS it stays in your Claude Code history. When this is off, Claude is told not to look. A command that you press Allow on can still do anything you can, so read it first.", s.QuickSeeScreen, v => s.QuickSeeScreen = v),
                     Row("Reading voice", "Natural runs on this PC, so nothing leaves it. ElevenLabs sounds the most human, in the cloud with your own account.",
                         Combo(new[] { "natural", "Natural (KittenTTS)", "elevenlabs", "ElevenLabs", "windows", "Windows voice" }, s.QuickTts, v =>
                         {

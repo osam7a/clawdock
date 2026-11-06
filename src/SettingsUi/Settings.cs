@@ -19,8 +19,12 @@ namespace Clawdock
         public int CustomKey { get; set; }            // virtual-key code
 
         // Voice and typed prompts
-        public string VoiceMode { get; set; }         // "voice-or-type" | "type" | "voice" | "quick" ("type": Claude's quick entry)
+        public string VoiceMode { get; set; }         // "quick" | "prompt" (both answered on the notch) | "voice" (Claude's own voice mode)
         public string NewChatLink { get; set; }
+
+        // The shortcut talks to the background Claude Code session, by voice or typed.
+        [ScriptIgnore]
+        public bool UsesQuickSession { get { return VoiceMode == "quick" || VoiceMode == "prompt"; } }
 
         // Quick voice: push to talk, answered by a Claude Code session on the notch
         public string QuickModel { get; set; }        // "haiku" | "sonnet" | "opus"
@@ -40,6 +44,7 @@ namespace Clawdock
         public string ElevenLabsVoiceName { get; set; }
         public int QuickNaturalVoice { get; set; }    // which natural voice, 0..7
         public bool QuickMinimized { get; set; }      // quick voice shows as a small bar
+        public bool QuickSeeScreen { get; set; }      // Claude can ask for a screenshot of the screen you're on. Off unless you turn it on.
 
         // Look and placement
         public string Style { get; set; }             // "classic" | "compact" | "line" | "dot"
@@ -115,7 +120,7 @@ namespace Clawdock
                     if (s != null) { s.Normalize(); return s; }
                 }
             }
-            catch { } // a broken file is replaced by defaults on the next save
+            catch (Exception e) { Log.Write("Settings couldn't be read, so using the defaults: " + e.Message); } // replaced on the next save
             return new Settings();
         }
 
@@ -134,7 +139,7 @@ namespace Clawdock
                 if (File.Exists(FilePath)) File.Replace(tmp, FilePath, null);
                 else File.Move(tmp, FilePath);
             }
-            catch { }
+            catch (Exception e) { Log.Write("Settings couldn't be saved: " + e.Message); }
         }
 
         public static bool Exists { get { return File.Exists(FilePath); } }
@@ -156,7 +161,10 @@ namespace Clawdock
         void Normalize()
         {
             Shortcut = OneOf(Shortcut, "copilot", "custom", "off");
-            VoiceMode = OneOf(VoiceMode, "voice-or-type", "type", "voice", "quick");
+            // Choices from earlier versions.
+            if (VoiceMode == "voice-or-type") VoiceMode = "voice";
+            if (VoiceMode == "type") VoiceMode = "prompt";
+            VoiceMode = OneOf(VoiceMode, "quick", "prompt", "voice");
             QuickModel = OneOf(QuickModel, "haiku", "sonnet", "opus");
             if (QuickVoiceName == null) QuickVoiceName = "";
             if (QuickRate < -5 || QuickRate > 5) QuickRate = 1;

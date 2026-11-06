@@ -5,6 +5,26 @@ namespace Clawdock.Tests
 {
     static class SessionBriefTests
     {
+        public static void Keys_are_hidden_from_the_digests()
+        {
+            foreach (string secret in new[] { "sk-ant-api03-abcdefghijklmnop", "ghp_abcdefghijklmnopqrstuvwxyz", "AKIAABCDEFGHIJKLMNOP", "xoxb-12345678901-abc", "github_pat_abcdefghijklmnopqrstuvwxyz" })
+            {
+                string text = SessionBrief.Short("use " + secret + " for it", 500);
+                Check.HasNot(text, secret);
+                Check.Has(text, "[hidden]");
+            }
+            Check.Equal("password: [hidden] ok", SessionBrief.Short("password: hunter2222 ok", 500));
+            Check.Equal("API_KEY=[hidden]", SessionBrief.Short("API_KEY=abcdef123456", 500));
+            Check.Equal("Authorization: Bearer [hidden]", SessionBrief.Short("Authorization: Bearer abcdef123456", 500));
+            Check.Equal("[hidden]", SessionBrief.Short("-----BEGIN RSA PRIVATE KEY-----\nabc\ndef\n-----END RSA PRIVATE KEY-----", 500));
+        }
+
+        public static void Ordinary_text_is_left_alone()
+        {
+            foreach (string text in new[] { "The token count was high", "Reset my password please", "ask-the-user-something-long", "see the secret garden" })
+                Check.Equal(text, SessionBrief.Short(text, 500));
+        }
+
         // Transcript lines, written with single quotes.
         static SessionBrief.Digest Read(int events, params string[] lines)
         {

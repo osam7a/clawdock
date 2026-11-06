@@ -60,6 +60,8 @@ namespace Clawdock
 
         public static bool Uninstall() { return Rewrite(null, false); }
 
+        public static void RemoveBackup() { try { File.Delete(BackupPath); } catch { } }
+
         // Claude Code writes this file too. Only replace it if it still holds what was read,
         // otherwise read it again and redo the change, so neither write is lost.
         static bool Rewrite(string exePath, bool add)

@@ -24,6 +24,7 @@ namespace Clawdock
             Answer = "";
             bool typed = typedTurn;
             typedTurn = false;
+            StartTurnForScreen(typed);
             ThinkingMood = MascotMood.Thinking;
             var live = Snapshot();
             string told = tellNext;
@@ -109,9 +110,10 @@ namespace Clawdock
         {
             lock (gate)
             {
-                string config = settings.QuickModel + "|" + settings.QuickAccess + "|" + settings.QuickHistory;
+                string config = settings.QuickModel + "|" + settings.QuickAccess + "|" + settings.QuickHistory + "|" + settings.QuickSeeScreen;
                 if (claude != null && !claude.HasExited && DateTime.Now - lastUsed < IdleExit && config == runningConfig) return;
                 KillClaude();
+                privateSeen = settings.QuickHistory == "history"; // a saved chat may already hold some
                 // A private conversation starts over, so what it said before is gone from the notch too.
                 if (settings.QuickHistory != "history" && runningConfig != null)
                     ui.BeginInvoke(new Action(() => { history.Clear(); Raise(); }));
@@ -130,20 +132,23 @@ namespace Clawdock
                 {
                     // Like a normal session: your settings, skills, plugins and connectors. Tools that
                     // act (not just look things up) wait for Allow on the notch.
-                    args.AddRange(new[] { "--setting-sources", "user", "--settings", ApprovalHookFile() });
+                    args.AddRange(new[] { "--setting-sources", "user", "--settings", ApprovalHookFile("*") });
                 }
                 else if (settings.QuickAccess == "auto")
                 {
-                    // The same, but Claude Code's safety checks decide. What they block doesn't run.
-                    args.AddRange(new[] { "--setting-sources", "user", "--permission-mode", "auto" });
+                    // The same, but Claude Code's safety checks decide. What they block doesn't run. Its
+                    // checks can let a command through that you'd want to know about (one took a
+                    // screenshot), so commands and anything that can see the screen still ask on the notch.
+                    args.AddRange(new[] { "--setting-sources", "user", "--permission-mode", "auto", "--settings", ApprovalHookFile(AutoAsksFor) });
                 }
                 else
                 {
                     args.AddRange(new[]
                     {
                         "--tools", "WebSearch,WebFetch,Read,Grep", // only in this folder, for the session files, so nothing to ask about
-                        "--allowedTools", "WebSearch,WebFetch,Read(./" + SessionBrief.FileName + "),Read(./session-*.md),Read(./" + SessionArchive.IndexFile + "),Read(./" + SessionArchive.DigestFolder + "/**)",
+                        "--allowedTools", "WebSearch,Read(./" + SessionBrief.FileName + "),Read(./session-*.md),Read(./" + SessionArchive.IndexFile + "),Read(./" + SessionArchive.DigestFolder + "/**)",
                         "--setting-sources", "",          // no hooks or plugins: it isn't one of your sessions
+                        "--settings", ApprovalHookFile("WebFetch"), // only this one, which runs nothing without the notch's OK
                         "--strict-mcp-config", "--disable-slash-commands",
                     });
                 }
@@ -155,12 +160,13 @@ namespace Clawdock
                     else
                     {
                         id = Guid.NewGuid().ToString();
-                        try { File.WriteAllText(HistoryIdFile, id); } catch { }
+                        try { File.WriteAllText(HistoryIdFile, id); }
+                        catch (Exception e) { Log.Write("Quick voice: couldn't save the chat's id: " + e.Message); }
                         args.AddRange(new[] { "--session-id", id, "-n", "VOICE_CHATS" });
                     }
                 }
                 else args.Add("--no-session-persistence");
-                args.AddRange(new[] { "--append-system-prompt", VoiceInstructions(settings.QuickAccess != "web") });
+                args.AddRange(new[] { "--append-system-prompt", VoiceInstructions(settings.QuickAccess != "web", settings.QuickSeeScreen) });
                 runningConfig = config;
                 var psi = new ProcessStartInfo(exe, JoinArgs(args))
                 {
@@ -198,14 +204,14 @@ namespace Clawdock
             catch { return null; }
         }
 
-        // A settings file adding one hook: before each tool runs, ask the notch.
-        string ApprovalHookFile()
+        // A settings file adding one hook: before these tools run, ask the notch.
+        string ApprovalHookFile(string matcher)
         {
             string exe = string.IsNullOrEmpty(HookExe) ? Installer.CurrentExe : HookExe;
             var hook = new Dictionary<string, object> { { "type", "command" }, { "command", "\"" + exe.Replace('\\', '/') + "\" --voice-hook" }, { "timeout", 600 } };
             var root = new Dictionary<string, object>
             {
-                { "hooks", new Dictionary<string, object> { { "PreToolUse", new List<object> { new Dictionary<string, object> { { "matcher", "*" }, { "hooks", new List<object> { hook } } } } } } },
+                { "hooks", new Dictionary<string, object> { { "PreToolUse", new List<object> { new Dictionary<string, object> { { "matcher", matcher }, { "hooks", new List<object> { hook } } } } } } },
             };
             string file = Path.Combine(Folder, "notch-approval.json");
             File.WriteAllText(file, Json.Write(root), new UTF8Encoding(false));
@@ -263,7 +269,9 @@ namespace Clawdock
                     string block = Json.Str(Json.Obj(ev, "content_block"), "type");
                     if (block == "tool_use" || block == "server_tool_use")
                     {
+                        toolsThisTurn = true;
                         string name = Json.Str(Json.Obj(ev, "content_block"), "name");
+                        if (TouchesPrivateData(name)) privateSeen = true; // before its hook can ask
                         ui.BeginInvoke(new Action(() => { ThinkingMood = SessionActivity.ForTool(name); OnStatus(name == "Read" && settings.QuickAccess == "web" ? "Checking your sessions…" : ToolStatus(name)); }));
                     }
                 }
@@ -323,12 +331,13 @@ namespace Clawdock
                 }
             }
             if (Answer == "" && text != "") Answer = text;
+            if (ScreenRequest.IsMatch(Answer) && LookAtScreen()) return;
             Feed();
             SpeakFinishedSentences(true);
             State = Phase.Done;
             Status = "";
             FinishedAt = DateTime.Now;
-            followUpDue = settings.QuickFollowUp && settings.QuickSpeak && !hushed && Display(Answer).TrimEnd('"', '\u201D', ' ').EndsWith("?");
+            followUpDue = settings.QuickFollowUp && settings.QuickSpeak && !hushed && Display(Answer).TrimEnd('"', '\u201D', ' ', '*', '_', '~').EndsWith("?");
             tick.Start();
             Raise();
             var ask = AskBlock.Match(Answer);
